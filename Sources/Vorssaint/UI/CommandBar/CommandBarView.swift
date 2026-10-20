@@ -595,6 +595,13 @@ struct CommandBarView: View {
                                 .fill(Color.primary.opacity(0.06))
                         )
                 }
+                if service.tabEnters(entry) {
+                    // On every row Tab steps into, selected or not, so it
+                    // is plain which rows have somewhere to go.
+                    Image(systemName: "arrow.right.to.line")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
                 Image(systemName: "return")
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.tertiary)

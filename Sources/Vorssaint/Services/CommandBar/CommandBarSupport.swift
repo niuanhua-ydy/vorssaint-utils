@@ -995,6 +995,35 @@ enum CommandBarLearning {
     }
 }
 
+/// What Tab does with the selected row. Tab steps into a row that leads
+/// somewhere, the way Return would: a category to browse, a number to type,
+/// a saved search waiting for its words. It never runs a row that acts on its
+/// own, asks for confirmation or sends the person off to Settings; there it
+/// completes the field, as it always did.
+enum CommandBarTabStep: Equatable {
+    /// Run the row: all it does is put something into the bar.
+    case enter
+    /// Ask for the row's number.
+    case askForNumber
+    /// The row's name and a space, ready for the words it reads.
+    case prefill(String)
+    /// The words already follow the name; there is nothing to step into.
+    case stay
+    case complete
+
+    static func step(title: String, query: String, takesArgument: Bool, keepsBarOpen: Bool,
+                     asksForNumber: Bool, confirms: Bool, hasTrouble: Bool) -> CommandBarTabStep {
+        guard !confirms, !hasTrouble else { return .complete }
+        if takesArgument {
+            return CommandBarLinks.trailingArgument(query: query, name: title) == nil
+                ? .prefill(title + " ") : .stay
+        }
+        if keepsBarOpen { return .enter }
+        if asksForNumber { return .askForNumber }
+        return .complete
+    }
+}
+
 enum CommandBarCompletion {
     static func completedQuery(current: String, title: String, matchTitle: String?) -> String {
         CommandBarSearch.emojiQuery(from: current) != nil

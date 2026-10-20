@@ -695,13 +695,23 @@ enum CommandBarCatalog {
                 run: { _ in openSettings(at: .cleaner) }))
         }
         if AppFeature.uninstaller.isAvailable {
+            // With the bar's own uninstall flow on, the tool's row opens the
+            // app list right here, like the browse row below; its Settings
+            // page moves to the row's actions.
+            let uninstallsHere = UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled)
             entries.append(CommandBarEntry(
                 id: "action.uninstaller",
                 title: s.uninstallerName,
                 subtitle: area(.uninstaller, under: s.uninstallerName),
                 icon: .symbol("trash"),
-                run: { _ in openSettings(at: .uninstaller) }))
-            if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
+                keepsBarOpen: uninstallsHere,
+                run: { _ in
+                    guard uninstallsHere else { return openSettings(at: .uninstaller) }
+                    let service = CommandBarService.shared
+                    service.query = ""
+                    service.setCategory(.uninstallApps)
+                }))
+            if uninstallsHere {
                 entries.append(CommandBarEntry(
                     id: "uninstall.browse",
                     title: s.uninstallerCommandBarBrowseTitle,

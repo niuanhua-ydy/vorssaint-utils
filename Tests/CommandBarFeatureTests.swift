@@ -2464,6 +2464,31 @@ enum CommandBarFeatureTests {
                 && editedCompletion == nil,
                "Tab remembers the fuzzy search unless the completed field is edited")
 
+        func tabStep(title: String = "Row", query: String = "ro", takesArgument: Bool = false,
+                     keepsBarOpen: Bool = false, asksForNumber: Bool = false,
+                     confirms: Bool = false, hasTrouble: Bool = false) -> CommandBarTabStep {
+            CommandBarTabStep.step(title: title, query: query, takesArgument: takesArgument,
+                                   keepsBarOpen: keepsBarOpen, asksForNumber: asksForNumber,
+                                   confirms: confirms, hasTrouble: hasTrouble)
+        }
+        suite.expect(tabStep(keepsBarOpen: true) == .enter,
+               "Tab steps into a category browse the way Return does")
+        suite.expect(tabStep(asksForNumber: true) == .askForNumber,
+               "Tab asks for the number of a command that takes one")
+        suite.expect(tabStep(title: "Google", query: "goo", takesArgument: true, keepsBarOpen: true)
+                    == .prefill("Google "),
+               "Tab readies a saved search for its words")
+        suite.expect(tabStep(title: "Google", query: "google swift", takesArgument: true, keepsBarOpen: true)
+                    == .stay,
+               "Tab leaves the words already typed after a saved search alone")
+        suite.expect(tabStep(keepsBarOpen: true, confirms: true) == .complete
+                && tabStep(asksForNumber: true, confirms: true) == .complete,
+               "Tab never steps into a row that asks for confirmation")
+        suite.expect(tabStep(keepsBarOpen: true, hasTrouble: true) == .complete,
+               "Tab never sends the person off to Settings or a permission prompt")
+        suite.expect(tabStep() == .complete,
+               "Tab still completes the field on a row that just runs")
+
         let learningDefaultsName = "com.vorssaint.tests.command-bar-learning"
         let learningDefaults = UserDefaults(suiteName: learningDefaultsName)!
         learningDefaults.removePersistentDomain(forName: learningDefaultsName)

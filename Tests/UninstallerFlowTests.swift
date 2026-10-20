@@ -345,8 +345,8 @@ enum UninstallerFlowTests {
             service.finishUninstallReview()
             suite.expect(service.cachedApps.map(\.url) == [a] && service.uninstallSelectionEntries.isEmpty,
                          "a confirmed removal disappears from the browse list and Finder shortcut")
-            suite.expect(Defaults.registeredDefaults[DefaultsKey.uninstallerCommandBarEnabled] as? Bool == false,
-                         "the integration starts off")
+            suite.expect(Defaults.registeredDefaults[DefaultsKey.uninstallerCommandBarEnabled] as? Bool == true,
+                         "the integration starts on in this build")
             suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.uninstallerCommandBarEnabled),
                          "backup includes the command-bar preference")
         } catch {

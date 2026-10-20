@@ -2018,6 +2018,35 @@ final class CommandBarService: ObservableObject {
         select(next < 0 ? next + rows.count : next)
     }
 
+    /// Tab steps into the selected row when it leads somewhere (see
+    /// `CommandBarTabStep`), and otherwise completes the field.
+    func tabSelected() {
+        guard case .search = mode, let entry = selectedEntry else { return }
+        switch tabStep(for: entry) {
+        case .enter: run(entry)
+        case .askForNumber: askForNumber(entry)
+        case .prefill(let text): prefill(text)
+        case .stay: break
+        case .complete: completeSelection()
+        }
+    }
+
+    /// Whether Tab steps into this row, for the ⇥ mark at the end of it.
+    func tabEnters(_ entry: CommandBarEntry) -> Bool {
+        guard case .search = mode else { return false }
+        switch tabStep(for: entry) {
+        case .enter, .askForNumber, .prefill: return true
+        case .stay, .complete: return false
+        }
+    }
+
+    private func tabStep(for entry: CommandBarEntry) -> CommandBarTabStep {
+        CommandBarTabStep.step(
+            title: entry.title, query: query, takesArgument: entry.takesArgument,
+            keepsBarOpen: entry.keepsBarOpen, asksForNumber: entry.numericRange != nil,
+            confirms: entry.confirmationPrompt != nil, hasTrouble: entry.trouble != nil)
+    }
+
     /// Tab reuses a calculator answer or completes the selected search result.
     func completeSelection() {
         guard case .search = mode, let entry = selectedEntry else { return }
@@ -2127,6 +2156,15 @@ final class CommandBarService: ObservableObject {
                     self?.openUninstaller(for: app.url)
                 })
             }
+        }
+        if entry.id == "action.uninstaller", entry.keepsBarOpen {
+            actions.append(RowAction(id: "openSettings",
+                                     title: bar.actionOpenSettings,
+                                     symbolName: "gearshape") { [weak self] in
+                self?.hide()
+                SettingsRouter.shared.request(FeatureSettingsDestination(.uninstaller))
+                appDelegate()?.openSettingsWindow()
+            })
         }
         if entry.canRevealInFinder {
             actions.append(RowAction(id: "reveal",
@@ -2738,14 +2776,18 @@ final class CommandBarService: ObservableObject {
             } else if entry.numericIsOptional {
                 finish(entry, value: nil)
             } else {
-                savedQuery = query
-                mode = .argument(entryID: entry.id)
-                query = ""
-                refreshPanelLayout()
+                askForNumber(entry)
             }
             return
         }
         finish(entry, value: nil)
+    }
+
+    private func askForNumber(_ entry: CommandBarEntry) {
+        savedQuery = query
+        mode = .argument(entryID: entry.id)
+        query = ""
+        refreshPanelLayout()
     }
 
     /// Esc in argument or confirm mode returns to the search as it was; in
@@ -3583,7 +3625,7 @@ final class CommandBarService: ObservableObject {
             case kVK_RightArrow:
                 return self.moveCategory(1) ? nil : event
             case kVK_Tab:
-                self.completeSelection()
+                self.tabSelected()
                 return nil
             default:
                 // ⌘1…⌘9 run by position; plain digits belong to the field.

@@ -1552,7 +1552,8 @@ enum Defaults {
         DefaultsKey.cleaningModeKeepScreenVisible: false,
         DefaultsKey.panelUtilityURLCleaner: true,
         DefaultsKey.panelUtilityUninstaller: true,
-        DefaultsKey.uninstallerCommandBarEnabled: false,
+        // On in this build: the Command Bar is where apps get uninstalled.
+        DefaultsKey.uninstallerCommandBarEnabled: true,
         DefaultsKey.killProcessCommandBarEnabled: true,
         DefaultsKey.killProcessGroupRelated: true,
         DefaultsKey.killProcessSortBy: "cpu",
