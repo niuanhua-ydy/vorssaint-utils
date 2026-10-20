@@ -37,7 +37,7 @@ struct OnboardingView: View {
             || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
         let features = selectionWasApplied
             ? Set(AppFeature.allCases.filter(\.isAvailable))
-            : FeaturePreset.essential.features.subtracting(AppFeature.excludedFromBuild)
+            : AppFeature.firstRunFeatures
         _selectedFeatures = State(initialValue: features)
         _selectedPreset = State(initialValue: selectionWasApplied || !FeaturePreset.offered.contains(.essential)
                                     ? nil : .essential)

@@ -1452,8 +1452,8 @@ enum FeatureCatalogTests {
             FeaturePreset.prepareFirstRunAvailability(in: firstRunDefaults)
             suite.expect(Set(AppFeature.allCases.filter {
                 firstRunDefaults.bool(forKey: $0.availabilityKey)
-            }) == FeaturePreset.essential.features.subtracting(AppFeature.excludedFromBuild),
-            "a clean install loads only the essential feature set this build offers before onboarding")
+            }) == AppFeature.firstRunFeatures,
+            "a clean install loads only the first-run set this build defines before onboarding")
 
             for feature in AppFeature.allCases {
                 firstRunDefaults.set(true, forKey: feature.availabilityKey)
@@ -1480,6 +1480,10 @@ enum FeatureCatalogTests {
                        && AppFeature.offeredFeatures(in: $0).allSatisfy { !$0.isExcludedFromBuild }
                },
                "an offered group lists only offered features, and at least one")
+        suite.expect(AppFeature.installedByDefaultInBuild.isDisjoint(with: AppFeature.excludedFromBuild)
+                && AppFeature.firstRunFeatures.isSuperset(of: AppFeature.installedByDefaultInBuild)
+                && AppFeature.firstRunFeatures.isDisjoint(with: AppFeature.excludedFromBuild),
+               "a clean install brings the build's own defaults and nothing it leaves out")
         suite.expect(FeaturePreset.offered.allSatisfy { $0.features.isDisjoint(with: AppFeature.excludedFromBuild) },
                "an offered preset installs nothing this build leaves out")
         for preset in FeaturePreset.allCases {

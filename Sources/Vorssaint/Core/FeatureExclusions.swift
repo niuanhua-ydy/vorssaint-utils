@@ -31,6 +31,17 @@ extension AppFeature {
 
     var isExcludedFromBuild: Bool { Self.excludedFromBuild.contains(self) }
 
+    /// Upstream opt-ins this build installs anyway: the Command Bar is where
+    /// they live here. Registered installed for a Mac that never chose, and
+    /// part of the first-run set; a later uninstall from the hub still holds.
+    static let installedByDefaultInBuild: Set<AppFeature> = [.killProcess, .portManager]
+
+    /// What a clean install starts with before onboarding, and what the
+    /// first-run picker shows selected.
+    static var firstRunFeatures: Set<AppFeature> {
+        FeaturePreset.essential.features.subtracting(excludedFromBuild).union(installedByDefaultInBuild)
+    }
+
     /// Every feature this build offers, in catalog order. Lists that show
     /// features someone could install read this instead of `allCases`; the
     /// catalog helpers stay whole, so their tests keep describing upstream.

@@ -1935,6 +1935,8 @@ enum Defaults {
         migrateNotchWatchAvailability(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
+        defaults.register(defaults: Dictionary(uniqueKeysWithValues:
+            AppFeature.installedByDefaultInBuild.map { ($0.availabilityKey, true) }))
         installCompanionForBetaCommandBar(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
