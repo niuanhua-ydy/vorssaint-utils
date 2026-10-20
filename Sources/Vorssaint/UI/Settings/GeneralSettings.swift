@@ -76,7 +76,7 @@ struct GeneralSettings: View {
             Divider()
             SettingsRow(symbol: "globe", title: l10n.s.languageLabel) {
                 Picker(l10n.s.languageLabel, selection: $l10n.language) {
-                    ForEach(AppLanguage.allCases) { language in
+                    ForEach(AppLanguage.offered) { language in
                         Text(language.displayName).tag(language)
                     }
                 }

@@ -117,9 +117,9 @@ final class L10n: ObservableObject {
     private init() {
         if let raw = UserDefaults.standard.string(forKey: DefaultsKey.language),
            let saved = AppLanguage(rawValue: raw) {
-            language = saved
+            language = saved.offeredFallback
         } else {
-            language = .systemDefault
+            language = AppLanguage.systemDefault.offeredFallback
         }
     }
 }

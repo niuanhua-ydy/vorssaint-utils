@@ -162,7 +162,7 @@ private struct WelcomeStep: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 Picker(l10n.s.obLanguageLabel, selection: $l10n.language) {
-                    ForEach(AppLanguage.allCases) { language in
+                    ForEach(AppLanguage.offered) { language in
                         Text(language.displayName).tag(language)
                     }
                 }
