@@ -354,8 +354,6 @@ enum NetworkFeatureTests {
                "monitor disk sampling slows down in menu-bar-only mode without exceeding DiskSampler.maxGap")
         suite.expect(MonitorSamplingPolicy.sampleStride(for: .peripheralBattery, intervalSeconds: 2, foreground: false) == 30,
                "monitor peripheral battery sampling is heavily throttled in menu-bar-only mode")
-        suite.expect(MonitorSamplingPolicy.sampleStride(for: .fanSpeed, intervalSeconds: 2, foreground: false) == 3,
-               "fan speed refreshes without waking the monitor every base tick")
         suite.expect(MonitorSamplingPolicy.sampleStride(for: .disk, intervalSeconds: 2, foreground: true) == 1,
                "monitor disk sampling stays live while the panel is open")
         suite.expect(MonitorSamplingPolicy.shouldSample(.disk, tick: 4, intervalSeconds: 2, foreground: false) == false,
@@ -375,8 +373,6 @@ enum NetworkFeatureTests {
                "monitor wakes every tick while an every-tick metric is on")
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.temperature], intervalSeconds: 2, foreground: false) == 8,
                "monitor with only temperature wakes once per temperature stride")
-        suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.fanSpeed], intervalSeconds: 2, foreground: false) == 3,
-               "monitor with only fan speed wakes once per fan stride")
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.peripheralBattery], intervalSeconds: 2, foreground: false) == 30,
                "monitor with only peripheral battery wakes once per minute")
         suite.expect(MonitorSamplingPolicy.wakeTicks(for: [.disk, .peripheralBattery], intervalSeconds: 2, foreground: false) == 5,
@@ -402,7 +398,7 @@ enum NetworkFeatureTests {
         // Exactness invariant: the cadence always divides every needed stride,
         // so grid-aligned ticks keep hitting each stride exactly on schedule.
         let wakeKinds: [MonitorSamplingKind] = [.disk, .power, .gpuUsage, .temperature,
-                                                .fanSpeed, .peripheralBattery, .connectedDevices]
+                                                .peripheralBattery, .connectedDevices]
         let cadence = MonitorSamplingPolicy.wakeTicks(for: wakeKinds, intervalSeconds: 2, foreground: false)
         suite.expect(wakeKinds.allSatisfy {
             MonitorSamplingPolicy.sampleStride(for: $0, intervalSeconds: 2, foreground: false) % cadence == 0

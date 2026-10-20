@@ -138,7 +138,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Odinštalovať Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint vymaže svoje povolenia, odstráni predvoľby, presunie sa do Koša a ukončí sa. Z aplikácie sa to už nedá vrátiť späť, ale ostane v Koši, kým ho nevyprázdnite.",
         advancedUninstallFailedTitle: "Odinštalovanie sa zastavilo",
-        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, otáčky ventilátora, akceleráciu myši alebo poradie plôch. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
+        advancedUninstallFailedBody: "Vorssaint nedokázal vrátiť systémové nastavenie, ktoré zmenil: spánok, akceleráciu myši alebo poradie plôch. Nič sa neodstránilo. Skúste to znova a potvrďte požiadavku na heslo, ak sa objaví.",
 
         launchAtLogin: "Spustiť po prihlásení",
         languageLabel: "Jazyk",

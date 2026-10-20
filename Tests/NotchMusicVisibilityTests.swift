@@ -20,7 +20,6 @@ enum NotchMusicVisibilityTests {
     enum PowerSampler { static var hasInternalBattery = true }
     struct MonitorNeeds {
         var disk = false
-        var fanSpeed = false
         var connectedDevices = false
         static let none = Self()
     }

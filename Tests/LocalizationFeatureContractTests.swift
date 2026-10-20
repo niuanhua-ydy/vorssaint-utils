@@ -430,27 +430,6 @@ enum LocalizationFeatureContractTests {
                + "shipped only: \(shippedFolders.subtracting(declared).sorted()))")
         suite.expect(bundleLocalizations.count == AppLanguage.allCases.count,
                "the bundle speaks exactly the languages the app does")
-        // The fan helper's launchd plist ships with the release identifier in
-        // three places, and the Developer build rewrites each one so the two
-        // apps can run side by side. A fourth mention added without a matching
-        // rewrite would leave the Developer build asking launchd for a service
-        // that is registered under the other name, and fan control would just
-        // never answer.
-        let helperTemplate = (try? String(
-            contentsOfFile: "Resources/com.vorssaint.utils.fan-control.plist",
-            encoding: .utf8)) ?? ""
-        suite.expect(!helperTemplate.isEmpty, "the helper template reads back")
-        let releaseHelperID = "com.vorssaint.utils.fan-control"
-        let mentions = helperTemplate.components(separatedBy: releaseHelperID).count - 1
-        suite.expect(mentions == 3,
-               "the helper template names the release service exactly where the build rewrites it (\(mentions))")
-        let buildText = (try? String(contentsOfFile: "build.sh", encoding: .utf8)) ?? ""
-        for key in ["Set :Label $FAN_HELPER_ID",
-                    "Set :BundleProgram Contents/Library/LaunchServices/$FAN_HELPER_ID",
-                    "Delete :MachServices:" + releaseHelperID,
-                    "Add :MachServices:$FAN_HELPER_ID"] {
-            suite.expect(buildText.contains(key), "the Developer build rewrites \(key)")
-        }
         // Every shortcut the app ships with is written to disk as a string and
         // read back on the next launch. One that does not survive the trip
         // would leave that feature with no shortcut at all, on a fresh install,

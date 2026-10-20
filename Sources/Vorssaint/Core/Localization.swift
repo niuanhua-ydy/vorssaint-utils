@@ -1428,7 +1428,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Desinstalar o Vorssaint?",
         advancedUninstallConfirmBody: "O Vorssaint vai limpar as permissões, apagar as preferências e ir para a Lixeira, e então fechar. Esta ação não pode ser desfeita pelo app, mas ele fica na Lixeira até você esvaziá-la.",
         advancedUninstallFailedTitle: "A desinstalação parou",
-        advancedUninstallFailedBody: "O Vorssaint não conseguiu restaurar uma configuração do sistema que ele mudou: repouso, velocidade das ventoinhas, aceleração do mouse ou ordem dos Espaços. Nada foi removido. Tente de novo e permita o pedido de senha, se ele aparecer.",
+        advancedUninstallFailedBody: "O Vorssaint não conseguiu restaurar uma configuração do sistema que ele mudou: repouso, aceleração do mouse ou ordem dos Espaços. Nada foi removido. Tente de novo e permita o pedido de senha, se ele aparecer.",
 
         launchAtLogin: "Iniciar junto com o Mac",
         languageLabel: "Idioma",
@@ -2514,7 +2514,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Uninstall Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint will clear its permissions, remove its preferences and move to the Trash, then quit. This can’t be undone from the app, but it stays in the Trash until you empty it.",
         advancedUninstallFailedTitle: "Uninstall stopped",
-        advancedUninstallFailedBody: "Vorssaint could not put back a system setting it changed: sleep, fan speed, mouse acceleration or Space order. Nothing was removed. Try again and allow the password request if it appears.",
+        advancedUninstallFailedBody: "Vorssaint could not put back a system setting it changed: sleep, mouse acceleration or Space order. Nothing was removed. Try again and allow the password request if it appears.",
 
         launchAtLogin: "Launch at login",
         languageLabel: "Language",

@@ -13,7 +13,6 @@ enum SystemMonitorPlanTests {
         var fullMonitorVisible = false
         var notchVisible = false
         var notchAccessoryMonitoring = false
-        static var fanTelemetryAvailable: Bool { true }
     }
 
     /// The panel's own state for its shipped `monitorNeeds`; the Power card
@@ -31,7 +30,6 @@ enum SystemMonitorPlanTests {
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }
         defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
-        defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
         let monitor = Monitor()
 
         suite.expect(!monitor.currentPlan(defaults: defaults).needConnectedDevices,
@@ -53,8 +51,8 @@ enum SystemMonitorPlanTests {
         monitor.notchDetailNeeds = .none
         monitor.fullMonitorVisible = true
         let preview = monitor.currentPlan(defaults: defaults)
-        suite.expect(preview.needConnectedDevices && preview.needFanSpeed,
-                     "the Settings island preview reads connected devices for its card, like the fan card")
+        suite.expect(preview.needConnectedDevices,
+                     "the Settings island preview reads connected devices for its card")
         defaults.set(false, forKey: AppFeature.connectedDevices.availabilityKey)
         suite.expect(!monitor.currentPlan(defaults: defaults).needConnectedDevices,
                      "an uninstalled connected devices feature is not read, even for the preview")

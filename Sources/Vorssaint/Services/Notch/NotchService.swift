@@ -162,8 +162,6 @@ final class NotchService: ObservableObject {
     /// reach the app in front instead.
     @Published private(set) var panelIsKey = false
     @Published private var captureContentHeight: CGFloat?
-    /// Kept after closing, so the next Fan Control detail opens at its size.
-    @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
 
@@ -779,7 +777,6 @@ final class NotchService: ObservableObject {
         let launcher = QuickLauncherService.shared
         return pageSize(in: expandedGeometry, module: showingAppPanel ? .tools : selected,
                         detail: selectedMetric != nil, panel: showingAppPanel,
-                        detailHeight: selectedMetric == .fan ? fanDetailHeight : nil,
                         musicExtraHeight: musicExtras && musicDetailVisible ? geometry.musicExtrasHeight : 0,
                         fileMediaHeight: !choosingFileDropDestination && AppFeature.mediaTools.isAvailable
                             && NotchFileToolsService.shared.mediaPresented ? NotchFileToolsService.shared.mediaContentHeight : nil,
@@ -790,7 +787,7 @@ final class NotchService: ObservableObject {
     /// The open island as Settings previews a section: at rest, with no
     /// detail, app panel, capture or media editor in front of the page.
     func previewSize(for module: NotchModule) -> CGSize {
-        pageSize(in: previewGeometry(for: module), module: module, detail: false, panel: false, detailHeight: nil, musicExtraHeight: 0,
+        pageSize(in: previewGeometry(for: module), module: module, detail: false, panel: false, musicExtraHeight: 0,
                  fileMediaHeight: nil, toolCount: QuickLauncherService.shared.visibleItems.count, capturePreviewHeight: nil)
     }
 
@@ -820,17 +817,16 @@ final class NotchService: ObservableObject {
     var previewLargestSize: CGSize { previewGeometry(for: .calendar).expandedSize(module: .calendar) }
 
     private func pageSize(in geometry: NotchGeometry, module: NotchModule, detail: Bool, panel: Bool,
-                          detailHeight: CGFloat?, musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
+                          musicExtraHeight: CGFloat, fileMediaHeight: CGFloat?, toolCount: Int?,
                           capturePreviewHeight: CGFloat?) -> CGSize {
         let controls = NotchSupport.controls()
         let sliders = controls.filter(\.isLevel).count
         let shortcuts = controls.filter { !$0.isLevel && $0 != .music }.count
-        return geometry.expandedSize(module: module, detail: detail, panel: panel, detailHeight: detailHeight,
+        return geometry.expandedSize(module: module, detail: detail, panel: panel,
                                      shortcutCount: shortcuts,
                                      sliderCount: sliders, controlsHaveMusic: controls.contains(.music), musicHasContent: NotchMusicService.shared.playback != nil,
                                      musicExtraHeight: musicExtraHeight, fileMediaHeight: fileMediaHeight,
-                                     systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery,
-                                                                               fans: SystemMonitor.shared.snapshot.fanSpeeds.count),
+                                     systemCards: NotchSupport.systemCardCount(hasBattery: PowerSampler.hasInternalBattery),
                                      toolCount: toolCount, capturePreviewHeight: capturePreviewHeight,
                                      timerHasSession: NotchTimerService.shared.session.hasSession,
                                      timerMode: NotchTimerService.shared.session.hasSession
@@ -883,8 +879,7 @@ final class NotchService: ObservableObject {
         if showingAppPanel { return "Vorssaint" }
         let language = L10n.shared.language
         guard let metric = selectedMetric else { return FeatureStrings.notch(language).title }
-        // The fan card opens Fan Control, so its page shares that title.
-        return metric == .fan ? FeatureStrings.fanControl(language).title : metric.title(L10n.shared.s)
+        return metric.title(L10n.shared.s)
     }
     var contentSize: CGSize { expandedGeometry.contentSize(for: expandedSize) }
     var usesGlassSurface: Bool {
@@ -1142,7 +1137,6 @@ final class NotchService: ObservableObject {
             + NotchSupport.idleContent().rawValue + String(NotchSupport.watchesMusicActivity())
             + String(NotchKeepAwakeSupport.showsActivity())
             + modules.map(\.rawValue).joined()
-            + String(AppFeature.fanControl.isAvailable)
             + String(NotchSupport.routesShelf()) + String(NotchSupport.revealsShelfDrag())
             + String(NotchSupport.routesCaptureControls())
             + String(NotchMascotSupport.isEnabled())
@@ -1917,17 +1911,6 @@ final class NotchService: ObservableObject {
         open(.system, metric: metric)
         // A metric opened from its menu bar item closes on Escape, like the popover.
         if toggle { detailHasPage = false }
-    }
-
-    /// Fan Control is a single card, so its detail fits the card instead of
-    /// opening a tall, mostly empty page. A taller card still scrolls in it.
-    func updateFanDetailHeight(_ height: CGFloat) {
-        guard expanded, selectedMetric == .fan, !showingAppPanel, !showingSections,
-              height.isFinite, height > 0 else { return }
-        let measured = ceil(height)
-        guard fanDetailHeight != measured else { return }
-        fanDetailHeight = measured
-        refreshPresentation()
     }
 
     func goBack() {
@@ -3919,17 +3902,6 @@ final class NotchService: ObservableObject {
                     self.refreshPresentation()
                 }.store(in: &subscriptions)
         }
-        if modules.contains(.system), AppFeature.fanControl.isAvailable {
-            // The fan card only exists once the page's first sample lands; the
-            // strip that was sized without it reserves its row again.
-            SystemMonitor.shared.$snapshot.map { $0.fanSpeeds.isEmpty }.removeDuplicates().dropFirst()
-                .receive(on: DispatchQueue.main)
-                .sink { [weak self] _ in
-                    guard let self, self.expanded, self.selected == .system, self.selectedMetric == nil,
-                          !self.showingAppPanel, !self.showingSections else { return }
-                    self.refreshPresentation()
-                }.store(in: &subscriptions)
-        }
         if NotchSupport.routes(.download) {
             NotchDownloadService.shared.$items.receive(on: DispatchQueue.main).sink { [weak self] _ in
                 self?.syncMenuSpaceMonitoring()
@@ -4249,7 +4221,6 @@ final class NotchService: ObservableObject {
             && !showingSections && !showingCommandBar
         var detailNeeds = expanded && !showingSections ? selectedMetric?.monitorNeeds ?? .none : .none
         if needs, AppFeature.monitorDisk.isAvailable { detailNeeds.disk = true }
-        if needs, AppFeature.fanControl.isAvailable { detailNeeds.fanSpeed = true }
         if needs, AppFeature.connectedDevices.isAvailable { detailNeeds.connectedDevices = true }
         SystemMonitor.shared.setNotchDetailNeeds(detailNeeds)
         if needs != notchNeedsMonitor {

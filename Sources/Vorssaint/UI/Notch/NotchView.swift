@@ -534,12 +534,7 @@ struct NotchView: View {
         if service.showingAppPanel {
             MenuPanelView(notchSize: pageSize)
         } else if let metric = service.selectedMetric {
-            if metric == .fan {
-                NotchFanControlView()
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { service.updateFanDetailHeight($0) }
-            } else {
-                MetricDetailView(kind: metric)
-            }
+            MetricDetailView(kind: metric)
         } else if service.modules.isEmpty {
             NotchEmptyView(symbol: "slider.horizontal.3", message: text.empty) {
                 NotchPillButton(title: l10n.s.menuSettings, prominent: true, action: service.openSettings)
@@ -591,15 +586,6 @@ struct NotchClearCapturesButton: View {
         NotchIconButton(symbol: "trash", title: FeatureStrings.recentCaptures(l10n.language).clear,
                         action: RecentCapturesView.confirmClearAboveIsland)
             .disabled(RecentCapturesView.visible(history.entries).isEmpty)
-    }
-}
-
-/// Read-only RPM telemetry stays available when the protected fan helper fails.
-private struct NotchFanControlView: View {
-    @ObservedObject private var monitor = SystemMonitor.shared
-
-    var body: some View {
-        FanControlSection(collapsible: false, fallbackFanSpeeds: monitor.snapshot.fanSpeeds)
     }
 }
 

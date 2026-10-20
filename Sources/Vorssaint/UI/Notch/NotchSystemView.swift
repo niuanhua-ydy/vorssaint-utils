@@ -66,17 +66,12 @@ struct NotchSystemView: View {
                               level: disk.map { 1 - $0.usedFraction },
                               wantsAttention: disk.map { 1 - $0.usedFraction < 0.1 } ?? false))
         }
-        // The panel's power and fan sections, as cards opening the same details.
+        // The panel's power section, as a card opening the same details.
         if AppFeature.monitorPower.isAvailable {
             let power = snapshot.power
             cards.append(Card(kind: .power, title: l10n.s.powerSection, symbol: "powerplug.fill",
                               value: power?.systemWatts.map(MetricFormat.wattsCompact),
                               detail: power?.externalConnected == true ? power?.adapterWatts.map(MetricFormat.watts) : nil))
-        }
-        if AppFeature.fanControl.isAvailable, !snapshot.fanSpeeds.isEmpty {
-            let strings = FeatureStrings.fanControl(l10n.language)
-            cards.append(Card(kind: .fan, title: strings.title, symbol: "fanblades",
-                              value: snapshot.fanSpeeds.first.map { String(format: strings.rpmFormat, Int($0.rounded())) }))
         }
         if AppFeature.connectedDevices.isAvailable {
             let strings = FeatureStrings.connectedDevices(l10n.language)

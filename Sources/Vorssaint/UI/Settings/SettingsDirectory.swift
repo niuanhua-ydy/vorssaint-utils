@@ -84,7 +84,7 @@ enum SettingsDirectory {
             }
         guard let essentials = grouped.first(where: { $0.id == 0 }) else { return grouped }
         let categories = FeatureStrings.settingsCategories(language)
-        // Monitor keeps its tool rows, such as Fan Control, beside it.
+        // Monitor keeps its tool rows beside it.
         let core = essentials.items.filter { item in
             switch item.id {
             case .page(.general), .page(.features),
@@ -223,7 +223,6 @@ enum SettingsDirectory {
                                        featureKeywords: [
                                         (.monitorMemory, [s.monitorMemoryPressureDot]),
                                         (.monitorNetwork, [FeatureStrings.monitorLayout(language).networkSpeedUnit]),
-                                        (.fanControl, [FeatureStrings.fanControl(language).menuBarTitle]),
                                        ]),
             ]),
             (categories.windowsControls, [

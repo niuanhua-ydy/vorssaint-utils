@@ -106,7 +106,7 @@ body:
     id: hardware
     attributes:
       label: Mac and displays
-      description: Skip only if the bug touches neither windows nor hardware. The Mac model decides the sensors, fans and brightness range; the display and Spaces layout decides almost every window bug.
+      description: Skip only if the bug touches neither windows nor hardware. The Mac model decides the sensors and brightness range; the display and Spaces layout decides almost every window bug.
       placeholder: "MacBook Pro 14 (M3 Pro) · built-in + one 4K external, scaled, two Spaces"
 
   - type: input

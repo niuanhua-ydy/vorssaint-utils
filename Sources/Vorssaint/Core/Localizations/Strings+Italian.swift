@@ -138,7 +138,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Disinstallare Vorssaint?",
         advancedUninstallConfirmBody: "Vorssaint cancellerà le autorizzazioni, rimuoverà le preferenze e si sposterà nel Cestino, poi si chiuderà. Questa azione non può essere annullata dall’app, ma resta nel Cestino finché non lo svuoti.",
         advancedUninstallFailedTitle: "Disinstallazione interrotta",
-        advancedUninstallFailedBody: "Vorssaint non è riuscito a ripristinare un’impostazione di sistema che aveva cambiato: lo stop, la velocità delle ventole, l’accelerazione del mouse o l’ordine degli Spazi. Non è stato rimosso nulla. Riprova e consenti la richiesta della password, se compare.",
+        advancedUninstallFailedBody: "Vorssaint non è riuscito a ripristinare un’impostazione di sistema che aveva cambiato: lo stop, l’accelerazione del mouse o l’ordine degli Spazi. Non è stato rimosso nulla. Riprova e consenti la richiesta della password, se compare.",
 
         launchAtLogin: "Apri al login",
         languageLabel: "Lingua",

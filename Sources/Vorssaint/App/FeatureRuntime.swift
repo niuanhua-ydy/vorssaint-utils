@@ -396,15 +396,6 @@ final class FeatureRuntime: ObservableObject {
         .monitorNetwork: { FeatureRuntime.syncMonitor() },
         .monitorDisk: { FeatureRuntime.syncMonitor() },
         .monitorPower: { FeatureRuntime.syncMonitor() },
-        .fanControl: {
-            SystemMonitor.shared.planDidChange()
-            let defaults = UserDefaults.standard
-            let needsRecovery = defaults.bool(forKey: DefaultsKey.fanControlRecoveryNeeded)
-            let hasRegisteredHelper = !(defaults.string(forKey: DefaultsKey.fanControlHelperVersion) ?? "").isEmpty
-            if needsRecovery || (!AppFeature.fanControl.isAvailable && hasRegisteredHelper) {
-                FanControlService.shared.syncWithPreferences()
-            }
-        },
     ]
 
     private static func syncMonitor() {
@@ -413,23 +404,16 @@ final class FeatureRuntime: ObservableObject {
     }
 }
 
-/// Hardware a feature needs and this Mac may not have. One switch answers
+/// Hardware a feature needs and this Mac may not have. One property answers
 /// both questions, so a feature can never be unsupported without a reason to
 /// show for it, and a feature added here can never grey a row silently.
 /// It lives beside the runtime rather than in the catalog because the answer
 /// comes from a service, and the catalog stays a pure description.
 extension AppFeature {
     /// Why this Mac cannot run the feature, ready to show. `nil` when it can,
-    /// or when the feature depends on no hardware at all.
-    var hardwareUnsupportedReason: String? {
-        switch self {
-        case .fanControl:
-            return FanControlHardware.hasControllableFan
-                ? nil : FeatureStrings.fanControl(L10n.shared.language).noFans
-        default:
-            return nil
-        }
-    }
+    /// or when the feature depends on no hardware at all. No feature in this
+    /// build depends on hardware a Mac may lack, so every feature passes.
+    var hardwareUnsupportedReason: String? { nil }
 
     var isHardwareSupported: Bool { hardwareUnsupportedReason == nil }
 

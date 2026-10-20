@@ -76,7 +76,6 @@ struct MenuPanelView: View {
     @AppStorage(DefaultsKey.monitorShowNetwork) private var showNetwork = true
     @AppStorage(DefaultsKey.monitorShowDisk) private var showDisk = true
     @AppStorage(DefaultsKey.monitorShowPower) private var showPower = true
-    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
     @AppStorage(DefaultsKey.panelShowKeepAwake) private var showKeepAwake = true
     @AppStorage(DefaultsKey.panelShowBrightness) private var showBrightness = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessEnabled = false
@@ -285,7 +284,6 @@ struct MenuPanelView: View {
         case .network: return 190
         case .disk: return 360
         case .power: return 170
-        case .fanControl: return 220
         case .utilities: return 500
         case .controls: return 360
         case .toggles: return 420
@@ -300,7 +298,7 @@ struct MenuPanelView: View {
         case .network: return 330
         case .disk: return 360
         case .battery, .power: return 360
-        case .fan, .connectedDevices: return 240
+        case .connectedDevices: return 240
         }
     }
 
@@ -323,12 +321,6 @@ struct MenuPanelView: View {
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
         case .disk: if showDisk { DiskSection(collapsible: collapsible) }
         case .power: if showPower { PowerSection(collapsible: collapsible) }
-        case .fanControl:
-            // The popover retains its host after closing; detach the curve editor
-            // so cooling heartbeats cannot keep laying out an unseen panel.
-            if showFanControl, notchSize != nil || panelFocus.popoverIsVisible {
-                FanControlSection(collapsible: collapsible)
-            }
         case .utilities: UtilitiesSection(collapsible: collapsible, startCleaning: startCleaning)
         case .controls: QuickControlsSection(collapsible: collapsible)
         case .toggles: QuickTogglesSection(collapsible: collapsible)
@@ -350,7 +342,7 @@ struct MenuPanelView: View {
     /// what keeps the tabs refreshing when Settings flips one of them.
     private func isSectionVisible(_ id: PanelSectionID) -> Bool {
         _ = (showKeepAwake, showBrightness, brightnessEnabled, showMixer, showSystem, showNetwork,
-             showDisk, showPower, showFanControl, showUtilities, showControls, showToggles, showWallpaper)
+             showDisk, showPower, showUtilities, showControls, showToggles, showWallpaper)
         return PanelLayout.isVisibleInPanel(id)
     }
 

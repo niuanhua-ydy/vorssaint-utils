@@ -54,7 +54,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case cleaningMode
     case soundOutputSwitcher
     case keyboardBrightnessShortcuts
-    case fanControl
     case windowMaximizer
 
     var page: SettingsPage {
@@ -75,7 +74,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
-        case .fanControl: return .monitor
         case .windowMaximizer: return .windowLayout
         }
     }
@@ -379,8 +377,6 @@ extension AppFeature {
 
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower, .connectedDevices:
             return FeatureSettingsDestination(.monitor)
-        case .fanControl:
-            return FeatureSettingsDestination(.monitor, sectionAnchor: .fanControl)
         }
     }
 }
@@ -390,7 +386,7 @@ extension AppFeature {
 enum FeatureVisibilitySupport {
     static let monitorFeatures: [AppFeature] = [
         .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-        .connectedDevices, .fanControl,
+        .connectedDevices,
     ]
 
     /// Features gating a page; empty means the page is part of the app and

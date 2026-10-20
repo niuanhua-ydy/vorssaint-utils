@@ -3,8 +3,7 @@
 # Copyright (C) 2026 Vorssaint
 
 # Cleanly removes Vorssaint and every piece of system state it created:
-# the fan helper daemon, the login item, TCC permissions, preferences, saved
-# state, the app's own data folder and (if present) the password-free
+# the login item, TCC permissions, preferences, saved state, the app's own data folder and (if present) the password-free
 # closed-lid sudoers rule. Leaves no dead entries behind.
 # Also clears the pre-rename "Vorssaint Utils.app" if it is still around.
 set -uo pipefail
@@ -120,31 +119,15 @@ sleep 0.5
 # Detach from the system from inside whichever bundle still exists: unregisters
 # the login item (no BTM tombstone), restores normal sleep and puts back Space
 # rearranging.
-# The fan helper's registration lives in the system, not in the bundle, so
-# deleting the app below cannot reach it. Only the binary can drop it, and the
-# check after the loop settles what its absence or failure left behind.
-detached=1
 ran_app=0
 for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
     if [[ -x "$candidate" ]]; then
-        echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
+        echo "▸ Detaching the login item, restoring sleep and Space rearranging…"
         ran_app=1
-        if "$candidate" --uninstall; then detached=0; fi
+        "$candidate" --uninstall
         break
     fi
 done
-# `detached` cannot tell a failed unregister from no binary having run, and the
-# second is ordinary: an app trashed by hand, then this script for the rest. It
-# also cannot see a daemon that went despite a reported failure. launchctl
-# settles both without sudo, and still finds a registration held back for a
-# pending fan recovery, which is the one case that must keep warning.
-if (( detached )); then
-    launchctl print "system/$BUNDLE.fan-control" >/dev/null 2>&1
-    # 113 is "no such service", the only answer that proves absence. Any other
-    # failure means launchctl could not tell us, and warning then is the honest
-    # side of a check that exists to stop this script claiming what it cannot see.
-    (( $? == 113 )) && detached=0
-fi
 
 # Whether the closed-lid feature is the reason sleep is off. Read here because
 # the preferences that hold it are deleted a few lines below, and without it a
@@ -245,13 +228,9 @@ case "$(spaces_removal_state "$spaces_owed" "$spaces_journal")" in
     unknown) spaces_unknown=1 ;;
 esac
 
-if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 && spaces_unloaded == 0 && spaces_unknown == 0 )); then
+if (( sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 && spaces_unloaded == 0 && spaces_unknown == 0 )); then
     echo "✓ Vorssaint fully removed."
     exit 0
-fi
-if (( detached )); then
-    echo "⚠ Vorssaint removed, but its fan helper is still registered with the system." >&2
-    echo "  Reinstall Vorssaint, then use Settings › Advanced to uninstall from inside the app." >&2
 fi
 if (( sleep_stuck )); then
     echo "⚠ Vorssaint removed, but this Mac still has sleep switched off." >&2

@@ -16,7 +16,6 @@ enum MonitorSamplingKind: String {
     case peripheralBattery
     case gpuUsage
     case temperature
-    case fanSpeed
     case connectedDevices
 }
 
@@ -84,7 +83,7 @@ enum MonitorSamplingPolicy {
                 return 15
             case .connectedDevices:
                 return 2
-            case .cpu, .memory, .network, .disk, .power, .powerDraw, .gpuUsage, .temperature, .fanSpeed:
+            case .cpu, .memory, .network, .disk, .power, .powerDraw, .gpuUsage, .temperature:
                 return 1
             }
         }
@@ -94,8 +93,6 @@ enum MonitorSamplingPolicy {
             return 1
         case .gpuUsage:
             return 10
-        case .fanSpeed:
-            return 5
         case .connectedDevices:
             return 10
         case .power, .temperature:

@@ -306,18 +306,6 @@ enum SettingsFeatureTests {
                 && backupKeys.contains(DefaultsKey.panelToggleKeyboardLight)
                 && backupKeys.contains(DefaultsKey.panelToggleMicMute),
                "the quick toggles layout travels with the settings backup")
-        suite.expect(backupKeys.contains(DefaultsKey.panelShowFanControl)
-                && backupKeys.contains(DefaultsKey.fanControlMode)
-                && backupKeys.contains(DefaultsKey.fanControlCoolingLevel)
-                && backupKeys.contains(DefaultsKey.fanControlCurves)
-                && backupKeys.contains(DefaultsKey.menuBarFanSpeed)
-                && backupKeys.contains(DefaultsKey.fanControlResume)
-                && !backupKeys.contains(DefaultsKey.fanControlRecoveryNeeded)
-                && !backupKeys.contains(DefaultsKey.fanControlHelperVersion)
-                && !backupKeys.contains(DefaultsKey.fanControlResumeConfiguration),
-               "fan display and cooling preferences travel while helper recovery state stays on one Mac")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.fanControlResume] as? Bool == false,
-               "resuming fan control after a restart or sleep is opt-in")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)

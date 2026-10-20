@@ -138,7 +138,7 @@ extension Strings {
         advancedUninstallConfirmTitle: "Désinstaller Vorssaint\u{00A0}?",
         advancedUninstallConfirmBody: "Vorssaint va effacer ses autorisations, supprimer ses préférences et se placer dans la corbeille, puis quitter. L’app ne peut pas annuler cette action, mais elle reste dans la corbeille jusqu’à ce que vous la vidiez.",
         advancedUninstallFailedTitle: "Désinstallation interrompue",
-        advancedUninstallFailedBody: "Vorssaint n’a pas pu rétablir un réglage système qu’il avait modifié\u{00A0}: la veille, la vitesse des ventilateurs, l’accélération de la souris ou l’ordre des Espaces. Rien n’a été supprimé. Réessayez et autorisez la demande de mot de passe si elle apparaît.",
+        advancedUninstallFailedBody: "Vorssaint n’a pas pu rétablir un réglage système qu’il avait modifié\u{00A0}: la veille, l’accélération de la souris ou l’ordre des Espaces. Rien n’a été supprimé. Réessayez et autorisez la demande de mot de passe si elle apparaît.",
 
         launchAtLogin: "Ouvrir à l’ouverture de session",
         languageLabel: "Langue",

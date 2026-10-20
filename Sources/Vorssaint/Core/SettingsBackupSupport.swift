@@ -171,10 +171,6 @@ enum SettingsBackupSupport {
         // Whether the audio system let a recording hear the Mac's sound is a
         // grant this Mac gave, not a setting.
         DefaultsKey.recorderSystemAudioTapVerified,
-        DefaultsKey.fanControlRecoveryNeeded,
-        DefaultsKey.fanControlHelperVersion,
-        // Control left running on one Mac must not start fans on another.
-        DefaultsKey.fanControlResumeConfiguration,
         DefaultsKey.switcherNativeHotkeysSuppressed,
         DefaultsKey.systemShortcutsSuppressed,
         // DDC capability belongs to one physical monitor on one Mac port.

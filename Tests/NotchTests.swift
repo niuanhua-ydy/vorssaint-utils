@@ -8,20 +8,12 @@ import SwiftUI
 
 enum NotchTests {
     private static func railContracts(_ suite: TestSuite) {
-        let domain = "com.vorssaint.tests.notch-fan-only"
+        let domain = "com.vorssaint.tests.notch-system-cards"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }
         for feature in AppFeature.allCases { defaults.set(false, forKey: feature.availabilityKey) }
         suite.expect(!NotchModule.system.isAvailable(in: defaults), "System stays unavailable without an installed monitor")
-        defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
-        suite.expect(NotchModule.system.isAvailable(in: defaults)
-                     && NotchSupport.systemCardCount(hasBattery: false, fans: 1, in: defaults) == 1,
-                     "fan control alone makes its containing System page reachable")
-        suite.expect(NotchModule.system.isAvailable(in: defaults)
-                     && NotchSupport.systemCardCount(hasBattery: false, fans: 0, in: defaults) == 0,
-                     "System remains reachable while waiting for the first fan sample")
-        defaults.set(false, forKey: AppFeature.fanControl.availabilityKey)
         defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
         defaults.set(false, forKey: DefaultsKey.menuBarConnectedDevices)
         suite.expect(NotchModule.system.isAvailable(in: defaults)
@@ -2697,13 +2689,6 @@ enum NotchTests {
                    && geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true)).height == geometry.pageBudget
                    && geometry.pageBudget >= geometry.contentBudget,
                    "the app panel and a metric detail get a readable page even inside a short preset: \(layout)")
-            let detail = { (height: CGFloat, panel: Bool) in
-                geometry.contentSize(for: geometry.expandedSize(module: .system, detail: true, panel: panel,
-                                                                detailHeight: height)).height
-            }
-            suite.expect(detail(140, false) == 144 && detail(900, false) == geometry.pageBudget
-                   && detail(140, true) == geometry.pageBudget,
-                   "a measured detail such as Fan Control fits its card within the page instead of a tall empty page: \(layout)")
         }
         suite.expect(compact.contentBudget == NotchLayout.compactContentHeight && spacious.contentBudget == NotchLayout.spaciousContentHeight
                && compact.expanded.height < compact.expanded.width && spacious.expanded.height < spacious.expanded.width,

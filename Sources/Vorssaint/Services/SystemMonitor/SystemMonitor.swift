@@ -50,7 +50,6 @@ struct SystemSnapshot {
     var memoryCached: UInt64?
     var memorySwapUsed: UInt64?
     var memoryPressure: MemoryPressure = .unknown
-    var fanSpeeds: [Double] = []
 
     // Network
     var netDownBytesPerSec: Double?
@@ -101,7 +100,6 @@ struct SystemMonitorPanelNeeds: Equatable {
     var cpuTemperature = false
     var gpuTemperature = false
     var batteryTemperature = false
-    var fanSpeed = false
     var connectedDevices = false
 
     func merging(_ other: Self) -> Self {
@@ -118,7 +116,6 @@ struct SystemMonitorPanelNeeds: Equatable {
              cpuTemperature: cpuTemperature || other.cpuTemperature,
              gpuTemperature: gpuTemperature || other.gpuTemperature,
              batteryTemperature: batteryTemperature || other.batteryTemperature,
-             fanSpeed: fanSpeed || other.fanSpeed,
              connectedDevices: connectedDevices || other.connectedDevices)
     }
 
@@ -126,7 +123,7 @@ struct SystemMonitorPanelNeeds: Equatable {
 
     var any: Bool {
         system || network || disk || power || powerCard || cpu || gpu || memory || battery ||
-            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature || fanSpeed ||
+            peripheralBattery || cpuTemperature || gpuTemperature || batteryTemperature ||
             connectedDevices
     }
 }
@@ -168,9 +165,7 @@ final class SystemMonitor: ObservableObject {
     private var fallbackCPUKeys: [SMCClient.Key] = []
     private var gpuKeys: [SMCClient.Key] = []
     private var batteryKeys: [SMCClient.Key] = []
-    private var fanKeys: [SMCClient.Key] = []
     private var tempKeysPrepared = false
-    private var fanKeysPrepared = false
     private var cpuTemperaturePlatform: CPUTemperaturePlatform = .generic
 
     // Samplers
@@ -200,8 +195,6 @@ final class SystemMonitor: ObservableObject {
     private var cpuTemperatureCache: CachedSensorReading?
     private var gpuTemperatureCache: CachedSensorReading?
     private var batteryTemperatureCache: CachedSensorReading?
-    private var lastFanSpeeds: [Double] = []
-    private var missedFanSpeedSamples = 0
     private var lastDiskReading: DiskReading?
     private var lastPowerReading: PowerReading?
     private var lastPeripheralBatterySample = PeripheralBatterySample()
@@ -501,10 +494,9 @@ final class SystemMonitor: ObservableObject {
         var needCPUTemperature = false
         var needGPUTemperature = false
         var needBatteryTemperature = false
-        var needFanSpeed = false
         var needConnectedDevices = false
 
-        var needSMC: Bool { needPower || needTemperature || needFanSpeed }
+        var needSMC: Bool { needPower || needTemperature }
 
         /// The power reading keeps the chosen interval while its watts are in
         /// the menu bar; battery charge and time alone stay on the slow stride.
@@ -516,7 +508,7 @@ final class SystemMonitor: ObservableObject {
 
         var any: Bool {
             needCPU || needMemory || needNetwork || needDisk || needPower ||
-                needPeripheralBattery || needGPUUsage || needTemperature || needFanSpeed || needConnectedDevices
+                needPeripheralBattery || needGPUUsage || needTemperature || needConnectedDevices
         }
     }
 
@@ -585,11 +577,6 @@ final class SystemMonitor: ObservableObject {
             (panelNeedsPower && defaults.bool(forKey: DefaultsKey.monitorPwrTemperature))
                 || menuPanelNeeds.batteryTemperature
                 || defaults.bool(forKey: DefaultsKey.menuBarBatteryTemperature) || alertBatteryTemperature)
-        if defaults.bool(forKey: AppFeature.fanControl.availabilityKey),
-           Self.fanTelemetryAvailable {
-            plan.needFanSpeed = fullMonitorVisible || menuPanelNeeds.fanSpeed
-                || defaults.bool(forKey: DefaultsKey.menuBarFanSpeed)
-        }
         // The island preview in Settings shows the device card too; the
         // panel's System card reads USB only for its device row's count.
         plan.needConnectedDevices = fullMonitorVisible
@@ -620,7 +607,6 @@ final class SystemMonitor: ObservableObject {
             plan.needPeripheralBattery = false
             plan.needBatteryTemperature = false
         }
-        if !available(.fanControl) { plan.needFanSpeed = false }
         if !available(.connectedDevices) { plan.needConnectedDevices = false }
         return plan
     }
@@ -675,7 +661,6 @@ final class SystemMonitor: ObservableObject {
         if plan.needPeripheralBattery { kinds.append(.peripheralBattery) }
         if plan.needGPUUsage { kinds.append(.gpuUsage) }
         if plan.needTemperature { kinds.append(.temperature) }
-        if plan.needFanSpeed { kinds.append(.fanSpeed) }
         if plan.needConnectedDevices { kinds.append(.connectedDevices) }
         return kinds
     }
@@ -731,8 +716,7 @@ final class SystemMonitor: ObservableObject {
         queue.async { [weak self] in
             guard let self else { return }
             self.prepareIfNeeded(needSMC: plan.needSMC,
-                                 needTemperature: plan.needTemperature,
-                                 needFanSpeed: plan.needFanSpeed)
+                                 needTemperature: plan.needTemperature)
             let now = ProcessInfo.processInfo.systemUptime
 
             var next = SystemSnapshot()
@@ -913,20 +897,6 @@ final class SystemMonitor: ObservableObject {
                 }
                 next.batteryTemperatureReadAt = self.batteryTemperatureCache?.updatedAt
             }
-            if plan.needFanSpeed {
-                if take(.fanSpeed) {
-                    if let speeds = self.readFanSpeeds() {
-                        self.lastFanSpeeds = speeds
-                        self.missedFanSpeedSamples = 0
-                    } else if self.missedFanSpeedSamples < 3 {
-                        self.missedFanSpeedSamples += 1
-                    } else {
-                        self.lastFanSpeeds = []
-                    }
-                }
-                next.fanSpeeds = self.lastFanSpeeds
-            }
-
             if plan.needConnectedDevices {
                 if take(.connectedDevices) {
                     self.lastConnectedDevices = self.usbSampler.sample()
@@ -1026,8 +996,7 @@ final class SystemMonitor: ObservableObject {
     /// every SMC key) so it waits until the panel or a pinned temperature metric
     /// actually needs it.
     private func prepareIfNeeded(needSMC: Bool,
-                                 needTemperature: Bool,
-                                 needFanSpeed: Bool) {
+                                 needTemperature: Bool) {
         if needSMC, !smcTried {
             smcTried = true
             smc = SMCClient()
@@ -1035,15 +1004,6 @@ final class SystemMonitor: ObservableObject {
             powerSampler = PowerSampler(smc: smc)
         }
         guard let client = smc else { return }
-
-        if needFanSpeed, !fanKeysPrepared {
-            fanKeysPrepared = true
-            let count = Self.fanTelemetryCount
-            if count > 0 {
-                let keys = (0..<count).compactMap { client.key(named: "F\($0)Ac") }
-                if keys.count == count { fanKeys = keys }
-            }
-        }
 
         guard needTemperature, !tempKeysPrepared else { return }
         tempKeysPrepared = true
@@ -1068,28 +1028,6 @@ final class SystemMonitor: ObservableObject {
         fallbackCPUKeys = cpuKeys.filter { !preferredNames.contains($0.name) }
         gpuKeys = all.filter { $0.name.hasPrefix("Tg") }
         batteryKeys = all.filter { $0.name.hasPrefix("TB") }
-    }
-
-    static let fanTelemetryCount: Int = {
-        guard let client = SMCClient(),
-              let countKey = client.key(named: "FNum"),
-              let countValue = client.readValue(countKey),
-              let count = FanControlPolicy.fanCount(from: countValue) else { return 0 }
-        let readings = (0..<count).map { index -> Double? in
-            guard let key = client.key(named: "F\(index)Ac") else { return nil }
-            return client.readValue(key)
-        }
-        guard FanControlPolicy.telemetryReadings(expectedCount: count,
-                                                 readings: readings) != nil else { return 0 }
-        return count
-    }()
-
-    static var fanTelemetryAvailable: Bool { fanTelemetryCount > 0 }
-
-    private func readFanSpeeds() -> [Double]? {
-        guard let smc, !fanKeys.isEmpty else { return nil }
-        return FanControlPolicy.telemetryReadings(expectedCount: fanKeys.count,
-                                                  readings: fanKeys.map { smc.readValue($0) })
     }
 
     private func cpuTemperature() -> Double? {

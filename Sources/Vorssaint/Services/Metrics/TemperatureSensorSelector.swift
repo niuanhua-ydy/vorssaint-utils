@@ -108,8 +108,7 @@ enum TemperatureSensorSelector {
         // One that does not showed the hottest reading of its CPU families
         // instead, for as long as the app has had this panel, until 3.3.3
         // restricted the answer to the mapped sensors and left those Macs with
-        // nothing. This is that reading, restored exactly. Fan control is a
-        // separate decision and keeps requiring its own mapped readings.
+        // nothing. This is that reading, restored exactly.
         return valid.map { $0.value }.max()
     }
 

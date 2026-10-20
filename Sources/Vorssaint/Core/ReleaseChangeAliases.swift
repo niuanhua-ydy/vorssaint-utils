@@ -173,8 +173,6 @@ enum ReleaseChangeAliases {
             "menu bar battery icon", "battery health", "battery section", "battery temperature",
             "battery temperatures"]
         case .connectedDevices: return ["connected devices", "usb devices"]
-        case .fanControl: return ["fan control", "fan curves", "fan curve", "fan speed", "fan speeds",
-            "cooling curve"]
         }
     }
 
@@ -183,7 +181,7 @@ enum ReleaseChangeAliases {
         .mouseClickDebounce]
     private static let monitorMetrics: [AppFeature] = [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
         .monitorDisk, .monitorPower]
-    private static let monitorPage: [AppFeature] = monitorMetrics + [.connectedDevices, .fanControl]
+    private static let monitorPage: [AppFeature] = monitorMetrics + [.connectedDevices]
 
     static let families: [Family] = [
         Family(

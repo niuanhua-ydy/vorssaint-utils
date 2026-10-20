@@ -211,7 +211,7 @@ enum WhatsNewInfo {
         "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch",
         "notchMascot",
         "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
-        "connectedDevices", "fanControl",
+        "connectedDevices",
     ]
 
     /// What to store once the window is done: every feature this version has.

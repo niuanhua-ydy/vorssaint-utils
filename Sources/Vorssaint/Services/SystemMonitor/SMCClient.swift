@@ -5,15 +5,8 @@ import Foundation
 import IOKit
 
 /// Minimal client for the System Management Controller (AppleSMC). It reads
-/// sensors and allows narrowly scoped writes through the SMCParamStruct ABI.
+/// sensors through the SMCParamStruct ABI.
 final class SMCClient {
-    enum WriteError: Error {
-        case invalidPayload
-        case unsupportedType
-        case transport(kern_return_t)
-        case controller(UInt8)
-    }
-
     struct Key {
         let code: UInt32
         let name: String
@@ -26,7 +19,6 @@ final class SMCClient {
     // Selector and command bytes of the SMC user client.
     private static let handleYPCEvent: UInt32 = 2
     private static let cmdReadKey: UInt8 = 5
-    private static let cmdWriteKey: UInt8 = 6
     private static let cmdKeyFromIndex: UInt8 = 8
     private static let cmdKeyInfo: UInt8 = 9
 
@@ -83,33 +75,6 @@ final class SMCClient {
         input.data8 = Self.cmdReadKey
         guard let out = call(&input), out.result == 0 else { return nil }
         return withUnsafeBytes(of: out.bytes) { Array($0.prefix(Int(key.dataSize))) }
-    }
-
-    /// Writes only a value encoded in the key's own reported type and size.
-    /// Callers cannot change the key metadata or overrun the fixed SMC payload.
-    func writeValue(_ value: Double, to key: Key) throws {
-        guard let bytes = SMCValueCodec.encode(value, type: key.dataType,
-                                               size: Int(key.dataSize)) else {
-            throw WriteError.unsupportedType
-        }
-        try writeBytes(bytes, to: key)
-    }
-
-    func writeBytes(_ bytes: [UInt8], to key: Key) throws {
-        guard key.dataSize > 0, key.dataSize <= 32,
-              bytes.count == Int(key.dataSize) else {
-            throw WriteError.invalidPayload
-        }
-        var input = SMCParamStruct()
-        input.key = key.code
-        input.keyInfo.dataSize = key.dataSize
-        input.data8 = Self.cmdWriteKey
-        withUnsafeMutableBytes(of: &input.bytes) { destination in
-            destination.copyBytes(from: bytes)
-        }
-        let (result, output) = invoke(&input)
-        guard result == kIOReturnSuccess else { throw WriteError.transport(result) }
-        guard output.result == 0 else { throw WriteError.controller(output.result) }
     }
 
     /// Looks up a single key by its 4-character code, returning its size and type

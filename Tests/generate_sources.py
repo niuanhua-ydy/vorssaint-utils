@@ -329,20 +329,6 @@ def main():
           + declaration("Sources/Vorssaint/UI/Settings/RadialMenuSettings.swift",
                         "    private func deleteProfile(").replace("private ", "", 1)
           + "}\n}\n")
-    fan_control = "Sources/Vorssaint/Services/FanControl/FanControlService.swift"
-    write("FanControlResume.swift", "import Foundation\n"
-          + "extension FanControlResumeContract {\nfinal class Service: Fixture {\n"
-          + "".join(declaration(fan_control, prefix)
-                    .replace("@objc private func", "func", 1)
-                    .replace("private static var", "static var", 1)
-                    .replace("private func", "func", 1) for prefix in [
-                        "    static func recoverIfNeeded(", "    func syncWithPreferences(",
-                        "    func returnToSystem(", "    func resumePreferenceDidChange(",
-                        "    private static var resumableConfiguration:", "    private func resume(",
-                        "    private static var helperAwaitsRegistration:",
-                        "    private func rememberForResume(", "    private func stopIdleWorkIfPossible(",
-                        "    @objc private func workspaceDidWake("])
-          + "}\n}\n")
     write("NotchAudioLevelLifecycle.swift", "import Combine\nimport Foundation\n"
           + "extension NotchAudioLevelLifecycleContract {\n"
           + declaration("Sources/Vorssaint/Services/Notch/NotchAudioLevelService.swift",
@@ -1025,8 +1011,6 @@ def main():
         "NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name", "downloadName")
     music_visibility = music_visibility.replace("AppFeature.monitorDisk.isAvailable",
                                                 "AppFeature.monitorDisk.isAvailable(in: ReviewDefaults.current)")
-    music_visibility = music_visibility.replace("AppFeature.fanControl.isAvailable",
-                                                "AppFeature.fanControl.isAvailable(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("AppFeature.connectedDevices.isAvailable",
                                                 "AppFeature.connectedDevices.isAvailable(in: ReviewDefaults.current)")
     write("NotchMusicVisibility.swift", "import Foundation\nextension NotchMusicVisibilityTests {\n"
@@ -1883,12 +1867,9 @@ def main():
           + "static let bundleID = \"test\"\n"
           + "static func suspendInputInterceptors() -> Bool { events.append(\"suspend\"); return suspensionAllowed }\n"
           + "static func restoreSleepBeforeRemoval() -> Bool { events.append(\"sleep\"); return sleepRestoreAllowed }\n"
-          + "static func detachFanControl() -> Bool { events.append(\"fan\"); return detachAllowed }\n"
           + "static func detachLoginItem() { events.append(\"login\") }\n"
           + "static func removePreferences() { events.append(\"preferences\") }\n"
           + "static func trashOwnBundleAndQuit() { events.append(\"trash\") }\n"
-          + declaration(self_uninstall, "    private static func detachFromSystem()")
-            .replace("private static", "static", 1)
           + declaration(self_uninstall, "    static func clearPermissions(")
           + declaration(self_uninstall, "    static func uninstallCompletely(")
           + declaration(self_uninstall, "    private static func removeSudoersRuleIfPresent(")

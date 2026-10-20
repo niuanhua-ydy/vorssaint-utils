@@ -200,7 +200,7 @@ enum NotchDestinationContract {
         let families: [(MetricDetailKind, AppFeature)] = [
             (.cpu, .monitorCPU), (.gpu, .monitorGPU), (.memory, .monitorMemory),
             (.network, .monitorNetwork), (.disk, .monitorDisk),
-            (.battery, .monitorPower), (.power, .monitorPower), (.fan, .fanControl),
+            (.battery, .monitorPower), (.power, .monitorPower),
             (.connectedDevices, .connectedDevices),
         ]
         for (metric, feature) in families {
@@ -224,10 +224,10 @@ enum NotchDestinationContract {
         suite.expect(!service.modules.contains(.system) && service.selected == .controls
                && service.selectedMetric == nil && service.requestedDetail == nil,
                "removing the last system family selects an available module without keeping its old detail")
-        defaults.set(true, forKey: AppFeature.fanControl.availabilityKey)
-        service.open(.system, metric: .fan)
-        suite.expect(service.modules.contains(.system) && service.selectedMetric == .fan,
-               "a separately installed fan feature exposes System and retains its direct detail")
+        defaults.set(true, forKey: AppFeature.connectedDevices.availabilityKey)
+        service.open(.system, metric: .connectedDevices)
+        suite.expect(service.modules.contains(.system) && service.selectedMetric == .connectedDevices,
+               "a separately installed connected devices feature exposes System and retains its direct detail")
 
         QuickLauncherService.shared = QuickLauncherContract.Launcher()
         let launcher = QuickLauncherService.shared

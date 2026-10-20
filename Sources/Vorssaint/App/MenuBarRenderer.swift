@@ -5,7 +5,7 @@ import AppKit
 
 /// A live reading the user can pin next to the menu bar icon.
 enum MenuBarMetric: String, CaseIterable, Identifiable {
-    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, fanSpeed, connectedDevices
+    case cpu, gpu, memory, cpuTemperature, gpuTemperature, batteryTemperature, network, diskUsage, diskActivity, battery, batteryTime, peripheralBattery, power, connectedDevices
 
     var id: String { rawValue }
 
@@ -25,7 +25,6 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return DefaultsKey.menuBarPeripheralBattery
         case .power: return DefaultsKey.menuBarPower
         case .connectedDevices: return DefaultsKey.menuBarConnectedDevices
-        case .fanSpeed: return DefaultsKey.menuBarFanSpeed
         }
     }
 
@@ -45,7 +44,6 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return "keyboard"
         case .connectedDevices: return "cable.connector"
         case .power: return "powerplug.fill"
-        case .fanSpeed: return "fanblades"
         }
     }
 
@@ -65,7 +63,6 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .peripheralBattery: return strings.monitorShowPeripheralBattery
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         case .power: return strings.monitorShowPowerLabel
-        case .fanSpeed: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
         }
     }
 
@@ -74,7 +71,7 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         .gpu, .gpuTemperature,
         .memory,
         .battery, .batteryTime, .batteryTemperature, .peripheralBattery,
-        .network, .diskUsage, .diskActivity, .connectedDevices, .power, .fanSpeed,
+        .network, .diskUsage, .diskActivity, .connectedDevices, .power,
     ]
 
     static func order(in defaults: UserDefaults) -> [MenuBarMetric] {
@@ -99,7 +96,6 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         case .diskUsage, .diskActivity: return .monitorDisk
         case .connectedDevices: return .connectedDevices
         case .battery, .batteryTime, .batteryTemperature, .peripheralBattery, .power: return .monitorPower
-        case .fanSpeed: return .fanControl
         }
     }
 
@@ -107,8 +103,6 @@ enum MenuBarMetric: String, CaseIterable, Identifiable {
         switch self {
         case .battery, .batteryTime, .batteryTemperature:
             return PowerSampler.hasInternalBattery
-        case .fanSpeed:
-            return SystemMonitor.fanTelemetryAvailable
         default:
             return true
         }
@@ -316,8 +310,7 @@ enum MenuBarRenderer {
         if includesCountdown {
             estimated.append(NSAttributedString(string: "888 min  "))
         }
-        let fanCount = metrics.contains(.fanSpeed) ? SystemMonitor.fanTelemetryCount : 0
-        estimated.append(attributed(for: estimatedSnapshot(fanCount: fanCount),
+        estimated.append(attributed(for: estimatedSnapshot(),
                                     metrics: metrics,
                                     allowStacked: allowStacked && !includesCountdown,
                                     linePrefix: includesCountdown ? " " : ""))
@@ -588,16 +581,6 @@ enum MenuBarRenderer {
                                                 style: style,
                                                 pressure: nil)])
                 }
-            case .fanSpeed:
-                if let value = FanControlPolicy.menuBarValue(for: snapshot.fanSpeeds) {
-                    let minimumValue = Array(repeating: "20000", count: snapshot.fanSpeeds.count)
-                        .joined(separator: "/")
-                    groups.append([.metricBlock(label: "RPM",
-                                                value: value,
-                                                minimumValue: minimumValue,
-                                                style: style,
-                                                pressure: nil)])
-                }
             }
         }
         return blockJoined(groups, style: style)
@@ -677,9 +660,6 @@ enum MenuBarRenderer {
             return 12      // clock symbol + "99h 59m"
         case (_, .connectedDevices):
             return 6       // symbol + " 99"
-        case (_, .fanSpeed):
-            let count = max(1, SystemMonitor.fanTelemetryCount)
-            return FanControlPolicy.menuBarWidthUnits(fanCount: count)
         }
     }
 
@@ -1160,7 +1140,7 @@ enum MenuBarRenderer {
         }
     }
 
-    private static func estimatedSnapshot(fanCount: Int) -> SystemSnapshot {
+    private static func estimatedSnapshot() -> SystemSnapshot {
         var snapshot = SystemSnapshot()
         snapshot.cpuUsage = 1
         snapshot.gpuUsage = 1
@@ -1171,7 +1151,6 @@ enum MenuBarRenderer {
         snapshot.cpuTemperature = 125
         snapshot.gpuTemperature = 125
         snapshot.batteryTemperature = 125
-        snapshot.fanSpeeds = Array(repeating: 20_000, count: fanCount)
         snapshot.netDownBytesPerSec = 1_000_000_000
         snapshot.netUpBytesPerSec = 1_000_000_000
         snapshot.disk = DiskReading(devices: [

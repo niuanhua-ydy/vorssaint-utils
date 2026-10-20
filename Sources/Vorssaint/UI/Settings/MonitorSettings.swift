@@ -23,7 +23,6 @@ struct MonitorSettings: View {
     @AppStorage(DefaultsKey.temperatureUnit) private var temperatureUnit = TemperatureUnit.celsius.rawValue
     @AppStorage(DefaultsKey.networkSpeedUnit) private var networkSpeedUnit = NetworkSpeedUnit.bytes
     @AppStorage(DefaultsKey.monitorMemoryMetric) private var memoryMetric = "used"
-    @AppStorage(DefaultsKey.panelShowFanControl) private var showFanControl = true
 
     var body: some View {
         ScrollView {
@@ -48,10 +47,6 @@ struct MonitorSettings: View {
                 }
                 groupHeading(l10n.s.monitorPanelSection, symbol: "macwindow")
                 panelCard
-                if AppFeature.fanControl.isAvailable {
-                    fanControlCard
-                        .settingsSectionAnchor(.fanControl, cornerRadius: 16)
-                }
                 groupHeading(FeatureStrings.monitorLayout(l10n.language).shared, symbol: "slider.horizontal.3")
                 readingsCard
                 alertsCard
@@ -231,21 +226,6 @@ struct MonitorSettings: View {
             SettingsRow(symbol: "arrow.up.to.line", title: GraphScaleStrings.localized(l10n.language).title) {
                 Toggle(GraphScaleStrings.localized(l10n.language).title, isOn: $graphScale).labelsHidden()
             }
-        }
-    }
-
-    private var fanControlCard: some View {
-        let fanStrings = FeatureStrings.fanControl(l10n.language)
-        return SettingsCard {
-            SettingsRow(symbol: "fanblades.fill", title: fanStrings.title, badge: l10n.s.betaBadge,
-                        caption: fanStrings.settingsCaption) {
-                Toggle(fanStrings.showInPanel, isOn: $showFanControl).labelsHidden()
-            }
-            Text(l10n.s.betaFeatureWarning)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, settingsRowTextInset)
         }
     }
 }

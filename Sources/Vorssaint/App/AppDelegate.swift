@@ -154,7 +154,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         KeepAwakeManager.shared.recoverIfNeeded {
             KeepAwakeManager.shared.activateOnLaunchIfNeeded()
         }
-        FanControlService.recoverIfNeeded()
         SpacesOrderHold.recoverIfNeeded()
         // One binding per feature: only available features are touched, so a
         // feature switched off in the hub never even instantiates here.
@@ -327,7 +326,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         SoundOutputSwitcher.shared.stop()
         PreciseVolumeRollerService.shared.stop()
         AppVolumeMixer.shared.stopAll()
-        FanControlService.restoreBeforeTerminationIfNeeded()
         // Restore a singular preferred-microphone override. An active
         // microphone priority selection remains the system input on quit.
         AudioInputDeviceManager.shared.stop()

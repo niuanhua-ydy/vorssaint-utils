@@ -34,7 +34,7 @@ enum AppFeature: String, CaseIterable {
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
     // System monitor, one entry per metric family (temperatures live with
     // their parent metric: CPU temp with CPU, battery temp with power).
-    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices, fanControl
+    case monitorCPU, monitorGPU, monitorMemory, monitorNetwork, monitorDisk, monitorPower, connectedDevices
 }
 
 /// Hub sections, in display order.
@@ -122,7 +122,7 @@ extension AppFeature {
              .notchMascot:
             return .dynamicIsland
         case .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .connectedDevices, .fanControl:
+             .connectedDevices:
             return .monitor
         }
     }
@@ -208,13 +208,12 @@ extension AppFeature {
         case .monitorDisk: return "internaldrive"
         case .monitorPower: return "bolt.fill"
         case .connectedDevices: return "cable.connector"
-        case .fanControl: return "fanblades.fill"
         }
     }
 
     var availabilityKey: String { DefaultsKey.featureAvailable(rawValue) }
 
-    var isBeta: Bool { self == .fanControl || self == .killProcess }
+    var isBeta: Bool { self == .killProcess }
 
     /// Availability read straight from defaults. Existing features stay
     /// available on update; explicit beta opt-ins may start unavailable.
@@ -290,7 +289,7 @@ extension AppFeature {
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
              .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
-             .connectedDevices, .fanControl:
+             .connectedDevices:
             return []
         }
     }
@@ -384,7 +383,7 @@ extension AppFeature {
         case .clipboardHistory, .shelf, .urlCleaner,
              .soundOutputSwitcher, .audioPriority,
              .extraBrightness, .bluetoothSleep, .quickLauncher, .colorPicker, .micMute, .mediaTools,
-             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .fanControl, .killProcess,
+             .scratchpad, .wallpaper, .monitorGPU, .monitorNetwork, .connectedDevices, .killProcess,
              .portManager:
             return []
         }
@@ -484,7 +483,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .fanControl, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .notchMascot, .spacesOrder:
             return false
         }
     }

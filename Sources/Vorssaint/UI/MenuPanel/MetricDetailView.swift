@@ -5,7 +5,7 @@ import AppKit
 import SwiftUI
 
 enum MetricDetailKind: String, Equatable, Identifiable {
-    case cpu, gpu, memory, network, disk, battery, power, fan, connectedDevices
+    case cpu, gpu, memory, network, disk, battery, power, connectedDevices
 
     var id: String { rawValue }
 
@@ -19,8 +19,6 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return .disk
         case .battery, .power:
             return .power
-        case .fan:
-            return .fanControl
         }
     }
 
@@ -33,7 +31,6 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk: return "internaldrive"
         case .battery: return "battery.100"
         case .power: return "powerplug.fill"
-        case .fan: return "fanblades"
         case .connectedDevices: return "cable.connector"
         }
     }
@@ -60,8 +57,6 @@ enum MetricDetailKind: String, Equatable, Identifiable {
             return SystemMonitorPanelNeeds(peripheralBattery: true)
         case .power:
             return SystemMonitorPanelNeeds(power: true)
-        case .fan:
-            return SystemMonitorPanelNeeds(fanSpeed: true)
         case .connectedDevices:
             return SystemMonitorPanelNeeds(connectedDevices: true)
         }
@@ -76,7 +71,6 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .disk: return s.diskSection
         case .battery: return s.batteryLabel
         case .power: return s.powerSection
-        case .fan: return FeatureStrings.fanControl(L10n.shared.language).menuBarTitle
         case .connectedDevices: return FeatureStrings.connectedDevices(L10n.shared.language).title
         }
     }
@@ -88,7 +82,7 @@ enum MetricDetailKind: String, Equatable, Identifiable {
         case .memory: return .memory
         case .power: return .energy
         case .network: return .network
-        case .disk, .battery, .fan, .connectedDevices: return nil
+        case .disk, .battery, .connectedDevices: return nil
         }
     }
 }
@@ -110,8 +104,6 @@ extension MenuBarMetric {
             return .battery
         case .batteryTime, .power:
             return .power
-        case .fanSpeed:
-            return .fan
         case .connectedDevices:
             return .connectedDevices
         }
@@ -239,7 +231,7 @@ struct MetricDetailView: View {
             let peak = MetricFormat.graphCeiling(monitor.snapshot.systemPowerHistory.max() ?? 0, unitStep: 1000)
             historyGraph(monitor.snapshot.systemPowerHistory, color: summaryColor, maxValue: peak,
                          ceilingLabel: MetricFormat.watts(peak))
-        case .fan, .connectedDevices:
+        case .connectedDevices:
             EmptyView()
         }
     }
@@ -462,15 +454,6 @@ struct MetricDetailView: View {
                 }
             }
             return rows
-        case .fan:
-            let strings = FeatureStrings.fanControl(l10n.language)
-            guard !snapshot.fanSpeeds.isEmpty else {
-                return [row(strings.menuBarTitle, l10n.s.monitorUnavailable)]
-            }
-            return snapshot.fanSpeeds.enumerated().map { index, rpm in
-                row(String(format: strings.fanNameFormat, index + 1),
-                    String(format: strings.rpmFormat, Int(rpm.rounded())))
-            }
         case .connectedDevices:
             let strings = FeatureStrings.connectedDevices(l10n.language)
             guard !snapshot.connectedDevices.isEmpty else {
@@ -508,10 +491,6 @@ struct MetricDetailView: View {
                 .map { "\($0.percent)%" } ?? "-"
         case .power:
             return snapshot.power?.systemWatts.map(MetricFormat.wattsCompact) ?? "-"
-        case .fan:
-            let strings = FeatureStrings.fanControl(l10n.language)
-            guard let rpm = snapshot.fanSpeeds.first else { return "-" }
-            return String(format: strings.rpmFormat, Int(rpm.rounded()))
         case .connectedDevices:
             return "\(snapshot.connectedDevices.count)"
         }
@@ -544,11 +523,6 @@ struct MetricDetailView: View {
                 ?? l10n.s.peripheralBatteryNoDevices
         case .power:
             return powerSubtitle(snapshot.power)
-        case .fan:
-            let strings = FeatureStrings.fanControl(l10n.language)
-            return snapshot.fanSpeeds.isEmpty
-                ? strings.menuBarTitle
-                : String(format: strings.fanNameFormat, 1)
         case .connectedDevices:
             let count = snapshot.connectedDevices.count
             let strings = FeatureStrings.connectedDevices(l10n.language)
@@ -570,7 +544,7 @@ struct MetricDetailView: View {
             return PanelMetricColor.green(for: colorScheme)
         case .power:
             return PanelMetricColor.orange(for: colorScheme)
-        case .fan, .connectedDevices:
+        case .connectedDevices:
             return PanelMetricColor.cyan(for: colorScheme)
         }
     }

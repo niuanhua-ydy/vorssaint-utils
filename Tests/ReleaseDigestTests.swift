@@ -252,9 +252,9 @@ enum ReleaseDigestTests {
                      "the frozen list names only real features")
         suite.expect(WhatsNewInfo.newFeatures(known: WhatsNewInfo.knownFeaturesValue, isSupported: { _ in true }).isEmpty,
                      "a recorded list of every feature leaves nothing new")
-        let known = AppFeature.allCases.filter { $0 != .portManager && $0 != .fanControl }.map(\.rawValue)
+        let known = AppFeature.allCases.filter { $0 != .portManager && $0 != .killProcess }.map(\.rawValue)
             .joined(separator: ",")
-        suite.expect(WhatsNewInfo.newFeatures(known: known, isSupported: { $0 != .fanControl }) == [.portManager],
+        suite.expect(WhatsNewInfo.newFeatures(known: known, isSupported: { $0 != .killProcess }) == [.portManager],
                      "features missing from the record are new unless this Mac cannot run them")
         let untracked = AppFeature.allCases.filter { !WhatsNewInfo.featuresBeforeTracking.contains($0.rawValue) }
         suite.expect(WhatsNewInfo.newFeatures(known: nil, isSupported: { _ in true }) == untracked,
@@ -282,13 +282,13 @@ enum ReleaseDigestTests {
         let island = change("island", .changed, [.notch, .notchCalendar])
         let general = change("general", .fixed, [])
         let gpu = change("gpu", .fixed, [.monitorGPU])
-        let fans = change("fans", .fixed, [.fanControl])
+        let devices = change("devices", .fixed, [.connectedDevices])
         let ports = change("ports", .new, [.portManager, .switcher])
         let installer = change("installer", .fixed, [.diskImageInstaller])
         var panel = change("panel", .changed, [.keepAwake])
         panel.alsoAppWide = true
         let digest = ReleaseDigest(previousVersion: "3.4.1", version: "3.4.2", versions: ["3.4.2"], summary: nil,
-                                   changes: [switcher, lyrics, island, general, gpu, fans, ports, installer, panel])
+                                   changes: [switcher, lyrics, island, general, gpu, devices, ports, installer, panel])
         let installed: Set<AppFeature> = [.switcher, .notch, .notchLyrics, .monitorGPU, .diskImageInstaller]
         let sections = WhatsNewSupport.sections(
             digest: digest, newFeatures: [.portManager], sidebarItems: items,
@@ -305,7 +305,7 @@ enum ReleaseDigestTests {
         suite.expect(sections.yourFeatures.first { $0.id == .settings(.feature(.switcher)) }?.changes == [switcher, ports],
                      "an entry naming a new feature still shows under the installed one beside it")
         suite.expect(sections.notInstalled.map(\.id)
-                        == [.notInstalled(.keepAwake), .notInstalled(.notchCalendar), .notInstalled(.fanControl)],
+                        == [.notInstalled(.keepAwake), .notInstalled(.notchCalendar), .notInstalled(.connectedDevices)],
                      "features this Mac does not have are listed one by one")
         suite.expect(sections.yourFeatures.last?.changes == [general, panel],
                      "an entry about a missing feature that also changes the whole app stays in General")
@@ -320,7 +320,7 @@ enum ReleaseDigestTests {
                      "an island extension left installed without the island is not one of this Mac's features")
         let elsewhere = WhatsNewSupport.sections(
             digest: ReleaseDigest(previousVersion: "3.4.1", version: "3.4.2", versions: ["3.4.2"], summary: nil,
-                                  changes: [fans]),
+                                  changes: [devices]),
             newFeatures: [], sidebarItems: items, isAvailable: { _ in false }, title: { $0.rawValue },
             generalTitle: "General")
         suite.expect(!elsewhere.hasContentForYou && elsewhere.notInstalled.count == 1,

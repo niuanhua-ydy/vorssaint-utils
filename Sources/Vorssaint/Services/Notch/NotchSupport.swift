@@ -78,7 +78,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
-                    .monitorDisk, .monitorPower, .fanControl, .connectedDevices].contains { (feature: AppFeature) in
+                    .monitorDisk, .monitorPower, .connectedDevices].contains { (feature: AppFeature) in
                 feature.isAvailable(in: defaults)
             }
         }
@@ -1985,15 +1985,13 @@ enum NotchSupport {
         }
     }
 
-    /// Power draw has a card of its own beside the battery; fans join once
-    /// the monitor reports one.
-    static func systemCardCount(hasBattery: Bool, fans: Int = 0, in defaults: UserDefaults = .standard) -> Int {
+    /// Power draw has a card of its own beside the battery.
+    static func systemCardCount(hasBattery: Bool, in defaults: UserDefaults = .standard) -> Int {
         [.monitorCPU, .monitorGPU, .monitorMemory, .monitorDisk].filter {
             (feature: AppFeature) in feature.isAvailable(in: defaults)
         }.count + (AppFeature.monitorNetwork.isAvailable(in: defaults) ? 1 : 0)
             + (hasBattery && AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
             + (AppFeature.monitorPower.isAvailable(in: defaults) ? 1 : 0)
-            + (fans > 0 && AppFeature.fanControl.isAvailable(in: defaults) ? 1 : 0)
             + (AppFeature.connectedDevices.isAvailable(in: defaults) ? 1 : 0)
     }
 
@@ -2708,10 +2706,9 @@ struct NotchGeometry: Equatable {
     }
 
     /// `toolCount` is nil while the launcher edits its grid or hosts a
-    /// utility: those need the page, not a rail. `detailHeight` is a
-    /// detail's measured content, which it fits instead of the whole page.
+    /// utility: those need the page, not a rail.
     func expandedSize(module: NotchModule, detail: Bool = false, panel: Bool = false,
-                      detailHeight: CGFloat? = nil, shortcutCount: Int = 4,
+                      shortcutCount: Int = 4,
                       sliderCount: Int = 2, controlsHaveMusic: Bool = true, musicHasContent: Bool = true,
                       musicExtraHeight: CGFloat = 0,
                       fileMediaHeight: CGFloat? = nil, systemCards: Int = 6, toolCount: Int? = 8,
@@ -2722,9 +2719,7 @@ struct NotchGeometry: Equatable {
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
         let contentHeight: CGFloat
-        if detail, !panel, let detailHeight {
-            contentHeight = min(pageBudget, max(0, detailHeight) + 4)
-        } else if detail || panel {
+        if detail || panel {
             contentHeight = pageBudget
         } else if showsFileMedia {
             // Measured surfaces keep their own height; the custom limit and
