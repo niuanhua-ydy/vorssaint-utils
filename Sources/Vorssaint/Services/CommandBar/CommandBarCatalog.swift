@@ -703,6 +703,17 @@ enum CommandBarCatalog {
                 keepsBarOpen: true,
                 run: { _ in CommandBarService.shared.beginCleanReview(entryID: "action.cleaner") }))
         }
+        if AppFeature.homebrew.isAvailable {
+            // Searching and installing packages wants room and time, so the
+            // tool opens its full Settings page rather than a list in the bar.
+            entries.append(CommandBarEntry(
+                id: "action.homebrew",
+                title: s.homebrewName,
+                subtitle: area(.homebrew, under: s.homebrewName),
+                keywords: "brew cask formula",
+                icon: .symbol("shippingbox"),
+                run: { _ in openSettings(at: .homebrew) }))
+        }
         if AppFeature.uninstaller.isAvailable {
             // With the bar's own uninstall flow on, the tool's row opens the
             // app list right here, like the browse row below; its Settings
@@ -862,7 +873,7 @@ enum CommandBarCatalog {
     /// Pages an action row already opens; listing them again would put two
     /// rows in the list that lead to the same place.
     private static let pagesCoveredByActions: Set<SettingsPage> = [
-        .general, .cleaner, .uninstaller, .appUpdates,
+        .general, .cleaner, .uninstaller, .appUpdates, .homebrew,
     ]
 
     private static func settingsEntries(_ s: Strings,
