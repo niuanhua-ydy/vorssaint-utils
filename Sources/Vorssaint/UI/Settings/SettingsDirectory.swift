@@ -163,7 +163,13 @@ enum SettingsDirectory {
         if BrightnessService.keyboardLightIsSupported {
             items.append(SettingsSearchSupport.keyboardBrightnessShortcutItem(language: language))
         }
-        return items
+        // A result for a feature this build leaves out, or for a page only
+        // such features own, would route to a hub row that is not there.
+        return items.filter { item in
+            if item.feature?.isExcludedFromBuild == true { return false }
+            let owners = AppFeature.allCases.filter { $0.settingsDestination.page == item.destination.page }
+            return owners.isEmpty || owners.contains { !$0.isExcludedFromBuild }
+        }
     }
 
     static func sections(_ s: Strings,
@@ -185,7 +191,7 @@ enum SettingsDirectory {
                 // is hidden, so the hub is always the way back.
                 SettingsDirectoryItem(page: .features, title: FeatureStrings.hub(language).pageTitle,
                                        icon: "square.grid.2x2",
-                                       featureKeywords: AppFeature.allCases.map {
+                                       featureKeywords: AppFeature.offered.map {
                                         ($0, [$0.hubTitle(s, hub: FeatureStrings.hub(language))])
                                        }),
                 SettingsDirectoryItem(page: .energy, title: s.tabEnergy, icon: "bolt.fill",

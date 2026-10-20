@@ -37,9 +37,10 @@ struct OnboardingView: View {
             || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
         let features = selectionWasApplied
             ? Set(AppFeature.allCases.filter(\.isAvailable))
-            : FeaturePreset.essential.features
+            : FeaturePreset.essential.features.subtracting(AppFeature.excludedFromBuild)
         _selectedFeatures = State(initialValue: features)
-        _selectedPreset = State(initialValue: selectionWasApplied ? nil : .essential)
+        _selectedPreset = State(initialValue: selectionWasApplied || !FeaturePreset.offered.contains(.essential)
+                                    ? nil : .essential)
     }
 
     private var setupPermissions: [AppPermission] {
@@ -224,7 +225,7 @@ private struct PurposeStep: View {
                        subtitle: l10n.s.obPurposeBody)
 
             VStack(spacing: 8) {
-                ForEach(FeaturePreset.allCases) { preset in
+                ForEach(FeaturePreset.offered) { preset in
                     bundleCard(preset)
                 }
             }
@@ -244,12 +245,12 @@ private struct PurposeStep: View {
             .padding(.horizontal, 28)
 
             LazyVStack(spacing: 14) {
-                ForEach(FeatureGroup.allCases, id: \.self) { group in
+                ForEach(FeatureGroup.offered, id: \.self) { group in
                     VStack(alignment: .leading, spacing: 7) {
                         Text(groupTitle(group))
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
-                        ForEach(AppFeature.features(in: group), id: \.self) { feature in
+                        ForEach(AppFeature.offeredFeatures(in: group), id: \.self) { feature in
                             featureCard(feature)
                         }
                     }

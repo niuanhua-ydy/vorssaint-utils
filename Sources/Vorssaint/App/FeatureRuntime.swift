@@ -79,7 +79,7 @@ final class FeatureRuntime: ObservableObject {
     /// An install that predates the check still counts, so the tally can
     /// never read more installed than installable.
     var installableCount: Int {
-        AppFeature.allCases.filter { $0.isHardwareSupported || $0.isAvailable }.count
+        AppFeature.offered.filter { $0.isHardwareSupported || $0.isAvailable }.count
     }
 
     /// The one gate every install passes, whichever surface asks: the hub
@@ -93,7 +93,7 @@ final class FeatureRuntime: ObservableObject {
     /// feature reporting itself unsupported.
     private func mayFlip(_ feature: AppFeature, to available: Bool) -> Bool {
         guard feature.isAvailable != available else { return false }
-        return !available || feature.isHardwareSupported
+        return !available || (feature.isHardwareSupported && !feature.isExcludedFromBuild)
     }
 
     /// Flipping availability runs each feature's binding immediately, in the

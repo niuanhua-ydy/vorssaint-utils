@@ -1822,8 +1822,8 @@ enum FeatureCatalogTests {
             FeaturePreset.prepareFirstRunAvailability(in: firstRunDefaults)
             suite.expect(Set(AppFeature.allCases.filter {
                 firstRunDefaults.bool(forKey: $0.availabilityKey)
-            }) == FeaturePreset.essential.features,
-            "a clean install loads only the essential feature set before onboarding")
+            }) == FeaturePreset.essential.features.subtracting(AppFeature.excludedFromBuild),
+            "a clean install loads only the essential feature set this build offers before onboarding")
 
             for feature in AppFeature.allCases {
                 firstRunDefaults.set(true, forKey: feature.availabilityKey)
@@ -1833,10 +1833,25 @@ enum FeatureCatalogTests {
             suite.expect(AppFeature.allCases.allSatisfy {
                 firstRunDefaults.bool(forKey: $0.availabilityKey)
             }, "an interrupted onboarding keeps the feature selection already applied")
+
+            Defaults.enforceBuildExclusions(in: firstRunDefaults)
+            suite.expect(AppFeature.allCases.allSatisfy {
+                firstRunDefaults.bool(forKey: $0.availabilityKey) == !$0.isExcludedFromBuild
+            }, "launch uninstalls every excluded feature and leaves the offered ones alone")
             firstRunDefaults.removePersistentDomain(forName: firstRunSuiteName)
         } else {
             suite.expect(false, "first-run defaults suite can be created")
         }
+        suite.expect(AppFeature.offered.count == AppFeature.allCases.count - AppFeature.excludedFromBuild.count
+                && AppFeature.offered.allSatisfy { !$0.isExcludedFromBuild },
+               "the offered catalog is everything but the excluded features")
+        suite.expect(FeatureGroup.offered.allSatisfy {
+                   !AppFeature.offeredFeatures(in: $0).isEmpty
+                       && AppFeature.offeredFeatures(in: $0).allSatisfy { !$0.isExcludedFromBuild }
+               },
+               "an offered group lists only offered features, and at least one")
+        suite.expect(FeaturePreset.offered.allSatisfy { $0.features.isDisjoint(with: AppFeature.excludedFromBuild) },
+               "an offered preset installs nothing this build leaves out")
         for preset in FeaturePreset.allCases {
             suite.expect(preset.enableKeys.allSatisfy { key in
                        preset.features.contains { $0.enabledKeys.contains(key) }

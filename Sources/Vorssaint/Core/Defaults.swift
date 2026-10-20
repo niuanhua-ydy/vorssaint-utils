@@ -2003,6 +2003,8 @@ enum Defaults {
         // The "all apps" output choice now lasts one session; a saved one
         // would move apps that chose their own output after every launch.
         defaults.removeObject(forKey: DefaultsKey.mixerUniversalOutputDevice)
+        // Last, so no migration above can leave an excluded feature installed.
+        enforceBuildExclusions(in: defaults)
     }
 
     /// Start text filtering off for existing installations as well. A distinct
@@ -2237,6 +2239,16 @@ enum Defaults {
               defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
         else { return }
         defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+    }
+
+    /// Writes every feature this build leaves out uninstalled, so the reads
+    /// that go straight to defaults agree with the runtime gate. Runs after
+    /// the other migrations, any of which may have installed one, and so
+    /// also after a settings import, which relaunches.
+    static func enforceBuildExclusions(in defaults: UserDefaults) {
+        for feature in AppFeature.excludedFromBuild where defaults.bool(forKey: feature.availabilityKey) {
+            defaults.set(false, forKey: feature.availabilityKey)
+        }
     }
 
     /// Linear scrolling reached development builds installed, before new

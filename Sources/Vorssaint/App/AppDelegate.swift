@@ -2233,16 +2233,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         let strings = L10n.shared.s
         let language = L10n.shared.language
         let hub = FeatureStrings.hub(language)
-        let sections = WhatsNewSupport.sections(
+        var sections = WhatsNewSupport.sections(
             digest: digest,
             newFeatures: WhatsNewInfo.newFeatures(
                 known: defaults.string(forKey: DefaultsKey.whatsNewKnownFeatures),
-                isSupported: { $0.isHardwareSupported }),
+                isSupported: { $0.isHardwareSupported && !$0.isExcludedFromBuild }),
             sidebarItems: SettingsDirectory.sidebarItems(strings, language: language,
                                                          isAvailable: { $0.isAvailable }),
             isAvailable: { $0.isAvailable },
             title: { $0.hubTitle(strings, hub: hub) },
             generalTitle: strings.tabGeneral)
+        // A feature this build leaves out has no row to install it from.
+        sections.notInstalled.removeAll { $0.feature?.isExcludedFromBuild == true }
         guard sections.hasContentForYou || (isReview && !sections.rows.isEmpty) else { return false }
         closePopover()
         let visible = NSScreen.pointerVisibleFrame

@@ -91,7 +91,7 @@ struct FeatureHubSettings: View {
                     }
                     dynamicIslandCard
                     presetsCard
-                    ForEach(FeatureGroup.allCases.filter { $0 != .dynamicIsland }, id: \.self) { group in
+                    ForEach(FeatureGroup.offered.filter { $0 != .dynamicIsland }, id: \.self) { group in
                         groupCard(group)
                     }
                     VStack(alignment: .leading, spacing: 4) {
@@ -303,7 +303,7 @@ struct FeatureHubSettings: View {
             DisclosureGroup(hub.presetsTitle, isExpanded: $presetsExpanded) {
                 if presetsExpanded {
                     HStack(alignment: .top, spacing: 10) {
-                        ForEach(FeaturePreset.allCases) { preset in
+                        ForEach(FeaturePreset.offered) { preset in
                             PresetCard(preset: preset,
                                        name: presetName(preset),
                                        caption: presetDescription(preset),
@@ -371,7 +371,7 @@ struct FeatureHubSettings: View {
     /// Groups start open; LazyVStack builds distant groups as they enter view.
     /// Closing a group removes its feature rows until the user reopens it.
     private func groupCard(_ group: FeatureGroup) -> some View {
-        let members = AppFeature.features(in: group)
+        let members = AppFeature.offeredFeatures(in: group)
         let installed = members.filter(\.isAvailable).count
         return SettingsCard {
             DisclosureGroup(isExpanded: Binding(
