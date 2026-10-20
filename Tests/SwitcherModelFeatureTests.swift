@@ -154,7 +154,8 @@ enum SwitcherModelFeatureTests {
             suite.expect(actual == expected, "\(label): got \(actual), expected \(expected)",
                          file: file, line: line)
         }
-        let registeredDefaults = Defaults.registeredDefaults
+        // Launch registers ClipNote's defaults beside the app's own.
+        let registeredDefaults = Defaults.registeredDefaults.merging(ClipNoteDefaults.registered) { app, _ in app }
         func sourceBody(of source: String, from opening: String, to closing: String) -> String {
             guard let start = source.range(of: opening),
                   let end = source.range(of: closing, range: start.upperBound..<source.endIndex)

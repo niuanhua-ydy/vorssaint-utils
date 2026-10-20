@@ -31,6 +31,7 @@ struct MetricsTests {
                 ClipNoteSyncTests.run(suite)
                 ClipNoteBackupTests.run(suite)
                 ClipNoteNetworkTests.run(suite)
+                ClipNoteAppTests.run(suite)
             }),
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)

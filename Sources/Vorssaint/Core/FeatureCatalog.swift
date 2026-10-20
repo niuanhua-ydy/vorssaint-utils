@@ -20,7 +20,7 @@ enum AppFeature: String, CaseIterable {
          mouseClickDebounce, keyboardDebounce, textSnippets, superKey, quitWindowProtection
     // Clipboard and files
     case clipboardHistory, pastePlain, finderCutPaste, finderRename, shelf, urlCleaner,
-         diskImageInstaller
+         diskImageInstaller, clipNote
     // Sound
     case mixer, soundOutputSwitcher, audioPriority, micMute, musicBlock
     // Energy and display
@@ -107,7 +107,7 @@ extension AppFeature {
              .keyboardDebounce, .textSnippets, .superKey, .quitWindowProtection, .mouseClickDebounce:
             return .mouseKeyboard
         case .clipboardHistory, .pastePlain, .finderCutPaste, .finderRename, .shelf, .urlCleaner,
-             .diskImageInstaller:
+             .diskImageInstaller, .clipNote:
             return .clipboardFiles
         case .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock:
             return .sound
@@ -160,6 +160,7 @@ extension AppFeature {
         case .shelf: return "tray.full"
         case .urlCleaner: return "link"
         case .diskImageInstaller: return "externaldrive.badge.plus"
+        case .clipNote: return "list.clipboard"
         case .mixer: return "speaker.wave.2"
         case .soundOutputSwitcher: return "hifispeaker"
         case .audioPriority: return "list.number"
@@ -271,6 +272,7 @@ extension AppFeature {
         case .notch: return [DefaultsKey.notchEnabled]
         case .radialMenu: return [DefaultsKey.radialMenuEnabled]
         case .clipboardHistory: return [DefaultsKey.clipboardHistoryEnabled]
+        case .clipNote: return [DefaultsKey.clipNoteEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderCutPaste: return [DefaultsKey.finderCutPasteEnabled,
                                       DefaultsKey.finderPasteImageAsFile]
@@ -351,7 +353,7 @@ extension AppFeature {
         case .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
              .keyboardDebounce, .textSnippets, .superKey, .mouseClickDebounce,
              .dockClick, .windowMaximizer, .windowLayout,
-             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .radialMenu,
+             .autoQuit, .quitWindowProtection, .cleaningMode, .pastePlain, .clipNote, .radialMenu,
              // The bar reads other apps' menus and windows and types at the
              // caret, all of it through Accessibility.
              .commandBar:
@@ -483,7 +485,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .notchMascot, .spacesOrder:
+             .wallpaper, .killProcess, .portManager, .notchMascot, .spacesOrder, .clipNote:
             return false
         }
     }

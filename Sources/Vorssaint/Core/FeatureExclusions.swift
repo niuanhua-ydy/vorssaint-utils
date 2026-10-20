@@ -34,7 +34,7 @@ extension AppFeature {
     /// Upstream opt-ins this build installs anyway: the Command Bar is where
     /// they live here. Registered installed for a Mac that never chose, and
     /// part of the first-run set; a later uninstall from the hub still holds.
-    static let installedByDefaultInBuild: Set<AppFeature> = [.killProcess, .portManager]
+    static let installedByDefaultInBuild: Set<AppFeature> = [.killProcess, .portManager, .clipNote]
 
     /// What a clean install starts with before onboarding, and what the
     /// first-run picker shows selected.

@@ -337,6 +337,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchPlaybackCommand.swift
         Sources/Vorssaint/Services/Notch/NotchMusicCommandWriter.swift
         Sources/Vorssaint/Core/FeatureCatalog.swift
+        Sources/Vorssaint/Core/ClipNoteDefaults.swift
+        Sources/Vorssaint/Core/ClipNoteStrings.swift
+        Sources/Vorssaint/Core/ClipNoteSettingsStrings.swift
         Sources/Vorssaint/Core/FeaturePresets.swift
         Sources/Vorssaint/Core/FeatureExclusions.swift
         Sources/Vorssaint/Core/FeatureHubStrings.swift

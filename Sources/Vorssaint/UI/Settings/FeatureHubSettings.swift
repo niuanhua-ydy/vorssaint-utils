@@ -1024,6 +1024,7 @@ extension AppFeature {
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).title
         case .clipboardHistory: return FeatureStrings.clipboard(L10n.shared.language).title
+        case .clipNote: return FeatureStrings.clipNote(L10n.shared.language).title
         case .pastePlain: return s.pastePlainName
         case .finderCutPaste: return s.cutPasteName
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
@@ -1107,6 +1108,7 @@ extension AppFeature {
         case .mouseClickDebounce:
             return FeatureStrings.mouseClickDebounce(L10n.shared.language).caption
         case .clipboardHistory: return hub.descClipboardHistory
+        case .clipNote: return FeatureStrings.clipNote(L10n.shared.language).hubDescription
         case .pastePlain: return hub.descPastePlain
         case .finderCutPaste: return hub.descFinderCutPaste
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubDescription

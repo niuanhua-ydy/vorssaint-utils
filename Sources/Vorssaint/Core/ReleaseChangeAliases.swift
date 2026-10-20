@@ -91,6 +91,7 @@ enum ReleaseChangeAliases {
         case .clipboardHistory: return ["clipboard history", .exact("Clipboard"), .island("clipboard"),
             "clear unpinned", "clipboard previews", "clipboard items"]
         case .pastePlain: return ["paste as plain text", "paste plain text"]
+        case .clipNote: return ["clipnote", "paste stack", "pinboards"]
         case .finderCutPaste: return ["cut & paste", "cut and paste", "cut files", "finder cut", "cut operations"]
         case .finderRename: return ["finder shortcuts", "rename shortcut", "renames selected files"]
         case .shelf: return [.exact("Shelf"), .island("shelf"), "drop zone", "docked shelf", "temporary shelf",

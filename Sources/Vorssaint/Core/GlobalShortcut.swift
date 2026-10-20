@@ -697,6 +697,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case switcher
     case switcherWindow
     case clipboard
+    case clipNote
+    case clipNoteStack
     case soundOutputSwitcher
     case pastePlain
     case finderRename
@@ -731,6 +733,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcher: return DefaultsKey.switcherShortcut
         case .switcherWindow: return DefaultsKey.switcherWindowShortcut
         case .clipboard: return DefaultsKey.clipboardHistoryShortcut
+        case .clipNote: return DefaultsKey.clipNoteShortcut
+        case .clipNoteStack: return DefaultsKey.clipNoteStackShortcut
         case .soundOutputSwitcher: return DefaultsKey.soundOutputSwitcherShortcut
         case .pastePlain: return DefaultsKey.pastePlainShortcut
         case .finderRename: return DefaultsKey.finderRenameShortcut
@@ -765,6 +769,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcher: return .switcherDefault
         case .switcherWindow: return .switcherWindowDefault
         case .clipboard: return .clipboardDefault
+        case .clipNote: return .clipNoteDefault
+        case .clipNoteStack: return .clipNoteStackDefault
         case .soundOutputSwitcher: return .soundOutputSwitcherDefault
         case .pastePlain: return .pastePlainDefault
         case .finderRename: return .finderRenameDefault
@@ -818,6 +824,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcher: return strings.switcherShortcutHintApps
         case .switcherWindow: return strings.switcherShortcutHintWindows
         case .clipboard: return FeatureStrings.clipboard(L10n.shared.language).title
+        case .clipNote: return FeatureStrings.clipNote(L10n.shared.language).title
+        case .clipNoteStack: return FeatureStrings.clipNote(L10n.shared.language).stackTitle
         case .soundOutputSwitcher: return strings.soundOutputSwitcherTitle
         case .pastePlain: return strings.pastePlainName
         case .finderRename: return FeatureStrings.finderRename(L10n.shared.language).hubTitle
@@ -884,6 +892,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .switcher, .switcherWindow: return [DefaultsKey.switcherEnabled]
         case .clipboard: return [DefaultsKey.clipboardHistoryEnabled,
                                  DefaultsKey.clipboardHistoryShortcutEnabled]
+        case .clipNote: return [DefaultsKey.clipNoteEnabled]
+        case .clipNoteStack: return [DefaultsKey.clipNoteEnabled, DefaultsKey.clipNoteStackShortcutEnabled]
         case .soundOutputSwitcher: return [DefaultsKey.soundOutputSwitcherEnabled]
         case .pastePlain: return [DefaultsKey.pastePlainEnabled]
         case .finderRename: return [DefaultsKey.finderRenameEnabled]
@@ -920,6 +930,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .shelf: return .shelf
         case .switcher, .switcherWindow: return .switcher
         case .clipboard: return .clipboardHistory
+        case .clipNote, .clipNoteStack: return .clipNote
         case .soundOutputSwitcher: return .soundOutputSwitcher
         case .pastePlain: return .pastePlain
         case .finderRename: return .finderRename

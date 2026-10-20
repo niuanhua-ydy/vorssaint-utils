@@ -275,6 +275,7 @@ final class FeatureRuntime: ObservableObject {
             // off does not.
             ClipboardAutoClearService.shared.syncWithPreferences()
         },
+        .clipNote: { ClipNoteService.shared.syncWithPreferences() },
         .mediaTools: {
             NotchFileToolsService.shared.syncWithPreferences()
             guard !AppFeature.mediaTools.isAvailable else { return }
