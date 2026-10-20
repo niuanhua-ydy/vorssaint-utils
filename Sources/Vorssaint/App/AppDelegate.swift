@@ -2024,7 +2024,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         closePopover()
         if let window = onboardingWindow {
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            window.makeKeyAndOrderFrontWithoutInitialFocus()
             return
         }
         let host = NSHostingController(rootView: OnboardingView(mode: mode) { [weak self] in
@@ -2048,7 +2048,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         centerIntroWindow(window)
         onboardingWindow = window
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFrontWithoutInitialFocus()
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.onboardingWindow else { return }
             self.centerIntroWindow(window)
@@ -2128,7 +2128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         if let window = updateHighlightsWindow {
             centerIntroWindow(window)
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            window.makeKeyAndOrderFrontWithoutInitialFocus()
             return
         }
         let host = NSHostingController(rootView: UpdateHighlightsView(
@@ -2151,7 +2151,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         updateHighlightsIsReview = isReview
         updateHighlightsWindow = window
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFrontWithoutInitialFocus()
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.updateHighlightsWindow else { return }
             self.centerIntroWindow(window)
@@ -2223,7 +2223,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func showWhatsNew(from previous: String, includeUnreleased: Bool = false, isReview: Bool = false) -> Bool {
         if let window = whatsNewWindow {
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            window.makeKeyAndOrderFrontWithoutInitialFocus()
             return true
         }
         let defaults = UserDefaults.standard
@@ -2279,7 +2279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         whatsNewIsReview = isReview
         whatsNewWindow = window
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFrontWithoutInitialFocus()
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.whatsNewWindow else { return }
             self.centerIntroWindow(window)
@@ -2364,7 +2364,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         closePopover()
         if let window = supportIntroWindow {
             NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
+            window.makeKeyAndOrderFrontWithoutInitialFocus()
             return
         }
         let host = NSHostingController(rootView: UpdateSupportIntroView(
@@ -2392,7 +2392,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         centerIntroWindow(window)
         supportIntroWindow = window
         NSApp.activate(ignoringOtherApps: true)
-        window.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFrontWithoutInitialFocus()
         DispatchQueue.main.async { [weak self, weak window] in
             guard let self, let window, window === self.supportIntroWindow else { return }
             self.centerIntroWindow(window)

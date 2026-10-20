@@ -3,6 +3,19 @@
 
 import AppKit
 
+extension NSWindow {
+    /// Brings a form-like window forward without handing its first control
+    /// the keyboard focus. With the system's keyboard navigation on, AppKit
+    /// otherwise rings the first button or disclosure the moment the window
+    /// opens, before anyone pressed a key; Tab still starts from that control.
+    func makeKeyAndOrderFrontWithoutInitialFocus() {
+        makeKeyAndOrderFront(nil)
+        makeFirstResponder(nil)
+        // SwiftUI may only pick its first focus on the next pass.
+        DispatchQueue.main.async { [weak self] in _ = self?.makeFirstResponder(nil) }
+    }
+}
+
 extension NSScreen {
     /// The screen under the mouse pointer, where summoned panels (switcher,
     /// shelf, cut HUD) belong. Falls back to the main screen. Returns nil only
