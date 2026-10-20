@@ -148,6 +148,24 @@ write_swift_output_file_map() {
     } > "$output_file"
 }
 
+# ClipNote's storage, search, sync and backup core is a module of its own, so
+# its public API stays the only way in from the app. Built as a static library
+# with an interface beside it: $1 is the output directory, the rest are the
+# optimization flags. Callers add -I/-L for that directory and link it.
+CLIPNOTE_CORE_SOURCES=(Sources/ClipNoteCore/*.swift)
+build_clipnote_core() {
+    local core_dir="$1"
+    shift
+    mkdir -p "$core_dir"
+    write_swift_output_file_map "$core_dir/output-file-map.json" "$core_dir" "${CLIPNOTE_CORE_SOURCES[@]}"
+    swiftc "$@" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
+        -module-name ClipNoteCore -parse-as-library -emit-library -static \
+        -emit-module -emit-module-path "$core_dir/ClipNoteCore.swiftmodule" \
+        -output-file-map "$core_dir/output-file-map.json" \
+        -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        "${CLIPNOTE_CORE_SOURCES[@]}" -o "$core_dir/libClipNoteCore.a"
+}
+
 finalize_installed_bundle_after_child() {
     local bundle="$1"
     local adapter="$bundle/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
@@ -564,9 +582,14 @@ if (( TEST )); then
     TEST_OUTPUT_FILE_MAP="$TEST_OBJECT_DIR/output-file-map.json"
     write_swift_output_file_map "$TEST_OUTPUT_FILE_MAP" "$TEST_OBJECT_DIR" "${TEST_SOURCES[@]}"
     echo "▸ Building & running tests against $(basename "$SDK")…"
+    # The ClipNote tests reach into the core's internals (schema migration,
+    # stream parsing), hence -enable-testing.
+    TEST_CLIPNOTE_CORE_DIR="build/objects/tests-ClipNoteCore"
+    build_clipnote_core "$TEST_CLIPNOTE_CORE_DIR" -Onone -enable-testing
     swiftc -Onone -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
         -module-name VorssaintTests -output-file-map "$TEST_OUTPUT_FILE_MAP" \
         -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" \
+        -I "$TEST_CLIPNOTE_CORE_DIR" -L "$TEST_CLIPNOTE_CORE_DIR" -lClipNoteCore -lsqlite3 \
         "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${TEST_SOURCES[@]}" -o build/metrics-tests
     test_status=0
     ./build/metrics-tests "${TEST_ARGS[@]}" || test_status=$?
@@ -592,6 +615,8 @@ APP_OBJECT_DIR="build/objects/$EXECUTABLE"
 mkdir -p build "$APP_OBJECT_DIR"
 APP_OUTPUT_FILE_MAP="$APP_OBJECT_DIR/output-file-map.json"
 write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOURCES[@]}"
+APP_CLIPNOTE_CORE_DIR="build/objects/$EXECUTABLE-ClipNoteCore"
+build_clipnote_core "$APP_CLIPNOTE_CORE_DIR" "${APP_OPTIMIZATION_FLAGS[@]}"
 # Without -j the driver compiles one file at a time, and without batch mode
 # each file's compiler parses the whole module again: a clean release took a
 # quarter of an hour. Batches share that work and run on every core, and the
@@ -599,6 +624,7 @@ write_swift_output_file_map "$APP_OUTPUT_FILE_MAP" "$APP_OBJECT_DIR" "${APP_SOUR
 swiftc "${APP_OPTIMIZATION_FLAGS[@]}" -incremental -enable-batch-mode -j "$(sysctl -n hw.logicalcpu)" \
     -output-file-map "$APP_OUTPUT_FILE_MAP" \
     -target "$TARGET" -sdk "$SDK" "${SDK_COMPAT_FLAGS[@]}" "${VM_STATISTICS_COMPAT_FLAGS[@]}" "${HID_EVENT_SYSTEM_FLAGS[@]}" \
+    -I "$APP_CLIPNOTE_CORE_DIR" -L "$APP_CLIPNOTE_CORE_DIR" -lClipNoteCore -lsqlite3 \
     "${BUILD_VARIANT_FLAGS[@]}" \
     "${APP_SOURCES[@]}" -o "build/$EXECUTABLE"
 

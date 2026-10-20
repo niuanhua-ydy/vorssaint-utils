@@ -26,6 +26,12 @@ struct MetricsTests {
                 ClipboardFeatureTests.run(suite)
                 PastePlainTests.run(suite)
             }),
+            ("clipnote", {
+                ClipNoteStoreTests.run(suite)
+                ClipNoteSyncTests.run(suite)
+                ClipNoteBackupTests.run(suite)
+                ClipNoteNetworkTests.run(suite)
+            }),
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)
                 PointerInputFeatureTests.run(suite)

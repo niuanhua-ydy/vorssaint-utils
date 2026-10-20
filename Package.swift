@@ -16,9 +16,15 @@ let package = Package(
             name: "VMStatisticsCompat",
             path: "Sources/VMStatisticsCompat"
         ),
+        // ClipNote's storage, search, sync and backup, kept apart from the UI.
+        .target(
+            name: "ClipNoteCore",
+            path: "Sources/ClipNoteCore",
+            linkerSettings: [.linkedLibrary("sqlite3")]
+        ),
         .executableTarget(
             name: "Vorssaint",
-            dependencies: ["VMStatisticsCompat", "HIDEventSystem"],
+            dependencies: ["VMStatisticsCompat", "HIDEventSystem", "ClipNoteCore"],
             path: "Sources/Vorssaint"
         )
     ]
