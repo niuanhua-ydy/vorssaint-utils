@@ -377,6 +377,11 @@ def main():
           + declaration("Sources/Vorssaint/Services/KillProcess/KillProcessService.swift",
                         "    var sortedEntries:")
           + "}\n")
+    write("CommandBarPortLoad.swift", "import Foundation\n"
+          + "extension CommandBarPortLoadContract {\nfinal class Service: Fixture {\n"
+          + declaration("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift",
+                        "    private func loadPortEntries(").replace("private func", "func", 1)
+          + "}\n}\n")
     write("CommandBarTermination.swift", "import AppKit\nimport Foundation\n"
           + "extension CommandBarTerminationContract {\nfinal class Host: Fixture {\n"
           + declaration("Sources/Vorssaint/App/AppDelegate.swift", "    func applicationShouldTerminate(")

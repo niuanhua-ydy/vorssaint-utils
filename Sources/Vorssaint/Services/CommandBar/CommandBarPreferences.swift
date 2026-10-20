@@ -33,6 +33,9 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     /// is the one source that has to go and look.
     case files
     case killProcess
+    /// Listening TCP ports, browsed from the "Port Manager" row or found by
+    /// typing a port number. Last, so its id is appended to the stored list.
+    case ports
 
     var id: String { rawValue }
 
@@ -60,6 +63,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .links: return "bookmark"
         case .files: return "doc.text.magnifyingglass"
         case .killProcess: return "xmark.octagon"
+        case .ports: return "network"
         }
     }
 
@@ -84,6 +88,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .links: return "link."
         case .files: return "file."
         case .killProcess: return "kill."
+        case .ports: return "port."
         }
     }
 }
@@ -95,13 +100,14 @@ enum CommandBarPreferences {
     /// Row shortcuts persist ids, so this one must never drift.
     static let emojiBrowserRowID = "emoji.browse"
     static let killProcessBrowserRowID = "kill.browse"
+    static let portsBrowserRowID = "port.browse"
 
     /// The rows that open another category. They are the app's own actions,
     /// but they carry the prefix of what they open, because that is where
     /// they lead, so `source(ofRowID:)` files them under it and the Actions
     /// list has to name them rather than read them off the prefix.
     static let actionBrowseRowIDs: Set<String> = [
-        emojiBrowserRowID, killProcessBrowserRowID, "uninstall.browse", "uninstall.finder",
+        emojiBrowserRowID, killProcessBrowserRowID, portsBrowserRowID, "uninstall.browse", "uninstall.finder",
     ]
 
     // MARK: - Sources
@@ -187,7 +193,8 @@ enum CommandBarPreferences {
         case .files, .settingsPages: return -40
         case .apps: return 80
         case .actions, .windows, .quitApps, .uninstallApps, .macSettings, .snippets,
-             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess:
+             .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess,
+             .ports:
             return 0
         }
     }
@@ -216,7 +223,8 @@ enum CommandBarPreferences {
     /// pinned to one would silently point somewhere else tomorrow.
     static func acceptsAlias(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .windows, .clipboard, .selection, .files, .killProcess, .uninstallApps: return false
+        case .menus, .windows, .clipboard, .selection, .files, .killProcess, .ports, .uninstallApps:
+            return false
         case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
              .folders, .answers, .calculator, .links:
             return true
@@ -294,7 +302,8 @@ enum CommandBarPreferences {
     /// again, which reads as the pin being broken.
     static func acceptsPin(rowID: String) -> Bool {
         switch source(ofRowID: rowID) {
-        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files, .killProcess:
+        case .menus, .quitApps, .uninstallApps, .clipboard, .emoji, .selection, .files, .killProcess,
+             .ports:
             return false
         case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
              .links, .answers, .calculator:
@@ -355,7 +364,7 @@ enum CommandBarPreferences {
         switch source(ofRowID: rowID) {
         case .actions, .settingsPages, .snippets: return true
         case .apps, .uninstallApps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
-             .folders, .answers, .calculator, .selection, .links, .files, .killProcess:
+             .folders, .answers, .calculator, .selection, .links, .files, .killProcess, .ports:
             return false
         }
     }

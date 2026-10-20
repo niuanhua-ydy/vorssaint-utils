@@ -207,6 +207,10 @@ final class CommandBarService: ObservableObject {
     /// `KillProcessService`'s own cache, same lifetime as `selectionEntries`.
     private var killProcessEntries: [CommandBarEntry] = [] { didSet { foldedSections[.killProcess] = nil } }
     private var killProcessEntriesLoading = false
+    /// One row per listening port, read through `PortManagerService` with
+    /// the same lifetime as `killProcessEntries`.
+    private var portEntries: [CommandBarEntry] = [] { didSet { foldedSections[.ports] = nil } }
+    private var portEntriesLoading = false
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, same lifetime as `selectionEntries`.
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
@@ -416,6 +420,7 @@ final class CommandBarService: ObservableObject {
         selectionPreview = ""
         selectedText = ""
         killProcessEntries = []
+        portEntries = []
         uninstallSelectionEntries = []
         uninstallWarning = nil
         rebuildCatalog(index: false)
@@ -434,6 +439,7 @@ final class CommandBarService: ObservableObject {
         loadMenusIfNeeded(for: id)
         loadSelection(for: id)
         loadKillProcessEntries(for: id)
+        loadPortEntries(for: id)
         loadUninstallSelectionEntries(for: id)
     }
 
@@ -622,6 +628,10 @@ final class CommandBarService: ObservableObject {
         }
         if !killProcessEntries.isEmpty {
             killProcessEntries = []
+            indexEntries()
+        }
+        if !portEntries.isEmpty {
+            portEntries = []
             indexEntries()
         }
         if !uninstallSelectionEntries.isEmpty {
@@ -1049,6 +1059,8 @@ final class CommandBarService: ObservableObject {
             }
         case .killProcess:
             return AppFeature.killProcess.isAvailable
+        case .ports:
+            return AppFeature.portManager.isAvailable
         case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files:
             return false
         }
@@ -1079,10 +1091,30 @@ final class CommandBarService: ObservableObject {
                 self?.paste(entry)
             }
         case .killProcess: rows = killProcessEntries
+        case .ports: rows = portEntries
         case .quitApps, .answers, .calculator, .selection, .files:
             rows = []
         }
         return rows.filter { !hidden.contains($0.stableKey) }
+    }
+
+    /// The listening ports that answer a query written as a port, ":3000",
+    /// ranked the way the Ports category ranks them. Empty for anything that
+    /// is not a port, or while the source is switched off.
+    private func portRows(matching trimmed: String) -> [CommandBarEntry] {
+        guard isEnabled(.ports), !portEntries.isEmpty,
+              PortManagerSupport.portQuery(from: trimmed) != nil else { return [] }
+        let pool = categoryContent(.ports, bar: FeatureStrings.commandBar(L10n.shared.language))
+        let candidates = pool.enumerated().map { index, entry in
+            let folded = normalizedByID[entry.id]
+            return CommandBarCandidate(index: index,
+                                       normalizedTitle: folded?.title
+                                           ?? CommandBarSearch.normalized(entry.title),
+                                       normalizedKeywords: folded?.keywords
+                                           ?? CommandBarSearch.normalized(entry.keywords))
+        }
+        return CommandBarSearch.rankedIndexes(candidates: candidates, matching: trimmed)
+            .map { pool[$0] }
     }
 
     // MARK: - Command table
@@ -1118,6 +1150,7 @@ final class CommandBarService: ObservableObject {
         case "action.uninstaller", "uninstall.browse": return .uninstallApps
         case CommandBarPreferences.emojiBrowserRowID: return .emoji
         case CommandBarPreferences.killProcessBrowserRowID: return .killProcess
+        case CommandBarPreferences.portsBrowserRowID: return .ports
         default: return nil
         }
     }
@@ -1198,6 +1231,7 @@ final class CommandBarService: ObservableObject {
         case .files: return bar.sourceFiles
         case .links: return bar.linksTitle
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
+        case .ports: return FeatureStrings.portManager(L10n.shared.language).title
         }
     }
 
@@ -1454,7 +1488,7 @@ final class CommandBarService: ObservableObject {
     /// The lists the pool is made of, in the order it builds them: what
     /// the Mac holds first, what is borrowed after.
     private enum PoolSection: CaseIterable {
-        case selection, killProcess, uninstallSelection, catalog, apps, uninstallApps, macSettings, windows, quit, menus, emoji
+        case selection, killProcess, ports, uninstallSelection, catalog, apps, uninstallApps, macSettings, windows, quit, menus, emoji
     }
 
     private func entries(in section: PoolSection) -> [CommandBarEntry] {
@@ -1463,6 +1497,7 @@ final class CommandBarService: ObservableObject {
         case .uninstallSelection: return uninstallSelectionEntries
         case .uninstallApps: return uninstallEntries
         case .killProcess: return killProcessEntries
+        case .ports: return portEntries
         case .catalog: return catalog
         case .apps: return appEntries
         case .macSettings: return macSettingsEntries
@@ -1783,7 +1818,7 @@ final class CommandBarService: ObservableObject {
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
         case .actions, .apps, .menus, .windows, .quitApps, .uninstallApps, .settingsPages,
-             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess:
+             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess, .ports:
             return entry.subtitle.isEmpty ? bar.everythingTitle : entry.subtitle
         }
     }
@@ -1796,7 +1831,7 @@ final class CommandBarService: ObservableObject {
     private static let kindLimits: [(prefix: String, limit: Int)] = [
         ("app.", 5), ("window.", 4), ("quit.", 3), ("menu.", 5), ("emoji.", 6),
         ("settings.", 4), ("macsettings.", 4), ("clipboard.", 4), ("snippet.", 4),
-        ("file.", 4),
+        ("file.", 4), ("port.", 5),
         // Every switch answers to the same verb, so searching that verb would
         // otherwise fill the list with twenty rows that all read alike.
         ("toggle.", 5),
@@ -1867,7 +1902,10 @@ final class CommandBarService: ObservableObject {
         if let emojiQuery = CommandBarSearch.emojiQuery(from: trimmed) {
             scriptRunner.cancelPending()
             fileSearch.cancelPending()
-            guard isEnabled(.emoji) else { return [] }
+            // ":3000" is also how a port is written. Ports that answer lead,
+            // and the emoji whose names carry the number still follow.
+            let ports = portRows(matching: trimmed)
+            guard isEnabled(.emoji) else { return ports }
             let pool = categoryContent(.emoji, bar: bar)
             guard !emojiQuery.isEmpty else { return Array(pool.prefix(40)) }
             let habitQuery = CommandBarQueryHabits.prepare(
@@ -1889,7 +1927,7 @@ final class CommandBarService: ObservableObject {
             }
             let ranked = CommandBarSearch.rankedIndexes(candidates: candidates,
                                                          matching: emojiQuery)
-            return ranked.prefix(40).map { pool[$0] }
+            return ports + ranked.prefix(40).map { pool[$0] }
         }
 
         // A sum is answered, not searched: the result leads and the rest of
@@ -1986,6 +2024,12 @@ final class CommandBarService: ObservableObject {
         // double the length of an ordinary app search.
         if CommandBarSearch.matchesVerb(trimmed, in: bar.quitFormat) {
             pool.append(contentsOf: quitEntries)
+        }
+        // Listening ports, like processes, stay out of an ordinary search;
+        // a query that can only be a port number is the one that asks for
+        // them, and then the rows rank with everything else.
+        if PortManagerSupport.portQuery(from: trimmed) != nil {
+            pool.append(contentsOf: portEntries)
         }
         // Menu commands are a deep list; below two letters it would bury
         // everything the bar itself can do. Running processes are excluded
@@ -2297,6 +2341,9 @@ final class CommandBarService: ObservableObject {
                 })
             }
         }
+        if let port = portManagerEntry(for: entry) {
+            actions.append(contentsOf: portActions(for: port))
+        }
         actions.append(contentsOf: skinToneActions(for: entry))
         if CommandBarPreferences.acceptsPin(rowID: entry.id) {
             actions.append(RowAction(id: "pin",
@@ -2397,6 +2444,51 @@ final class CommandBarService: ObservableObject {
     private func installedApp(for entry: CommandBarEntry) -> InstalledApps.InstalledApp? {
         guard entry.id.hasPrefix("app.") else { return nil }
         return cachedApps.first { "app.\($0.id)" == entry.id }
+    }
+
+    /// The listener a port row was built from. Read from the service's own
+    /// list, which is the snapshot the rows were made from, the same way a
+    /// kill row finds its process.
+    private func portManagerEntry(for entry: CommandBarEntry) -> PortManagerEntry? {
+        guard entry.id.hasPrefix("port."), entry.id != CommandBarPreferences.portsBrowserRowID else { return nil }
+        let id = entry.id.dropFirst("port.".count)
+        return PortManagerService.shared.entries.first { $0.id == id }
+    }
+
+    /// Force Kill only where Return could have terminated, for the same
+    /// reasons; opening and copying work on every row.
+    private func portActions(for port: PortManagerEntry) -> [RowAction] {
+        let language = L10n.shared.language
+        let strings = FeatureStrings.portManager(language)
+        var actions: [RowAction] = []
+        if AppFeature.killProcess.isAvailable, port.startedAt != nil,
+           !KillProcessService.isProtected(pid: port.pid, name: port.processName) {
+            actions.append(RowAction(id: "forceKillPort",
+                                     title: strings.forceKill,
+                                     symbolName: "exclamationmark.octagon",
+                                     isDestructive: true) { [weak self] in
+                self?.confirmForceKillPort(port)
+            })
+        }
+        if let url = PortManagerSupport.browserURL(for: port) {
+            actions.append(RowAction(id: "openPortInBrowser",
+                                     title: FeatureStrings.commandBar(language).openInBrowser,
+                                     symbolName: "safari") { [weak self] in
+                self?.hide()
+                if !NSWorkspace.shared.open(url) { NSSound.beep() }
+            })
+        }
+        actions.append(RowAction(id: "copyPort",
+                                 title: strings.copyPort,
+                                 symbolName: "doc.on.doc") { [weak self] in
+            self?.copyPath(String(port.port))
+        })
+        actions.append(RowAction(id: "copyPortPID",
+                                 title: FeatureStrings.killProcess(language).copyPID,
+                                 symbolName: "number") { [weak self] in
+            self?.copyPath(String(port.pid))
+        })
+        return actions
     }
 
     private func killProcessEntry(for entry: CommandBarEntry) -> KillProcessEntry? {
@@ -2520,6 +2612,22 @@ final class CommandBarService: ObservableObject {
         NSApp.activate(ignoringOtherApps: true)
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         KillProcessService.shared.kill(process, force: true)
+    }
+
+    /// Worded exactly as the Port Manager page asks, so the two places that
+    /// can force a port closed agree.
+    private func confirmForceKillPort(_ port: PortManagerEntry) {
+        hide()
+        let strings = FeatureStrings.portManager(L10n.shared.language)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = String(format: strings.terminateFormat, port.processName)
+        alert.informativeText = String(format: strings.terminateMessageFormat, port.port, port.pid)
+        alert.addButton(withTitle: strings.forceKill)
+        alert.addButton(withTitle: L10n.shared.s.uninstallerCancel)
+        NSApp.activate(ignoringOtherApps: true)
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        PortManagerService.shared.terminate(port, force: true)
     }
 
     private func confirmKillAllProcesses(_ process: KillProcessEntry) {
@@ -3324,6 +3432,33 @@ final class CommandBarService: ObservableObject {
             let killStrings = FeatureStrings.killProcess(L10n.shared.language)
             self.killProcessEntries = CommandBarCatalog.killProcessEntries(
                 KillProcessService.shared.sortedEntries, killStrings: killStrings)
+            self.indexEntries()
+            self.refreshResults()
+        }
+    }
+
+    /// Every listening TCP port, so "3000" typed directly finds the process
+    /// holding it. Reads through `PortManagerService` - shared with the Port
+    /// Manager page - and only while the bar is open, same lifetime and guard
+    /// shape as `loadKillProcessEntries(for:)`. Nobody who has not installed
+    /// Port Manager, or who switched the Ports source off, pays for an `lsof`
+    /// on every opening.
+    private func loadPortEntries(for id: UUID) {
+        guard AppFeature.portManager.isAvailable, isEnabled(.ports) else { return }
+        guard !portEntriesLoading else { return }
+        portEntriesLoading = true
+        PortManagerService.shared.refresh { [weak self] in
+            guard let self else { return }
+            self.portEntriesLoading = false
+            guard self.presentationLifecycle.acceptsHomeUpdates(id, isVisible: self.isVisible) else {
+                let current = self.presentationID
+                if self.presentationLifecycle.acceptsHomeUpdates(current, isVisible: self.isVisible) {
+                    self.loadPortEntries(for: current)
+                }
+                return
+            }
+            self.portEntries = CommandBarCatalog.portEntries(
+                PortManagerService.shared.entries, language: L10n.shared.language)
             self.indexEntries()
             self.refreshResults()
         }

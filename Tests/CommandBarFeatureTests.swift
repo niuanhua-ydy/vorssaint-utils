@@ -133,6 +133,8 @@ enum CommandBarFeatureTests {
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)
         CommandBarKillProcessOrderContract.run(suite)
+        CommandBarPortLoadContract.run(suite)
+        CommandBarPortRowsContract.run(suite)
         CommandBarDropletContract.run(suite)
         let isCodeLine: (String) -> Bool = {
             !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//")
@@ -347,9 +349,9 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarSource.allCases.map(\.rawValue) == [
             "actions", "apps", "menus", "windows", "quitApps", "uninstallApps", "settingsPages",
             "macSettings", "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
-            "selection", "links", "files", "killProcess",
+            "selection", "links", "files", "killProcess", "ports",
         ], "source ids are stable (they persist inside the disabled list)")
-        // The four rows that open another category are built as the app's
+        // The five rows that open another category are built as the app's
         // own actions, but they carry that category's prefix, so a filter on
         // the prefix alone drops them: the same rows turn up in the empty bar
         // and in typed search, which never ask for a source, and nothing in
@@ -365,16 +367,18 @@ enum CommandBarFeatureTests {
         let actionBrowseIDs: Set<String> = [
             CommandBarPreferences.emojiBrowserRowID,
             CommandBarPreferences.killProcessBrowserRowID,
+            CommandBarPreferences.portsBrowserRowID,
             "uninstall.browse", "uninstall.finder",
         ]
         suite.expect(CommandBarPreferences.actionBrowseRowIDs == actionBrowseIDs
                 && actionEntriesCode.contains("id: \"uninstall.browse\"")
                 && actionEntriesCode.contains("id: \"uninstall.finder\"")
                 && actionEntriesCode.contains("id: CommandBarPreferences.emojiBrowserRowID")
-                && actionEntriesCode.contains("id: CommandBarPreferences.killProcessBrowserRowID"),
-               "the app's own actions build all four rows that open another category, and the actions list names every one of them")
+                && actionEntriesCode.contains("id: CommandBarPreferences.killProcessBrowserRowID")
+                && actionEntriesCode.contains("id: CommandBarPreferences.portsBrowserRowID"),
+               "the app's own actions build all five rows that open another category, and the actions list names every one of them")
         suite.expect(Set(actionBrowseIDs.map(CommandBarPreferences.source(ofRowID:)))
-                    == [.uninstallApps, .emoji, .killProcess]
+                    == [.uninstallApps, .emoji, .killProcess, .ports]
                 && actionBrowseIDs.allSatisfy(CommandBarPreferences.isActionRow),
                "a row is filed under the category it opens, so the actions list has to admit a navigation row by name and not by prefix")
         suite.expect(CommandBarPreferences.isActionRow("action.cleaner")
@@ -398,13 +402,19 @@ enum CommandBarFeatureTests {
                     CommandBarPreferences.killProcessBrowserRowID, disabled: killSwitchedOff)
                 && CommandBarPreferences.isActionRow("action.cleaner", disabled: killSwitchedOff),
                "the row that opens the kill process browser leaves the actions list while that source is switched off, and an action of the app's own cannot be switched off")
+        let portsSwitchedOff = CommandBarPreferences.disabledSources(from: "ports")
+        suite.expect(!CommandBarPreferences.isActionRow(
+                    CommandBarPreferences.portsBrowserRowID, disabled: portsSwitchedOff)
+                && CommandBarPreferences.isActionRow(
+                    CommandBarPreferences.portsBrowserRowID, disabled: killSwitchedOff),
+               "the row that opens the ports browser leaves the actions list only while the Ports source is switched off")
         suite.expect(actionBrowseIDs.allSatisfy {
             CommandBarPreferences.isActionRow($0, disabled: emojiSwitchedOff)
                 || CommandBarPreferences.isActionRow($0, disabled: killSwitchedOff)
         } && !actionBrowseIDs.contains {
             CommandBarPreferences.isActionRow(
                 $0, disabled: CommandBarPreferences.disabledSources(
-                    from: "uninstallApps,emoji,killProcess"))
+                    from: "uninstallApps,emoji,killProcess,ports"))
         },
                "a navigation row whose destination is still on stays in the actions list, and a category whose navigation rows are all switched off is left with nothing to show")
         // The rule above only reaches the bar if the Actions list and its chip
@@ -2967,6 +2977,195 @@ enum CommandBarKillProcessOrderContract {
             suite.expect(service.killProcessEntries == expected,
                          "the Command Bar lists processes in the Kill Process page's \(sort) order, found \(service.killProcessEntries)")
         }
+    }
+}
+
+/// Runs the production Command Bar port load against a stand-in Port Manager
+/// whose scans finish only when the test says so, to pin who pays for `lsof`
+/// and which opening a late answer belongs to.
+enum CommandBarPortLoadContract {
+    enum Feature {
+        case portManager
+        static var available = true
+        var isAvailable: Bool { Feature.available }
+    }
+    struct Lifecycle {
+        var accepted: Set<UUID> = []
+        func acceptsHomeUpdates(_ id: UUID, isVisible: Bool) -> Bool { isVisible && accepted.contains(id) }
+    }
+    enum Catalog {
+        static func portEntries(_ ports: [PortManagerEntry], language: AppLanguage) -> [String] {
+            ports.map { ":\($0.port)" }
+        }
+    }
+    final class Ports {
+        static let shared = Ports()
+        var entries: [PortManagerEntry] = []
+        var waiting: [(() -> Void)?] = []
+        func refresh(completion: (() -> Void)? = nil) { waiting.append(completion) }
+        func finish(with ports: [Int]) {
+            entries = ports.map {
+                PortManagerEntry(port: $0, protocolName: "TCP", address: "*:\($0)",
+                                 pid: 42, processName: "server", startedAt: 1)
+            }
+            let pending = waiting
+            waiting = []
+            pending.forEach { $0?() }
+        }
+    }
+    class Fixture {
+        typealias AppFeature = Feature
+        typealias PortManagerService = Ports
+        typealias CommandBarCatalog = Catalog
+        var portEntries: [String] = []
+        var portEntriesLoading = false
+        var presentationLifecycle = Lifecycle()
+        var presentationID = UUID()
+        var isVisible = true
+        var disabled: Set<CommandBarSource> = []
+        var refreshes = 0
+        func isEnabled(_ source: CommandBarSource) -> Bool { !disabled.contains(source) }
+        func indexEntries() {}
+        func refreshResults() { refreshes += 1 }
+    }
+    static func run(_ suite: TestSuite) {
+        let ports = Ports.shared
+        defer { Feature.available = true; ports.entries = []; ports.waiting = [] }
+        func service() -> Service {
+            let service = Service()
+            service.presentationLifecycle.accepted = [service.presentationID]
+            return service
+        }
+
+        Feature.available = false
+        let uninstalled = service()
+        uninstalled.loadPortEntries(for: uninstalled.presentationID)
+        suite.expect(ports.waiting.isEmpty && !uninstalled.portEntriesLoading,
+                     "a bar opening never scans ports while Port Manager is not installed")
+        Feature.available = true
+        let switchedOff = service()
+        switchedOff.disabled = [.ports]
+        switchedOff.loadPortEntries(for: switchedOff.presentationID)
+        suite.expect(ports.waiting.isEmpty,
+                     "a bar opening never scans ports while the Ports source is switched off")
+
+        let open = service()
+        open.loadPortEntries(for: open.presentationID)
+        open.loadPortEntries(for: open.presentationID)
+        suite.expect(ports.waiting.count == 1 && open.portEntriesLoading,
+                     "one opening asks for one scan however often the load is asked for")
+        ports.finish(with: [3000, 5173])
+        suite.expect(open.portEntries == [":3000", ":5173"] && !open.portEntriesLoading
+                     && open.refreshes == 1,
+                     "the finished scan becomes the bar's port rows and redraws the list")
+
+        let reopened = service()
+        let stale = reopened.presentationID
+        reopened.loadPortEntries(for: stale)
+        reopened.presentationID = UUID()
+        reopened.presentationLifecycle.accepted = [reopened.presentationID]
+        ports.finish(with: [8080])
+        suite.expect(reopened.portEntries.isEmpty && ports.waiting.count == 1,
+                     "a scan that lands after the bar reopened is discarded and asked for again")
+        ports.finish(with: [9000])
+        suite.expect(reopened.portEntries == [":9000"],
+                     "the opening that is showing receives its own scan")
+
+        let closed = service()
+        closed.loadPortEntries(for: closed.presentationID)
+        closed.isVisible = false
+        ports.finish(with: [3000])
+        suite.expect(closed.portEntries.isEmpty && ports.waiting.isEmpty && !closed.portEntriesLoading,
+                     "a scan that lands after the bar closed leaves nothing behind and asks for nothing")
+    }
+}
+
+/// How a listening port reads, ranks and acts as a Command Bar row.
+enum CommandBarPortRowsContract {
+    static func run(_ suite: TestSuite) {
+        func entry(_ port: Int, pid: Int32 = 4242, name: String = "node",
+                   address: String? = nil) -> PortManagerEntry {
+            PortManagerEntry(port: port, protocolName: "TCP", address: address ?? "127.0.0.1:\(port)",
+                             pid: pid, processName: name, startedAt: 1)
+        }
+        let dev = entry(3000, address: "*:3000")
+        suite.expect(PortManagerSupport.commandBarTitle(for: dev) == ":3000  node",
+                     "a port row leads with the port written the way it is typed")
+        suite.expect(PortManagerSupport.commandBarSubtitle(for: dev, pidFormat: "PID %d",
+                                                           allInterfaces: "All interfaces")
+                        == "TCP · *:3000 · PID 4242 · All interfaces"
+                     && PortManagerSupport.commandBarSubtitle(for: entry(3000), pidFormat: "PID %d",
+                                                              allInterfaces: "All interfaces")
+                        == "TCP · 127.0.0.1:3000 · PID 4242",
+                     "the subtitle names protocol, bind address and PID, and warns only about a wildcard bind")
+        suite.expect(PortManagerSupport.commandBarSubtitle(for: entry(51730, pid: 12345), pidFormat: "PID %d",
+                                                           allInterfaces: "")
+                        .contains("PID 12345"),
+                     "a PID in the subtitle is never grouped with a thousands separator")
+        let keywords = PortManagerSupport.commandBarKeywords(for: dev)
+        suite.expect(keywords.split(separator: " ").contains("3000")
+                     && keywords.split(separator: " ").contains(":3000")
+                     && keywords.contains("node") && !keywords.contains("4242"),
+                     "a port row answers to the bare port, its colon form and the process name, never its PID")
+
+        for (query, expected) in [("3000", "3000"), (":3000", "3000"), (" :8080 ", "8080"),
+                                  (":8", "8"), ("30", "30"), ("65535", "65535")] {
+            suite.expect(PortManagerSupport.portQuery(from: query) == expected,
+                         "\(query) reads as a port query")
+        }
+        for query in ["3", ":", "", "65536", "123456", ":0", "00", "node", "30a", "3000 node",
+                      "٣٠٠٠", "3.5", "-80"] {
+            suite.expect(PortManagerSupport.portQuery(from: query) == nil,
+                         "\(query) does not read as a port query")
+        }
+
+        // The rows rank through the bar's own search, so pin that the words
+        // above find the right row and nothing else does.
+        let rows = [entry(3000, pid: 13000, name: "node"), entry(5173, pid: 3000, name: "vite"),
+                    entry(30001, pid: 77, name: "ruby"), entry(8080, pid: 88, name: "java")]
+        func ranked(_ query: String) -> [Int] {
+            let candidates = rows.enumerated().map { index, row in
+                CommandBarCandidate(index: index,
+                                    title: PortManagerSupport.commandBarTitle(for: row),
+                                    keywords: PortManagerSupport.commandBarKeywords(for: row))
+            }
+            return CommandBarSearch.rankedIndexes(candidates: candidates, matching: query)
+                .map { rows[$0].port }
+        }
+        suite.expect(ranked("3000") == [3000, 30001],
+                     "typing a port finds that port first, then longer ports that start with it, and no PID")
+        suite.expect(ranked(":3000").first == 3000 && !ranked(":3000").contains(5173),
+                     "the colon form finds the same port")
+        suite.expect(ranked("vite") == [5173], "a port row is found by its process name")
+
+        suite.expect(PortManagerSupport.commandBarPrimary(canTerminate: true, hasBrowserURL: true) == .terminate
+                     && PortManagerSupport.commandBarPrimary(canTerminate: false, hasBrowserURL: true) == .openInBrowser
+                     && PortManagerSupport.commandBarPrimary(canTerminate: false, hasBrowserURL: false) == .copyPort,
+                     "Return terminates only where it can, and otherwise opens or copies the port")
+
+        for language in AppLanguage.allCases {
+            let strings = FeatureStrings.portManager(language)
+            let prompt = String(format: strings.confirmKillFormat, "dev-server", 51730)
+            suite.expect(prompt.contains("dev-server") && prompt.contains("51730"),
+                         "the \(language) port kill prompt names both the process and the port")
+            suite.expect(!strings.browseSubtitle.isEmpty && !strings.browseKeywords.isEmpty,
+                         "the \(language) Port Manager row has a subtitle and search words")
+            let keywords = PortManagerSupport.browseKeywords(language)
+            for query in ["port", "ports", "端口", "lsof", "listen"] {
+                suite.expect(CommandBarSearch.matches(title: strings.title, keywords: keywords, query: query),
+                             "\(query) finds the Port Manager row in \(language)")
+            }
+            if language != .enUS {
+                suite.expect(strings.browseSubtitle != PortManagerFeatureStrings.enUS.browseSubtitle
+                             && strings.confirmKillFormat != PortManagerFeatureStrings.enUS.confirmKillFormat,
+                             "the Port Manager row is translated for \(language)")
+            }
+        }
+        suite.expect(CommandBarPreferences.source(ofRowID: "port.TCP-3000-42-*:3000") == .ports
+                     && CommandBarPreferences.source(ofRowID: CommandBarPreferences.portsBrowserRowID) == .ports
+                     && !CommandBarPreferences.acceptsPin(rowID: "port.TCP-3000-42-*:3000")
+                     && !CommandBarPreferences.acceptsAlias(rowID: "port.TCP-3000-42-*:3000"),
+                     "port rows are filed under Ports and, carrying a PID, take neither pins nor names")
     }
 }
 

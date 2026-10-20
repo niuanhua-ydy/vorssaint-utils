@@ -41,6 +41,7 @@ enum PortManagerRefreshTests {
         var isRefreshing = false
         var hasLoadedOnce = false
         var refreshFailed = false
+        var refreshCompletions: [() -> Void] = []
         static func proc_listallpids(_ buffer: UnsafeMutableRawPointer?, _ byteCount: Int32) -> Int32 {
             guard !Processes.enumerationFails else { return -1 }
             guard let buffer else { return Int32(Processes.enumerated.count) }
@@ -131,5 +132,28 @@ enum PortManagerRefreshTests {
         Queue.worker.drain(); Queue.main.drain()
         suite.expect(service.entries.isEmpty && service.hasLoadedOnce && !service.refreshFailed,
                      "a successful empty retry replaces old listeners without claiming a failure")
+
+        // The Command Bar waits on a scan it may not have started: the Port
+        // Manager page can already have one running when the bar opens.
+        prepare(before: [123: 100, 124: 200], after: [123: 100, 124: 200])
+        var heard: [String] = []
+        service.refresh { heard.append("first:\(service.entries.count)") }
+        service.refresh { heard.append("joined:\(service.entries.count)") }
+        suite.expect(Queue.worker.jobs.count == 1 && heard.isEmpty,
+                     "a refresh joining one in flight starts no second scan and hears nothing early")
+        Queue.worker.drain()
+        suite.expect(heard.isEmpty, "completions wait for the main-queue publication")
+        Queue.main.drain()
+        suite.expect(heard == ["first:2", "joined:2"] && service.refreshCompletions.isEmpty,
+                     "every waiting caller hears once, in order, after the new listing is published")
+        prepare(before: [:], after: [:], status: -1)
+        heard = []
+        service.refresh { heard.append("failed:\(service.refreshFailed)") }
+        Queue.worker.drain(); Queue.main.drain()
+        suite.expect(heard == ["failed:true"],
+                     "a failed scan still completes, so a waiting caller never spins forever")
+        service.refresh()
+        Queue.worker.drain(); Queue.main.drain()
+        suite.expect(heard == ["failed:true"], "a later refresh does not replay an old completion")
     }
 }

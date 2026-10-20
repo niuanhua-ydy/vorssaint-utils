@@ -2120,6 +2120,7 @@ enum PointerInputFeatureTests {
             encoding: .utf8)) ?? "").components(separatedBy: "\n")
         for (constructor, eligibility) in [
             ("killProcessEntries", "false"),
+            ("portEntries", "false"),
             ("windowEntries", "false"),
             ("quitEntries", "app.bundleIdentifier != nil"),
         ] {

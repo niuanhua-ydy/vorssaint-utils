@@ -769,6 +769,23 @@ enum CommandBarCatalog {
                     CommandBarService.shared.query = ""
                 }))
         }
+        // Gated on the feature alone: the rows behind it come from the bar's
+        // own load, which already skips `lsof` while Port Manager is not
+        // installed or the Ports source is switched off.
+        if AppFeature.portManager.isAvailable {
+            let portStrings = FeatureStrings.portManager(language)
+            entries.append(CommandBarEntry(
+                id: CommandBarPreferences.portsBrowserRowID,
+                title: portStrings.title,
+                subtitle: portStrings.browseSubtitle,
+                keywords: PortManagerSupport.browseKeywords(language),
+                icon: .symbol("network"),
+                keepsBarOpen: true,
+                run: { _ in
+                    CommandBarService.shared.setCategory(.ports)
+                    CommandBarService.shared.query = ""
+                }))
+        }
         entries.append(CommandBarEntry(
             id: "action.restartApp",
             title: String(format: bar.restartAppFormat, AppInfo.name),
@@ -1083,6 +1100,49 @@ enum CommandBarCatalog {
                 countsUsage: false,
                 run: { _ in
                     KillProcessService.shared.kill(process, force: false)
+                })
+        }
+    }
+
+    /// One row per listening port, so typing "3000" finds whatever holds it.
+    /// Return frees the port by asking its process to quit, the way a kill
+    /// row does; Force Kill, Open in Browser and the copies live in the row's
+    /// Actions panel. A row the scan could not tie to a stable process, or
+    /// one shown without Kill Process installed, never offers to terminate.
+    static func portEntries(_ ports: [PortManagerEntry],
+                            language: AppLanguage) -> [CommandBarEntry] {
+        let strings = FeatureStrings.portManager(language)
+        let killStrings = FeatureStrings.killProcess(language)
+        let canKill = AppFeature.killProcess.isAvailable
+        return ports.map { port in
+            let canTerminate = canKill && port.startedAt != nil
+                && !KillProcessService.isProtected(pid: port.pid, name: port.processName)
+            let url = PortManagerSupport.browserURL(for: port)
+            let primary = PortManagerSupport.commandBarPrimary(canTerminate: canTerminate,
+                                                               hasBrowserURL: url != nil)
+            // Only apps have a bundle; a dev server is a bare executable and
+            // gets the feature's own symbol instead.
+            let bundleURL = NSRunningApplication(processIdentifier: port.pid)?.bundleURL
+            return CommandBarEntry(
+                id: "port.\(port.id)",
+                title: PortManagerSupport.commandBarTitle(for: port),
+                subtitle: PortManagerSupport.commandBarSubtitle(for: port,
+                                                                pidFormat: killStrings.pidLabelFormat,
+                                                                allInterfaces: strings.allInterfaces),
+                keywords: PortManagerSupport.commandBarKeywords(for: port),
+                icon: bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("network"),
+                confirmationPrompt: primary == .terminate
+                    ? String(format: strings.confirmKillFormat, port.processName, port.port)
+                    : nil,
+                countsUsage: false,
+                run: { _ in
+                    switch primary {
+                    // Refreshes Port Manager's own list once the process is gone.
+                    case .terminate: PortManagerService.shared.terminate(port, force: false)
+                    case .openInBrowser:
+                        if let url, !NSWorkspace.shared.open(url) { NSSound.beep() }
+                    case .copyPort: copyAnswer(String(port.port))
+                    }
                 })
         }
     }

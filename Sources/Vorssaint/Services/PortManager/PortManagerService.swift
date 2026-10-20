@@ -18,7 +18,16 @@ final class PortManagerService: ObservableObject {
         return entries.filter { "\($0.port) \($0.processName) \($0.pid) \($0.address)".lowercased().contains(q) }
     }
 
-    func refresh() {
+    /// Waiting for the scan in flight, so a caller that joins one already
+    /// running still hears when it lands. Touched on the main queue only.
+    private var refreshCompletions: [() -> Void] = []
+
+    /// Rescans in the background and publishes on the main queue. A call
+    /// while a scan is running joins it instead of starting another;
+    /// `completion` fires on the main queue once that scan has published,
+    /// failed or not, so the Command Bar can read `entries` straight after.
+    func refresh(completion: (() -> Void)? = nil) {
+        if let completion { refreshCompletions.append(completion) }
         guard !isRefreshing else { return }
         isRefreshing = true
         refreshFailed = false
@@ -31,6 +40,9 @@ final class PortManagerService: ObservableObject {
                 }
                 self.refreshFailed = result == nil
                 self.isRefreshing = false
+                let completions = self.refreshCompletions
+                self.refreshCompletions = []
+                completions.forEach { $0() }
             }
         }
     }

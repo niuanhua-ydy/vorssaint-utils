@@ -79,3 +79,76 @@ enum PortManagerSupport {
         return rows.sorted { $0.port == $1.port ? $0.processName < $1.processName : $0.port < $1.port }
     }
 }
+
+// MARK: - Command Bar rows
+
+/// How a listening port reads as a Command Bar row. Pure, so the words the
+/// bar ranks against and the query that brings ports into a plain search are
+/// pinned by tests rather than by trying it.
+extension PortManagerSupport {
+    /// What Return does on a port row. Terminating needs Kill Process and an
+    /// identity the scan could confirm; without either the row stays useful
+    /// by opening what is listening, or at least handing over the number.
+    enum CommandBarPrimary: Equatable {
+        case terminate
+        case openInBrowser
+        case copyPort
+    }
+
+    static func commandBarPrimary(canTerminate: Bool, hasBrowserURL: Bool) -> CommandBarPrimary {
+        if canTerminate { return .terminate }
+        return hasBrowserURL ? .openInBrowser : .copyPort
+    }
+
+    /// The port leads, written the way people type it, so a column of rows
+    /// reads as a column of ports.
+    static func commandBarTitle(for entry: PortManagerEntry) -> String {
+        ":\(entry.port)  \(entry.processName)"
+    }
+
+    /// Protocol, bind address and PID, plus the same all-interfaces warning
+    /// the Port Manager page shows as a badge. Plain `String(format:)` and
+    /// interpolation never group digits, so 5173 never reads "5,173".
+    static func commandBarSubtitle(for entry: PortManagerEntry,
+                                   pidFormat: String,
+                                   allInterfaces: String) -> String {
+        var parts = [entry.protocolName, entry.address, String(format: pidFormat, entry.pid)]
+        if listensOnAllInterfaces(entry.address) { parts.append(allInterfaces) }
+        return parts.joined(separator: " · ")
+    }
+
+    /// The bare number and its colon form, so both `3000` and `:3000` are
+    /// whole-word hits, and the process name. The PID stays out on purpose:
+    /// a typed port would otherwise also find every PID that contains it.
+    static func commandBarKeywords(for entry: PortManagerEntry) -> String {
+        "\(entry.port) :\(entry.port) \(entry.processName)"
+    }
+
+    /// The digits of a query that reads as a port, or nil. A bare number needs
+    /// two digits before it counts, so a single keystroke does not pull every
+    /// port into the list; with a leading colon one digit is already a clear
+    /// ask. Anything that could not be a TCP port is left to the rest of the bar.
+    static func portQuery(from query: String) -> String? {
+        var text = Substring(query.trimmingCharacters(in: .whitespaces))
+        let colon = text.hasPrefix(":")
+        if colon { text = text.dropFirst() }
+        guard (colon ? 1 : 2)...5 ~= text.count,
+              text.allSatisfy({ $0.isASCII && $0.isNumber }),
+              let value = Int(text), (1...65535).contains(value) else { return nil }
+        return String(text)
+    }
+
+    /// Words that find the "Port Manager" row: the language's own, plus the
+    /// English and Simplified Chinese ones, so "port", "lsof" and "端口" find
+    /// it whatever language the app is in.
+    static func browseKeywords(_ language: AppLanguage) -> String {
+        var words: [String] = []
+        for strings in [FeatureStrings.portManager(language), .enUS, .zhHans] {
+            for word in [strings.title, strings.browseKeywords]
+            where !words.contains(word) {
+                words.append(word)
+            }
+        }
+        return words.joined(separator: " ")
+    }
+}
