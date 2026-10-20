@@ -1172,6 +1172,7 @@ enum AppManagementFeatureTests {
         }
         let schedulerCode = compact("Sources/Vorssaint/Services/Cleaner/CleanerScheduler.swift")
         let cleanerViewCode = compact("Sources/Vorssaint/UI/Cleaner/CleanerView.swift")
+        let commandBarCode = compact("Sources/Vorssaint/Services/CommandBar/CommandBarService.swift")
         suite.expect(schedulerCode.components(separatedBy: "cleanSelected(").count == 2
                && schedulerCode.contains("cleanSelected(escalate:false)")
                && schedulerCode.contains("notifyIfWanted(freed:freed,failed:failed)"),
@@ -1180,8 +1181,13 @@ enum AppManagementFeatureTests {
                && cleanerViewCode.components(separatedBy: "cleanSelected(").count == 2
                && cleanerViewCode.contains("cleanSelected(escalate:true)"),
                "cleanSelected has no default escalation and the manual clean still asks")
+        suite.expect(commandBarCode.components(separatedBy: "cleanSelected(").count == 2
+               && commandBarCode.contains("cleaner.cleanSelected(escalate:true)"),
+               "the command bar's clean is the manual clean, and asks like the Settings page")
         suite.expect(schedulerCode.contains("cleaner.scan(attended:false)")
-               && cleanerViewCode.contains("cleaner.scan(attended:true)"),
+               && cleanerViewCode.contains("cleaner.scan(attended:true)")
+               && commandBarCode.contains("cleaner.scan(attended:true)")
+               && !commandBarCode.contains("scan(attended:false)"),
                "only a scan someone started reads the screenshot folders")
         suite.expect(CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/iOS DeviceSupport")
                && CleanerPolicy.developerJunkPaths.contains("/Library/Developer/Xcode/watchOS DeviceSupport"),

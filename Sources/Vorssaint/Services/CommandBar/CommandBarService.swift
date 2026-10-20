@@ -26,6 +26,9 @@ final class CommandBarService: ObservableObject {
         /// uninstall` and takes longer than a Trash move - the same extra
         /// step the Settings page and menu panel already ask for.
         case uninstallHomebrewConfirm(entryID: String)
+        /// The junk cleaner run in place: its scan, the same groups and
+        /// defaults the Settings page reviews, the clean and its outcome.
+        case cleanReview(entryID: String)
         /// The list of things that can be done to one row: pin it, name it,
         /// hide it, forget it. Everything the person controls lives here, one
         /// key away from whatever they were looking at.
@@ -40,6 +43,13 @@ final class CommandBarService: ObservableObject {
             case .uninstallReview, .uninstallHomebrewConfirm: return true
             default: return false
             }
+        }
+
+        /// A card made of native controls: they own Tab, Space and the
+        /// arrows, and Return in the field is the card's primary action.
+        var isChecklist: Bool {
+            if case .cleanReview = self { return true }
+            return isUninstallFlow
         }
 
     }
@@ -72,6 +82,10 @@ final class CommandBarService: ObservableObject {
             uninstallFinderRequestID = nil
             if mode.isUninstallFlow {
                 AppUninstaller.shared.reset()
+                mode = .search
+            }
+            if case .cleanReview = mode {
+                releaseCleaner()
                 mode = .search
             }
             // The argument field is temporary. Keep the completed search and
@@ -613,6 +627,8 @@ final class CommandBarService: ObservableObject {
             if !uninstaller.isRemoving {
                 uninstaller.reset()
             }
+        case .cleanReview:
+            releaseCleaner()
         default:
             break
         }
@@ -1685,8 +1701,8 @@ final class CommandBarService: ObservableObject {
                                                       query: query,
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
-        case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .actions, .naming,
-             .capturingShortcut:
+        case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .cleanReview, .actions,
+             .naming, .capturingShortcut:
             setCompactHome(false)
         }
         let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
@@ -2298,6 +2314,15 @@ final class CommandBarService: ObservableObject {
                 appDelegate()?.openSettingsWindow()
             })
         }
+        if entry.id == "action.cleaner", entry.keepsBarOpen {
+            actions.append(RowAction(id: "openSettings",
+                                     title: bar.actionOpenSettings,
+                                     symbolName: "gearshape") { [weak self] in
+                self?.hide()
+                SettingsRouter.shared.request(FeatureSettingsDestination(.cleaner))
+                appDelegate()?.openSettingsWindow()
+            })
+        }
         if entry.canRevealInFinder {
             actions.append(RowAction(id: "reveal",
                                      title: bar.actionRevealInFinder,
@@ -2723,6 +2748,89 @@ final class CommandBarService: ObservableObject {
         refreshResults()
     }
 
+    // MARK: - Clean review
+
+    /// Whether the scan on screen is the bar's own. One it joined belongs to
+    /// the panel, Settings or the schedule, and leaving the bar must not wipe
+    /// a review someone is making there, or cancel a scheduled run.
+    private var cleanReviewOwnsCleaner = false
+
+    /// The Cleaner row, by Return or Tab. The bar joins whatever the shared
+    /// cleaner is already doing - a scan, a review whose choices the panel
+    /// or Settings made, a clean still moving files - and starts a scan of
+    /// its own only from rest, attended like the Scan button.
+    func beginCleanReview(entryID: String) {
+        guard AppFeature.cleaner.isAvailable else { return }
+        let cleaner = JunkCleaner.shared
+        switch cleaner.phase {
+        case .idle, .done:
+            cleaner.scan(attended: true)
+            cleanReviewOwnsCleaner = true
+        case .scanning, .results, .cleaning:
+            cleanReviewOwnsCleaner = false
+        }
+        uninstallWarning = nil
+        savedQuery = query
+        mode = .cleanReview(entryID: entryID)
+        refreshPanelLayout()
+    }
+
+    /// Return in the field, or the card's own button: scan again from rest,
+    /// clean the reviewed selection exactly as the Settings page's Clean
+    /// does, or leave once there is nothing left to review.
+    private func runCleanReview() {
+        let cleaner = JunkCleaner.shared
+        switch cleaner.phase {
+        case .idle:
+            cleaner.scan(attended: true)
+            cleanReviewOwnsCleaner = true
+        case .results:
+            if cleaner.items.isEmpty {
+                finishCleanReview()
+            } else if cleaner.selectedCount > 0 {
+                cleaner.cleanSelected(escalate: true)
+            } else {
+                NSSound.beep()
+            }
+        case .done:
+            finishCleanReview()
+        case .scanning, .cleaning:
+            break
+        }
+    }
+
+    /// Esc: back to the search as it was. A finished clean goes home like
+    /// its Done button.
+    private func leaveCleanReview() {
+        if case .done = JunkCleaner.shared.phase {
+            finishCleanReview()
+            return
+        }
+        releaseCleaner()
+        mode = .search
+        query = savedQuery
+        refreshResults()
+    }
+
+    /// Nothing is left to review, so this goes all the way home with an
+    /// empty field, as the uninstall review does.
+    private func finishCleanReview() {
+        releaseCleaner()
+        mode = .search
+        query = ""
+        refreshResults()
+    }
+
+    /// Leaving the review drops the bar's own scan or unreviewed results,
+    /// the way the uninstall review drops its checklist; one it joined is
+    /// left as it was. A clean already moving files is never cut short: it
+    /// finishes on its own and the panel and Settings show its outcome.
+    private func releaseCleaner() {
+        let cleaner = JunkCleaner.shared
+        if cleanReviewOwnsCleaner, cleaner.phase != .cleaning { cleaner.reset() }
+        cleanReviewOwnsCleaner = false
+    }
+
     /// Only shared preferences need a scan for another installed copy.
     /// This reads stored values because Settings may have changed them while
     /// the bar was closed, or while the feature was switched off.
@@ -2929,6 +3037,8 @@ final class CommandBarService: ObservableObject {
             }
         case .uninstallHomebrewConfirm(let id):
             confirmUninstallHomebrewRemoval(entryID: id)
+        case .cleanReview:
+            runCleanReview()
         case .argument(let id):
             guard let entry = entry(withID: id), let range = entry.numericRange,
                   let value = CommandBarSearch.argumentValue(query, in: range) else {
@@ -3057,6 +3167,8 @@ final class CommandBarService: ObservableObject {
             // it came from, not all the way home.
             mode = .uninstallReview(entryID: id)
             refreshPanelLayout()
+        case .cleanReview:
+            leaveCleanReview()
         case .search:
             // A long query typed by mistake should be clearable without
             // throwing the whole session away; then Esc leaves the category,
@@ -3745,7 +3857,7 @@ final class CommandBarService: ObservableObject {
 
     // MARK: - Monitors
 
-    private func handleUninstallKey(_ keyCode: Int, searchFieldFocused: Bool) -> Bool {
+    private func handleChecklistKey(_ keyCode: Int, searchFieldFocused: Bool) -> Bool {
         if keyCode == kVK_Escape {
             stepBack()
             return true
@@ -3843,12 +3955,12 @@ final class CommandBarService: ObservableObject {
             // Only Return in the search field means the flow's primary action,
             // and only a fresh press: a Return still held from the app list
             // must not confirm the review the moment its scan finishes.
-            if self.mode.isUninstallFlow {
+            if self.mode.isChecklist {
                 if event.isARepeat,
                    Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter {
                     return nil
                 }
-                return self.handleUninstallKey(Int(event.keyCode),
+                return self.handleChecklistKey(Int(event.keyCode),
                                                searchFieldFocused: panel.firstResponder is NSTextView)
                     ? nil : event
             }

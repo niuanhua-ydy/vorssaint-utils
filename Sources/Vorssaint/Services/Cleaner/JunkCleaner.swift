@@ -101,6 +101,24 @@ final class JunkCleaner: ObservableObject {
         }
     }
 
+    func items(in group: CleanerSupport.DisplayGroup) -> [Item] {
+        items.filter { group.holds($0.category, recommended: $0.recommended) }
+    }
+
+    /// A group's checkbox: on only while every find in it is, so a half
+    /// picked group reads as off and one click selects all of it.
+    func isIncluded(_ group: CleanerSupport.DisplayGroup) -> Bool {
+        let found = items(in: group)
+        return !found.isEmpty && found.allSatisfy(\.include)
+    }
+
+    func setInclude(_ include: Bool, forGroup group: CleanerSupport.DisplayGroup) {
+        for index in items.indices where group.holds(items[index].category,
+                                                     recommended: items[index].recommended) {
+            items[index].include = include
+        }
+    }
+
     func reset() {
         scanToken = UUID()
         scanCancellation?.cancel()

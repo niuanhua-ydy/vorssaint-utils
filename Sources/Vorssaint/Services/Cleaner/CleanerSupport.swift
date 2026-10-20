@@ -20,6 +20,61 @@ enum CleanerSupport {
         var id: Int { rawValue }
     }
 
+    /// How the raw finds are presented, on every surface that reviews them:
+    /// safe groups first, fully selected; judgment calls under optional,
+    /// unchecked. Every find belongs to exactly one group, so no surface can
+    /// clean something it did not show.
+    enum DisplayGroup: Int, CaseIterable, Identifiable {
+        case loginItems, safeCaches, logs, developer
+        case leftovers, otherCaches, deviceBackups, screenshots, trash
+
+        var id: Int { rawValue }
+
+        var isSafe: Bool {
+            switch self {
+            case .loginItems, .safeCaches, .logs, .developer: return true
+            case .leftovers, .otherCaches, .deviceBackups, .screenshots, .trash: return false
+            }
+        }
+
+        var categories: [Category] {
+            switch self {
+            case .loginItems: return [.loginItems]
+            case .safeCaches, .otherCaches: return [.caches]
+            case .logs: return [.logs]
+            case .developer: return [.developer]
+            case .leftovers: return [.leftovers]
+            case .deviceBackups: return [.deviceBackups]
+            case .screenshots: return [.screenshots]
+            case .trash: return [.trash]
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .loginItems: return "power"
+            case .safeCaches: return "archivebox"
+            case .logs: return "doc.text"
+            case .developer: return "hammer"
+            case .leftovers: return "puzzlepiece"
+            case .otherCaches: return "internaldrive"
+            case .deviceBackups: return "iphone"
+            case .screenshots: return "camera.viewfinder"
+            case .trash: return "trash"
+            }
+        }
+
+        /// Caches split on the scan's own recommendation; every other
+        /// category is one group.
+        func holds(_ category: Category, recommended: Bool) -> Bool {
+            switch self {
+            case .safeCaches: return category == .caches && recommended
+            case .otherCaches: return category == .caches && !recommended
+            default: return categories.contains(category)
+            }
+        }
+    }
+
     /// Cancellation for one scan. The main thread cancels it; the scan's
     /// background loop reads it between categories and stops early instead
     /// of walking every location for a result nobody is waiting for.

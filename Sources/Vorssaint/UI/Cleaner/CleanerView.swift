@@ -163,85 +163,19 @@ struct CleanerView: View {
 
     // MARK: Display groups
 
-    /// How the raw finds are presented: safe groups first, fully selected;
-    /// judgment calls under optional, unchecked and collapsed.
-    private enum DisplayGroup: Int, CaseIterable, Identifiable {
-        case loginItems, safeCaches, logs, developer
-        case leftovers, otherCaches, deviceBackups, screenshots, trash
-
-        var id: Int { rawValue }
-
-        var isSafe: Bool {
-            switch self {
-            case .loginItems, .safeCaches, .logs, .developer: return true
-            case .leftovers, .otherCaches, .deviceBackups, .screenshots, .trash: return false
-            }
-        }
-
-        var categories: [CleanerSupport.Category] {
-            switch self {
-            case .loginItems: return [.loginItems]
-            case .safeCaches, .otherCaches: return [.caches]
-            case .logs: return [.logs]
-            case .developer: return [.developer]
-            case .leftovers: return [.leftovers]
-            case .deviceBackups: return [.deviceBackups]
-            case .screenshots: return [.screenshots]
-            case .trash: return [.trash]
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .loginItems: return "power"
-            case .safeCaches: return "archivebox"
-            case .logs: return "doc.text"
-            case .developer: return "hammer"
-            case .leftovers: return "puzzlepiece"
-            case .otherCaches: return "internaldrive"
-            case .deviceBackups: return "iphone"
-            case .screenshots: return "camera.viewfinder"
-            case .trash: return "trash"
-            }
-        }
-    }
+    /// Shared with the command bar's review, so both show the same groups.
+    private typealias DisplayGroup = CleanerSupport.DisplayGroup
 
     private func items(for group: DisplayGroup) -> [JunkCleaner.Item] {
-        switch group {
-        case .safeCaches: return cleaner.items.filter { $0.category == .caches && $0.recommended }
-        case .otherCaches: return cleaner.items.filter { $0.category == .caches && !$0.recommended }
-        default: return cleaner.items.filter { group.categories.contains($0.category) }
-        }
+        cleaner.items(in: group)
     }
 
     private func title(for group: DisplayGroup) -> String {
-        switch group {
-        case .loginItems: return l10n.s.cleanerCatLoginItems
-        case .safeCaches: return l10n.s.cleanerCatCaches
-        case .logs: return l10n.s.cleanerCatLogs
-        case .developer: return l10n.s.cleanerCatDeveloper
-        case .leftovers: return l10n.s.cleanerCatLeftovers
-        case .otherCaches: return l10n.s.cleanerCatOtherCaches
-        case .deviceBackups: return l10n.s.cleanerCatDeviceBackups
-        case .screenshots: return l10n.s.cleanerCatScreenshots
-        case .trash: return l10n.s.cleanerCatTrash
-        }
+        group.title(l10n.s)
     }
 
     private func caption(for group: DisplayGroup) -> String {
-        switch group {
-        case .loginItems: return l10n.s.cleanerLoginItemsCaption
-        case .safeCaches: return l10n.s.cleanerCachesCaption
-        case .logs: return l10n.s.cleanerLogsCaption
-        case .developer: return l10n.s.cleanerDeveloperCaption
-        case .leftovers: return l10n.s.cleanerLeftoversCaption
-        case .otherCaches: return l10n.s.cleanerOtherCachesCaption
-        case .deviceBackups: return l10n.s.cleanerDeviceBackupsCaption
-        case .screenshots:
-            return String(format: l10n.s.cleanerScreenshotsCaptionFormat,
-                          CleanerPolicy.sanitizedScreenshotAgeDays(screenshotAgeDays))
-        case .trash: return l10n.s.cleanerTrashNote
-        }
+        group.caption(l10n.s, screenshotAgeDays: screenshotAgeDays)
     }
 
     // MARK: Idle
@@ -959,15 +893,8 @@ struct CleanerView: View {
 
     private func groupBinding(_ group: DisplayGroup) -> Binding<Bool> {
         Binding(
-            get: {
-                let group_items = items(for: group)
-                return !group_items.isEmpty && group_items.allSatisfy(\.include)
-            },
-            set: { include in
-                for item in items(for: group) {
-                    cleaner.setInclude(include, for: item.id)
-                }
-            }
+            get: { cleaner.isIncluded(group) },
+            set: { cleaner.setInclude($0, forGroup: group) }
         )
     }
 
@@ -1014,5 +941,39 @@ struct PanelCleanerView: View {
         .padding(2)
         .onAppear { PanelInteractionState.shared.viewKeepsPopoverOpen = true }
         .onDisappear { PanelInteractionState.shared.viewKeepsPopoverOpen = false }
+    }
+}
+
+/// A group's name and its plain language explanation, the same words on the
+/// Settings page, the panels and the command bar.
+extension CleanerSupport.DisplayGroup {
+    func title(_ s: Strings) -> String {
+        switch self {
+        case .loginItems: return s.cleanerCatLoginItems
+        case .safeCaches: return s.cleanerCatCaches
+        case .logs: return s.cleanerCatLogs
+        case .developer: return s.cleanerCatDeveloper
+        case .leftovers: return s.cleanerCatLeftovers
+        case .otherCaches: return s.cleanerCatOtherCaches
+        case .deviceBackups: return s.cleanerCatDeviceBackups
+        case .screenshots: return s.cleanerCatScreenshots
+        case .trash: return s.cleanerCatTrash
+        }
+    }
+
+    func caption(_ s: Strings, screenshotAgeDays: Int) -> String {
+        switch self {
+        case .loginItems: return s.cleanerLoginItemsCaption
+        case .safeCaches: return s.cleanerCachesCaption
+        case .logs: return s.cleanerLogsCaption
+        case .developer: return s.cleanerDeveloperCaption
+        case .leftovers: return s.cleanerLeftoversCaption
+        case .otherCaches: return s.cleanerOtherCachesCaption
+        case .deviceBackups: return s.cleanerDeviceBackupsCaption
+        case .screenshots:
+            return String(format: s.cleanerScreenshotsCaptionFormat,
+                          CleanerPolicy.sanitizedScreenshotAgeDays(screenshotAgeDays))
+        case .trash: return s.cleanerTrashNote
+        }
     }
 }

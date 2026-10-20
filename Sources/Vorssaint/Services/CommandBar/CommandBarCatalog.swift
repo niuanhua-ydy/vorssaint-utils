@@ -687,12 +687,15 @@ enum CommandBarCatalog {
                 }))
         }
         if AppFeature.cleaner.isAvailable {
+            // The cleaner runs right here: the row scans and reviews in the
+            // bar, and its Settings page moves to the row's actions.
             entries.append(CommandBarEntry(
                 id: "action.cleaner",
                 title: s.cleanerName,
                 subtitle: area(.cleaner, under: s.cleanerName),
                 icon: .symbol("sparkle"),
-                run: { _ in openSettings(at: .cleaner) }))
+                keepsBarOpen: true,
+                run: { _ in CommandBarService.shared.beginCleanReview(entryID: "action.cleaner") }))
         }
         if AppFeature.uninstaller.isAvailable {
             // With the bar's own uninstall flow on, the tool's row opens the

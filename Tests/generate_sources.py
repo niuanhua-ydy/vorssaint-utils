@@ -542,11 +542,25 @@ def main():
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
               "    @Published var query", "    private func beginUninstallReview(",
-              "    private func handleUninstallKey(", "    func stepBack()",
+              "    private func handleChecklistKey(", "    func stepBack()",
               "    private func finishUninstallReview()"])
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
+    junk = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
+    write("CommandBarCleanFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
+          + "extension CommandBarCleanFlowTests {\n"
+          + declaration(junk, "    enum Phase:")
+          + declaration(bar, "    enum Mode:")
+          + "final class Cleaner: CleanerState {\nstatic let shared = Cleaner()\n"
+          + "".join(declaration(junk, prefix) for prefix in [
+              "    func items(in group:", "    func isIncluded(", "    func setInclude(_ include: Bool, forGroup"])
+          + "}\nfinal class Service: ServiceState {\n"
+          + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
+              "    @Published var query", "    func beginCleanReview(", "    private func runCleanReview()",
+              "    private func leaveCleanReview()", "    private func finishCleanReview()",
+              "    private func releaseCleaner()", "    private func handleChecklistKey(", "    func stepBack()"])
+          + "}\n}\n")
     write("UninstallerCommandBarCleanup.swift", "import Foundation\n"
           + "extension UninstallerCommandBarCleanupTests {\n"
           + declaration(uninstall, "    enum Phase:")

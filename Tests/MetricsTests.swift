@@ -180,6 +180,7 @@ struct MetricsTests {
                 CleanerLastRunContract.run(suite)
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
+                CommandBarCleanFlowTests.run(suite)
             }),
             ("uninstaller", {
                 UninstallerFlowTests.run(suite)

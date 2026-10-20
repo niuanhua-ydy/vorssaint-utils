@@ -163,6 +163,8 @@ enum UninstallerFlowTests {
         func setCategory(_ value: String?) { activeCategory = value }
         func hide() { mode = .search }
         func runSelected() { submissions += 1 }
+        func releaseCleaner() {}
+        func leaveCleanReview() { mode = .search }
     }
 
     static func run(_ suite: TestSuite) {
@@ -284,17 +286,17 @@ enum UninstallerFlowTests {
             suite.expect(service.uninstallFinderRequestID == nil,
                          "new search cancels a pending explicit Finder action")
             for key in [kVK_Tab, kVK_Space, kVK_UpArrow, kVK_DownArrow] {
-                suite.expect(!service.handleUninstallKey(key, searchFieldFocused: false),
+                suite.expect(!service.handleChecklistKey(key, searchFieldFocused: false),
                              "checklist key \(key) reaches the native control")
             }
-            suite.expect(!service.handleUninstallKey(kVK_Return, searchFieldFocused: false)
+            suite.expect(!service.handleChecklistKey(kVK_Return, searchFieldFocused: false)
                          && service.submissions == 0,
                          "Return on a focused control cannot submit removal instead")
-            suite.expect(service.handleUninstallKey(kVK_Return, searchFieldFocused: true)
+            suite.expect(service.handleChecklistKey(kVK_Return, searchFieldFocused: true)
                          && service.submissions == 1,
                          "Return in the search field retains the review action")
             service.mode = .uninstallHomebrewConfirm(entryID: "b")
-            suite.expect(service.handleUninstallKey(kVK_Escape, searchFieldFocused: false)
+            suite.expect(service.handleChecklistKey(kVK_Escape, searchFieldFocused: false)
                          && service.mode == .uninstallReview(entryID: "b"),
                          "Escape cancels just the package confirmation")
             service.mode = .search

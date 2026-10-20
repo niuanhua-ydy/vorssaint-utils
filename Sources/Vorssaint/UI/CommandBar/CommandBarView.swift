@@ -185,6 +185,9 @@ struct CommandBarView: View {
             case .uninstallHomebrewConfirm:
                 Divider()
                 uninstallHomebrewConfirmCard
+            case .cleanReview:
+                Divider()
+                CommandBarCleanReview()
             case .actions:
                 Divider()
                 actionsList
