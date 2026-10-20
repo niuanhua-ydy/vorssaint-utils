@@ -88,6 +88,9 @@ struct MenuPanelView: View {
     @State private var metricContentHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
+    /// The tab a detail page opened from, when that is not the metric's own
+    /// tab: the System dashboard opens network, disk and battery pages too.
+    @State private var metricReturnSection: PanelSectionID?
     @FocusState private var focusedSection: PanelSectionID?
 
     /// Cap the panel to the usable screen height so it never overflows the menu
@@ -142,7 +145,15 @@ struct MenuPanelView: View {
             return selectedMetric.monitorNeeds
         }
         switch activeSection {
-        case .system: return SystemMonitorPanelNeeds(system: true)
+        case .system:
+            // Each reading the dashboard's cards show, by name: the whole
+            // System section would also wake the per-core sampler, which
+            // only the list-style CPU row draws.
+            let battery = PowerSampler.hasInternalBattery
+            return SystemMonitorPanelNeeds(network: true, disk: true, power: battery,
+                                           cpu: true, gpu: true, memory: true, battery: battery,
+                                           cpuTemperature: true, gpuTemperature: true,
+                                           connectedDevices: true)
         case .network: return SystemMonitorPanelNeeds(network: true)
         case .disk: return SystemMonitorPanelNeeds(disk: true)
         case .power: return SystemMonitorPanelNeeds(power: true, powerCard: true)
@@ -166,6 +177,7 @@ struct MenuPanelView: View {
             focusedSection = section
         case .metric(let metric):
             focusedSection = nil
+            metricReturnSection = nil
             selectedMetric = metric
             selectedSection = metric.panelSection
         }
@@ -280,7 +292,7 @@ struct MenuPanelView: View {
         case .keepAwake: return 250
         case .brightness: return 140
         case .mixer: return 250
-        case .system: return 460
+        case .system: return 640
         case .network: return 190
         case .disk: return 360
         case .power: return 170
@@ -313,9 +325,10 @@ struct MenuPanelView: View {
         case .mixer: if showMixer { mixerOrPrioritySection(collapsible: collapsible) }
         case .system:
             if showSystem {
-                SystemSection(collapsible: collapsible) {
+                SystemDashboard(collapsible: collapsible) { metric in
                     focusedSection = nil
-                    selectedMetric = .connectedDevices
+                    metricReturnSection = .system
+                    selectedMetric = metric
                 }
             }
         case .network: if showNetwork { NetworkSection(collapsible: collapsible) }
@@ -394,7 +407,8 @@ struct MenuPanelView: View {
         HStack(spacing: 8) {
             Button {
                 selectedMetric = nil
-                selectedSection = kind.panelSection
+                selectedSection = metricReturnSection ?? kind.panelSection
+                metricReturnSection = nil
                 MenuPanelFocus.shared.clearMetricFocus()
             } label: {
                 Image(systemName: "chevron.left")

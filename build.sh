@@ -354,6 +354,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/BluetoothSleepStrings.swift
         Sources/Vorssaint/Core/PermissionGuideStrings.swift
         Sources/Vorssaint/Core/ConnectedDevicesStrings.swift
+        Sources/Vorssaint/Core/SystemDashboardStrings.swift
         Sources/Vorssaint/Services/SystemMonitor/SMCValueCodec.swift
         Sources/Vorssaint/Services/Snippets/TextSnippetSupport.swift
         Sources/Vorssaint/Services/RadialMenu/RadialMenuSupport.swift
