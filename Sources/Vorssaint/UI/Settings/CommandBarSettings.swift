@@ -512,6 +512,7 @@ struct CommandBarSettings: View {
         case .files: return text.sourceFiles
         case .killProcess: return FeatureStrings.killProcess(l10n.language).pageTitle
         case .ports: return FeatureStrings.portManager(l10n.language).title
+        case .appUpdates: return FeatureStrings.appUpdates(l10n.language).pageTitle
         }
     }
 

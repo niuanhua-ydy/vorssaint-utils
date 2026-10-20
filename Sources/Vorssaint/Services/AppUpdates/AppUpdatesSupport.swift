@@ -949,3 +949,33 @@ enum AppUpdatesSupport {
         return due <= now ? now.addingTimeInterval(catchUpDelay) : due
     }
 }
+
+// MARK: - Command Bar
+
+extension AppUpdatesSupport {
+    /// One update as the Command Bar lists it: the version step and where the
+    /// update comes from, the same badges the panel shows.
+    static func commandBarSubtitle(for item: Item, strings: AppUpdateStrings) -> String {
+        let source: String
+        switch item.source {
+        case .packageManager: source = strings.homebrewBadge
+        case .appStore: source = strings.appStoreBadge
+        case .onlineCatalog: source = strings.onlineBadge
+        }
+        return "\(item.versionSummary) · \(source)"
+    }
+
+    /// The row above the list that updates everything the panel's Select All
+    /// would tick. Only worth a row when there are at least two; a single one
+    /// is its own row.
+    static func commandBarUpdateAllCount(selectableCount: Int) -> Int? {
+        selectableCount >= 2 ? selectableCount : nil
+    }
+
+    /// What the empty update list says. Entering it starts a check, so until
+    /// one has answered it is checking, never "up to date".
+    static func commandBarEmptyTitle(isChecking: Bool, hasChecked: Bool,
+                                     strings: AppUpdateStrings) -> String {
+        isChecking || !hasChecked ? strings.checking : strings.upToDate
+    }
+}

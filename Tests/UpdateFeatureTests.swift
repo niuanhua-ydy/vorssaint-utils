@@ -1323,6 +1323,33 @@ enum UpdateFeatureTests {
                 && AppUpdatesSupport.singleStorePage(in: mergedRows, selection: []) == nil,
                "two store rows, or none, have no single page to land on")
 
+        let updateStrings = FeatureStrings.appUpdates(.enUS)
+        suite.expect(AppUpdatesSupport.commandBarSubtitle(for: secondStoreRow, strings: updateStrings)
+                == "1.0 → 2.0 · \(updateStrings.appStoreBadge)",
+               "a Command Bar update row shows its version step and the store badge")
+        let onlineRow = AppUpdatesSupport.Item(id: "online:/Applications/Tool.app", source: .onlineCatalog,
+                                               name: "Tool", installedVersion: "3", latestVersion: "4",
+                                               token: nil, bundlePath: "/Applications/Tool.app", storePage: nil)
+        let caskRow = AppUpdatesSupport.Item(id: "cask:tool", source: .packageManager,
+                                             name: "Tool", installedVersion: "3", latestVersion: "4",
+                                             token: "tool", bundlePath: nil, storePage: nil)
+        suite.expect(AppUpdatesSupport.commandBarSubtitle(for: onlineRow, strings: updateStrings)
+                    .hasSuffix(updateStrings.onlineBadge)
+                && AppUpdatesSupport.commandBarSubtitle(for: caskRow, strings: updateStrings)
+                    .hasSuffix(updateStrings.homebrewBadge),
+               "every update source carries the badge the panel uses")
+        suite.expect(AppUpdatesSupport.commandBarUpdateAllCount(selectableCount: 0) == nil
+                && AppUpdatesSupport.commandBarUpdateAllCount(selectableCount: 1) == nil
+                && AppUpdatesSupport.commandBarUpdateAllCount(selectableCount: 2) == 2,
+               "the Command Bar offers updating everything only when there are two or more")
+        suite.expect(AppUpdatesSupport.commandBarEmptyTitle(isChecking: true, hasChecked: true,
+                                                            strings: updateStrings) == updateStrings.checking
+                && AppUpdatesSupport.commandBarEmptyTitle(isChecking: false, hasChecked: false,
+                                                          strings: updateStrings) == updateStrings.checking
+                && AppUpdatesSupport.commandBarEmptyTitle(isChecking: false, hasChecked: true,
+                                                          strings: updateStrings) == updateStrings.upToDate,
+               "an empty update list says it is checking until a check has answered")
+
         let keptSelection = AppUpdatesSupport.reconciledSelection(
             previous: [mergedRows[0].id, "gone:row"],
             knownIDs: Set(mergedRows.map(\.id)),

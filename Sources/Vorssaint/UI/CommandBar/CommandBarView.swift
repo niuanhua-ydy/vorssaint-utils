@@ -867,7 +867,7 @@ struct CommandBarView: View {
                 .opacity(0.3)
                 .frame(width: 26, height: 26)
                 .padding(.bottom, 2)
-            Text(text.noResultsTitle)
+            Text(service.emptyStateTitle ?? text.noResultsTitle)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
             Button {

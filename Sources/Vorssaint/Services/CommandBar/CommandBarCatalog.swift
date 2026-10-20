@@ -675,15 +675,21 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.appUpdates.isAvailable {
+            // The list of apps behind opens right here, checking first when
+            // the last answer is stale; its Settings page moves to the
+            // row's actions.
             entries.append(CommandBarEntry(
-                id: "action.appUpdates",
+                id: CommandBarPreferences.appUpdatesBrowserRowID,
                 title: bar.actionCheckAppUpdates,
                 subtitle: area(.appUpdates),
                 keywords: FeatureStrings.appUpdates(language).pageTitle,
                 icon: .symbol("arrow.down.app"),
+                keepsBarOpen: true,
                 run: { _ in
-                    AppUpdatesService.shared.check()
-                    openSettings(at: .appUpdates)
+                    AppUpdatesService.shared.checkIfNeeded()
+                    let service = CommandBarService.shared
+                    service.query = ""
+                    service.setCategory(.appUpdates)
                 }))
         }
         if AppFeature.cleaner.isAvailable {
@@ -1148,6 +1154,52 @@ enum CommandBarCatalog {
                     }
                 })
         }
+    }
+
+    /// The App Updates category: one row per app behind, led by a row that
+    /// updates every app the panel's Select All would tick. Return updates
+    /// the way the panel's own button does: Homebrew installs in place in
+    /// the background, the App Store and an app's own updater are opened.
+    static func appUpdateEntries(_ items: [AppUpdatesSupport.Item],
+                                 language: AppLanguage) -> [CommandBarEntry] {
+        let strings = FeatureStrings.appUpdates(language)
+        var entries: [CommandBarEntry] = []
+        if let count = AppUpdatesSupport.commandBarUpdateAllCount(
+            selectableCount: items.filter(\.isSelectable).count) {
+            let title = String(format: strings.updateSelectedFormat, count)
+            entries.append(CommandBarEntry(
+                id: "appupdate.all",
+                title: title,
+                subtitle: strings.pageTitle,
+                icon: .symbol("arrow.down.circle"),
+                countsUsage: false,
+                run: { _ in
+                    let service = AppUpdatesService.shared
+                    service.selectAll()
+                    service.updateSelected()
+                    QuickToolHUD.show(icon: "arrow.down.circle", message: title)
+                }))
+        }
+        entries += items.map { item in
+            CommandBarEntry(
+                id: "appupdate.\(item.id)",
+                title: item.name,
+                subtitle: AppUpdatesSupport.commandBarSubtitle(for: item, strings: strings),
+                keywords: [item.installedVersion, item.latestVersion, item.token ?? ""]
+                    .joined(separator: " "),
+                icon: item.bundlePath.map { .appIcon(path: $0) } ?? .symbol("arrow.down.app"),
+                countsUsage: false,
+                revealPath: item.bundlePath,
+                run: { _ in
+                    AppUpdatesService.shared.update(item)
+                    // Homebrew works behind the closed bar; the others open
+                    // something that is its own feedback.
+                    if item.source == .packageManager {
+                        QuickToolHUD.show(icon: "arrow.down.app", message: item.name)
+                    }
+                })
+        }
+        return entries
     }
 
     /// One row per installed app the uninstaller will take, offered only

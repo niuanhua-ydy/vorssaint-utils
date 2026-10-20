@@ -3,6 +3,7 @@
 
 import AppKit
 import Carbon.HIToolbox
+import Combine
 import SwiftUI
 
 /// The command bar: one floating field, summoned by a global shortcut, that
@@ -225,6 +226,10 @@ final class CommandBarService: ObservableObject {
     /// the same lifetime as `killProcessEntries`.
     private var portEntries: [CommandBarEntry] = [] { didSet { foldedSections[.ports] = nil } }
     private var portEntriesLoading = false
+    /// Built from the App Updates service's own list, which a check updates
+    /// while the bar is open; the observer lives only as long as the opening.
+    private var appUpdateEntries: [CommandBarEntry] = [] { didSet { foldedSections[.appUpdates] = nil } }
+    private var appUpdatesObserver: AnyCancellable?
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, same lifetime as `selectionEntries`.
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
@@ -454,6 +459,7 @@ final class CommandBarService: ObservableObject {
         loadSelection(for: id)
         loadKillProcessEntries(for: id)
         loadPortEntries(for: id)
+        observeAppUpdates(for: id)
         loadUninstallSelectionEntries(for: id)
     }
 
@@ -648,6 +654,11 @@ final class CommandBarService: ObservableObject {
         }
         if !portEntries.isEmpty {
             portEntries = []
+            indexEntries()
+        }
+        appUpdatesObserver = nil
+        if !appUpdateEntries.isEmpty {
+            appUpdateEntries = []
             indexEntries()
         }
         if !uninstallSelectionEntries.isEmpty {
@@ -1077,7 +1088,7 @@ final class CommandBarService: ObservableObject {
             return AppFeature.killProcess.isAvailable
         case .ports:
             return AppFeature.portManager.isAvailable
-        case .quitApps, .uninstallApps, .answers, .calculator, .selection, .files:
+        case .quitApps, .uninstallApps, .appUpdates, .answers, .calculator, .selection, .files:
             return false
         }
     }
@@ -1108,6 +1119,7 @@ final class CommandBarService: ObservableObject {
             }
         case .killProcess: rows = killProcessEntries
         case .ports: rows = portEntries
+        case .appUpdates: rows = appUpdateEntries
         case .quitApps, .answers, .calculator, .selection, .files:
             rows = []
         }
@@ -1167,6 +1179,7 @@ final class CommandBarService: ObservableObject {
         case CommandBarPreferences.emojiBrowserRowID: return .emoji
         case CommandBarPreferences.killProcessBrowserRowID: return .killProcess
         case CommandBarPreferences.portsBrowserRowID: return .ports
+        case CommandBarPreferences.appUpdatesBrowserRowID: return .appUpdates
         default: return nil
         }
     }
@@ -1248,6 +1261,7 @@ final class CommandBarService: ObservableObject {
         case .links: return bar.linksTitle
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
         case .ports: return FeatureStrings.portManager(L10n.shared.language).title
+        case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
         }
     }
 
@@ -1504,7 +1518,7 @@ final class CommandBarService: ObservableObject {
     /// The lists the pool is made of, in the order it builds them: what
     /// the Mac holds first, what is borrowed after.
     private enum PoolSection: CaseIterable {
-        case selection, killProcess, ports, uninstallSelection, catalog, apps, uninstallApps, macSettings, windows, quit, menus, emoji
+        case selection, killProcess, ports, uninstallSelection, catalog, apps, uninstallApps, appUpdates, macSettings, windows, quit, menus, emoji
     }
 
     private func entries(in section: PoolSection) -> [CommandBarEntry] {
@@ -1514,6 +1528,7 @@ final class CommandBarService: ObservableObject {
         case .uninstallApps: return uninstallEntries
         case .killProcess: return killProcessEntries
         case .ports: return portEntries
+        case .appUpdates: return appUpdateEntries
         case .catalog: return catalog
         case .apps: return appEntries
         case .macSettings: return macSettingsEntries
@@ -1706,6 +1721,7 @@ final class CommandBarService: ObservableObject {
             setCompactHome(false)
         }
         let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
+            || (activeCategory == .appUpdates && AppUpdatesService.shared.isChecking)
         if awaitsAnswers != awaiting { awaitsAnswers = awaiting }
         refreshPanelLayout()
     }
@@ -1834,7 +1850,8 @@ final class CommandBarService: ObservableObject {
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
         case .actions, .apps, .menus, .windows, .quitApps, .uninstallApps, .settingsPages,
-             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess, .ports:
+             .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess, .ports,
+             .appUpdates:
             return entry.subtitle.isEmpty ? bar.everythingTitle : entry.subtitle
         }
     }
@@ -2366,6 +2383,7 @@ final class CommandBarService: ObservableObject {
                 })
             }
         }
+        actions.append(contentsOf: appUpdateActions(for: entry))
         if let port = portManagerEntry(for: entry) {
             actions.append(contentsOf: portActions(for: port))
         }
@@ -2474,6 +2492,83 @@ final class CommandBarService: ObservableObject {
     /// The listener a port row was built from. Read from the service's own
     /// list, which is the snapshot the rows were made from, the same way a
     /// kill row finds its process.
+    /// Keeps the App Updates rows in step with the service's list while the
+    /// bar is open: entering the category may start a check, and its answer,
+    /// like a skipped version or an excluded app, lands here.
+    private func observeAppUpdates(for id: UUID) {
+        guard AppFeature.appUpdates.isAvailable, isEnabled(.appUpdates) else { return }
+        let updates = AppUpdatesService.shared
+        appUpdatesObserver = updates.$items.combineLatest(updates.$isChecking)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _, _ in
+                guard let self,
+                      self.presentationLifecycle.acceptsHomeUpdates(id, isVisible: self.isVisible) else { return }
+                self.appUpdateEntries = CommandBarCatalog.appUpdateEntries(
+                    AppUpdatesService.shared.items, language: L10n.shared.language)
+                self.indexEntries()
+                self.refreshResults()
+            }
+    }
+
+    /// What an empty list says instead of "no results" when the list has its
+    /// own reason to be empty: the update list is checking, or found nothing.
+    var emptyStateTitle: String? {
+        guard activeCategory == .appUpdates,
+              query.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        let updates = AppUpdatesService.shared
+        return AppUpdatesSupport.commandBarEmptyTitle(
+            isChecking: updates.isChecking, hasChecked: updates.hasCheckedThisSession,
+            strings: FeatureStrings.appUpdates(L10n.shared.language))
+    }
+
+    private func appUpdateItem(for entry: CommandBarEntry) -> AppUpdatesSupport.Item? {
+        guard entry.id.hasPrefix("appupdate."), entry.id != "appupdate.all" else { return nil }
+        let id = entry.id.dropFirst("appupdate.".count)
+        return AppUpdatesService.shared.items.first { $0.id == id }
+    }
+
+    /// The update list's own actions: check again or reach the page behind
+    /// the list from its row, and settle one app for good from that app's.
+    private func appUpdateActions(for entry: CommandBarEntry) -> [RowAction] {
+        let language = L10n.shared.language
+        let strings = FeatureStrings.appUpdates(language)
+        let updates = AppUpdatesService.shared
+        if entry.id == CommandBarPreferences.appUpdatesBrowserRowID, entry.keepsBarOpen {
+            return [
+                RowAction(id: "checkAppUpdatesNow",
+                          title: strings.checkNow,
+                          symbolName: "arrow.clockwise") { [weak self] in
+                    updates.check()
+                    self?.leaveActions()
+                    self?.query = ""
+                    self?.setCategory(.appUpdates)
+                },
+                RowAction(id: "openSettings",
+                          title: FeatureStrings.commandBar(language).actionOpenSettings,
+                          symbolName: "gearshape") { [weak self] in
+                    self?.hide()
+                    SettingsRouter.shared.request(FeatureSettingsDestination(.appUpdates))
+                    appDelegate()?.openSettingsWindow()
+                },
+            ]
+        }
+        guard let item = appUpdateItem(for: entry) else { return [] }
+        return [
+            RowAction(id: "skipAppUpdateVersion",
+                      title: String(format: strings.skipVersionFormat, item.latestVersion),
+                      symbolName: "forward.end") { [weak self] in
+                updates.skipVersion(item)
+                self?.leaveActions()
+            },
+            RowAction(id: "excludeAppFromUpdates",
+                      title: strings.excludeApp,
+                      symbolName: "nosign") { [weak self] in
+                updates.excludeApp(item)
+                self?.leaveActions()
+            },
+        ]
+    }
+
     private func portManagerEntry(for entry: CommandBarEntry) -> PortManagerEntry? {
         guard entry.id.hasPrefix("port."), entry.id != CommandBarPreferences.portsBrowserRowID else { return nil }
         let id = entry.id.dropFirst("port.".count)
