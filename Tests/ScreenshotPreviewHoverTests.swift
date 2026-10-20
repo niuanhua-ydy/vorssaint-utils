@@ -12,8 +12,6 @@ enum ScreenshotPreviewHoverTests {
 
     final class Model {
         var disabledActions: Set<Action> = []
-        var sharing = false
-        var deletingShare = false
     }
 
     class State {

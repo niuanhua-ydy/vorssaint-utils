@@ -135,27 +135,6 @@ final class RecorderTakeStore: @unchecked Sendable {
         return values?.volumeAvailableCapacityForImportantUsage ?? 0
     }
 
-    /// Sharing never accepts a raw caller-supplied URL. The staged master must
-    /// still be the regular file inside the exact private recording folder
-    /// this store assigned to its id, with no symbolic-link escape.
-    func owns(_ take: Take) -> Bool {
-        guard let root else { return false }
-        let expected = root.appendingPathComponent(RecorderSupport.takeFolderName(id: take.id),
-                                                    isDirectory: true)
-        guard take.folder.standardizedFileURL == expected.standardizedFileURL,
-              let folderValues = try? take.folder.resourceValues(
-                forKeys: [.isDirectoryKey, .isSymbolicLinkKey]),
-              folderValues.isDirectory == true,
-              folderValues.isSymbolicLink != true,
-              let videoValues = try? take.videoURL.resourceValues(
-                forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
-              videoValues.isRegularFile == true,
-              videoValues.isSymbolicLink != true,
-              (videoValues.fileSize ?? 0) > 0
-        else { return false }
-        return true
-    }
-
     func delete(_ take: Take) {
         try? manager.removeItem(at: take.folder)
     }

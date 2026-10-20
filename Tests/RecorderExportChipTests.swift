@@ -7,9 +7,7 @@ import SwiftUI
 /// Lays out the production export chip inside a band like the editor's top
 /// band, without a window or any input, and reads the size the chip settles at.
 enum RecorderExportChipTests {
-    enum Phase { case saving, compressing, uploading }
     final class Model: ObservableObject {
-        @Published var exportPhase = Phase.saving
         @Published var exportProgress = 0.4
         func cancelExport() {}
     }

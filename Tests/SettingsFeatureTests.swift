@@ -318,8 +318,6 @@ enum SettingsFeatureTests {
                "fan display and cooling preferences travel while helper recovery state stays on one Mac")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.fanControlResume] as? Bool == false,
                "resuming fan control after a restart or sleep is opt-in")
-        suite.expect(backupKeys.contains(DefaultsKey.screenshotSharingEnabled),
-               "the temporary screenshot links preference travels with settings backup")
         suite.expect(!backupKeys.contains(DefaultsKey.clipboardHistoryEntries)
                 && !backupKeys.contains(DefaultsKey.shelfItems)
                 && !backupKeys.contains(DefaultsKey.sleepDisabledFlag)
@@ -330,8 +328,7 @@ enum SettingsFeatureTests {
                 && !backupKeys.contains(DefaultsKey.cleanerLastAutoRun)
                 && !backupKeys.contains(DefaultsKey.statusItemPlacementGeneration)
                 && !backupKeys.contains(DefaultsKey.displaysSwitchedOff)
-                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints)
-                && !backupKeys.contains(DefaultsKey.screenshotSharingDeveloperEndpoint),
+                && !backupKeys.contains(DefaultsKey.displaysSwitchedOffFingerprints),
                "backup never carries private content, live state or machine markers")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.displaysSwitchedOff] == nil,
                "a display switched off is a repair note for this machine, not a setting")

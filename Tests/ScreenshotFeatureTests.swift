@@ -40,91 +40,6 @@ enum ScreenshotFeatureTests {
 
         // MARK: Screenshot tool
 
-        let copyRecord = ScreenshotShareRecord(
-            id: String(repeating: "a", count: 32),
-            endpoint: URL(string: "https://example.com")!,
-            expiresAt: Date().addingTimeInterval(3_600), deleteToken: "test")
-        var linkEvents: [String] = []
-        let failedCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
-            linkEvents.append(url.absoluteString)
-            return false
-        }, dismiss: { linkEvents.append("dismiss") })
-        suite.expect(!failedCopy && linkEvents == [copyRecord.url.absoluteString],
-                     "a failed link copy leaves the preview open for retry")
-        linkEvents.removeAll()
-        let successfulCopy = ScreenshotSharingSupport.copyLink(copyRecord, using: { url in
-            linkEvents.append(url.absoluteString)
-            return true
-        }, dismiss: { linkEvents.append("dismiss") })
-        suite.expect(successfulCopy && linkEvents == [copyRecord.url.absoluteString, "dismiss"],
-                     "a successful link copy dismisses the preview only after copying the URL")
-
-        let retryCaptureID = UUID()
-        var copyRetry = ScreenshotLinkCopyRetry()
-        copyRetry.remember(copyRecord, for: retryCaptureID)
-        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == copyRecord,
-                     "a clipboard failure offers the same uploaded link for retry")
-        suite.expect(copyRetry.record(for: UUID(), availableRecords: [copyRecord]) == nil,
-                     "a new screenshot does not retry the previous screenshot's link")
-        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: []) == nil,
-                     "a revoked link cannot be copied by the upload shortcut")
-        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord],
-                                      now: copyRecord.expiresAt) == nil,
-                     "an expired link cannot be copied by the upload shortcut")
-        copyRetry.clear()
-        suite.expect(copyRetry.record(for: retryCaptureID, availableRecords: [copyRecord]) == nil,
-                     "successful copying clears the pending retry")
-
-        let uploadDefaultsName = "com.vorssaint.tests.screenshot-upload.\(UUID().uuidString)"
-        let uploadDefaults = UserDefaults(suiteName: uploadDefaultsName)!
-        defer { uploadDefaults.removePersistentDomain(forName: uploadDefaultsName) }
-        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
-                     "an unset upload expiry defaults to one hour")
-        for duration in ScreenshotShareDuration.allCases {
-            uploadDefaults.set(duration.rawValue, forKey: DefaultsKey.screenshotUploadDuration)
-            suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == duration,
-                         "the upload shortcut uses each supported saved expiry")
-            let url = ScreenshotSharingSupport.uploadURL(
-                endpoint: ScreenshotSharingSupport.productionEndpoint,
-                duration: .saved(in: uploadDefaults))!
-            suite.expect(URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first?.value == String(duration.rawValue),
-                         "the saved shortcut expiry reaches the upload request")
-        }
-        uploadDefaults.set(-1, forKey: DefaultsKey.screenshotUploadDuration)
-        suite.expect(ScreenshotShareDuration.saved(in: uploadDefaults) == .oneHour,
-                     "invalid restored expiry falls back to one hour")
-        for editEnabled in [false, true] {
-            for uploadEnabled in [false, true] {
-                for sharingEnabled in [false, true] {
-                    uploadDefaults.set(editEnabled, forKey: DefaultsKey.screenshotLastCaptureShortcutEnabled)
-                    uploadDefaults.set(uploadEnabled, forKey: DefaultsKey.screenshotUploadShortcutEnabled)
-                    uploadDefaults.set(sharingEnabled, forKey: DefaultsKey.screenshotSharingEnabled)
-                    let canUpload = uploadEnabled && sharingEnabled
-                    suite.expect(ScreenshotSharingSupport.uploadShortcutEnabled(in: uploadDefaults) == canUpload,
-                                 "uploads require both the shortcut and sharing to be enabled")
-                    suite.expect(ScreenshotSharingSupport.retainsLatestCapture(in: uploadDefaults)
-                        == (editEnabled || canUpload),
-                                 "either active latest-capture shortcut retains the screenshot")
-                    let roles = GlobalShortcutRole.activeRoles(
-                        isOn: { uploadDefaults.bool(forKey: $0) },
-                        isAvailable: { $0 == .screenshot })
-                    suite.expect(roles.contains(.screenshotUpload) == canUpload,
-                                 "shortcut conflict detection follows upload availability")
-                }
-            }
-        }
-        suite.expect(!GlobalShortcutRole.activeRoles(isOn: { _ in true },
-                                                     isAvailable: { _ in false })
-            .contains(.screenshotUpload), "unavailable screenshots disable the upload shortcut")
-        let uploadBackupKeys = SettingsBackupSupport.exportKeys()
-        suite.expect([DefaultsKey.screenshotUploadShortcutEnabled,
-                      DefaultsKey.screenshotUploadShortcut,
-                      DefaultsKey.screenshotUploadDuration].allSatisfy(uploadBackupKeys.contains),
-                     "upload shortcut and expiry settings travel in backups")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotUploadShortcutEnabled]
-            as? Bool == false, "uploading by shortcut is opt-in")
-
         let ownScreenshotWindows: Set<CGWindowID> = [11, 12, 13]
         let protectedScreenshotWindows: Set<CGWindowID> = [12, 99]
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotHideVorssaintWindows]
@@ -888,10 +803,8 @@ enum ScreenshotFeatureTests {
                 && ScreenshotSupport.sanitizedConfirmationPreviewDuration(2) == 2
                 && ScreenshotSupport.sanitizedConfirmationPreviewDuration(99) == 3
                 && ScreenshotSupport.confirmationPreviewDismissInterval(2) == 2
-                && ScreenshotSupport.confirmationPreviewDismissInterval(0) == nil
-                && ScreenshotSupport.sharedPreviewDismissInterval(base: 3) == 30
-                && ScreenshotSupport.sharedPreviewDismissInterval(base: nil) == nil,
-               "confirmation previews support short, default, persistent, and share-result dismissal behavior")
+                && ScreenshotSupport.confirmationPreviewDismissInterval(0) == nil,
+               "confirmation previews support short, default, and persistent dismissal behavior")
         let focusedTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
             dismissInterval: 3, prefersFocus: true)
         let quietTimedPolicy = ScreenshotSupport.confirmationPreviewPresentationPolicy(
@@ -1308,10 +1221,9 @@ enum ScreenshotFeatureTests {
         suite.expect(captureSelectionSource.contains("private var pointerIsInside = false")
                 && !captureSelectionSource.contains("|| bounds.contains(hoverPoint)"),
                "the capture loupe draws on only the display that owns the current pointer")
-        // The uploader tests run what these call. Here the calls themselves
-        // are checked with comments removed: a new capture starts the latest
-        // capture first, teardown invalidates pending uploads, and only a
-        // preview made from that new capture can withhold it on discard.
+        // The calls themselves are checked with comments removed: a new
+        // capture starts the latest capture first, and only a preview made
+        // from that new capture is tied to it.
         let screenshotServiceCode = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
             encoding: .utf8)) ?? "").components(separatedBy: "\n")
@@ -1324,16 +1236,11 @@ enum ScreenshotFeatureTests {
         let routeStatements = serviceBody("    private func route(_ capture:")
             .components(separatedBy: "\n").map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
-        suite.expect(serviceBody("    private func teardownSurfaces() {").contains("invalidateLatestCaptureUploads()")
-                && routeStatements.dropFirst().first == "beginLatestCapture(capture)",
-               "turning screenshots off invalidates pending shortcut uploads, and every capture starts as the latest one")
-        suite.expect(serviceBody("    func syncWithPreferences() {")
-                    .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),"),
-               "the upload shortcut is registered only while it and temporary links are both on")
+        suite.expect(routeStatements.dropFirst().first == "beginLatestCapture(capture)",
+               "every capture starts as the latest one")
         suite.expect(serviceBody("    private func route(_ capture:").contains("latestCapture: latestCaptureToken)")
-                && serviceBody("    func restorePreview(").contains("latestCapture: nil)")
-                && screenshotServiceCode.contains("self.discardLatestCapture(latestCapture)\n                    return [.discard]"),
-               "discarding the preview of the latest capture withholds it, while a preview reopened from history does not")
+                && serviceBody("    func restorePreview(").contains("latestCapture: nil)"),
+               "the preview of the latest capture is tied to it, while a preview reopened from history is not")
         let previewDiscard = screenshotServiceCode.components(separatedBy: "case .discard:")
             .dropFirst().first?.components(separatedBy: "return [.discard]").first ?? ""
         let routeBody = serviceBody("    private func route(_ capture:")
@@ -1341,18 +1248,6 @@ enum ScreenshotFeatureTests {
                 && routeBody.components(separatedBy: "autoShelve(").count == 2
                 && routeBody.contains("autoShelve(capture, saved: result.saved?.url)"),
                "a capture that does not open in the editor is offered to the shelf once, and discarding it from its preview takes it back")
-        // In the island the menu arrow is hidden, so a click there must open
-        // the durations rather than publish at once.
-        let shareMenuCode = ((try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotQuickPreviewController.swift",
-            encoding: .utf8)) ?? "").components(separatedBy: "@ViewBuilder private var shareMenu: some View {")
-            .dropFirst().first?.components(separatedBy: "private var shareDurations").first ?? ""
-        let embeddedShareMenu = shareMenuCode.components(separatedBy: "} else {").first ?? ""
-        let floatingShareMenu = shareMenuCode.components(separatedBy: "} else {").dropFirst().first ?? ""
-        suite.expect(embeddedShareMenu.contains("Menu { shareDurations } label: { shareMenuLabel },")
-                && !embeddedShareMenu.contains("primaryAction")
-                && floatingShareMenu.contains("primaryAction: {\n                share(.saved())"),
-               "the island's link button opens the durations on a click, while the floating preview keeps its split button")
         let captureServiceSource = (try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenCaptureService.swift",
             encoding: .utf8)) ?? ""
@@ -3628,8 +3523,6 @@ enum ScreenshotFeatureTests {
                 && !capturesGoToShelf(option: true, installed: true, on: false)
                 && !capturesGoToShelf(option: true, installed: false, on: true),
                "captures go to the shelf only with the option on and the shelf installed and switched on")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotSharingEnabled] as? Bool == true,
-               "temporary screenshot links preserve their existing availability by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolOrder] as? String
                 == ScreenshotSupport.Tool.defaultOrderStorage,
                "the screenshot rail ships in its useful numbered order")
@@ -3675,45 +3568,6 @@ enum ScreenshotFeatureTests {
         suite.expect(Defaults.registeredDefaults[DefaultsKey.recentCapturesShortcut] as? String
                 == "control+option+command:4",
                "the recent captures shortcut defaults to control option command H")
-        suite.expect(ScreenshotShareDuration.allCases.map(\.rawValue) == [3_600, 21_600, 86_400],
-               "temporary links allow only one, six or twenty-four hours")
-        let testShareEndpoint = ScreenshotSharingSupport.endpoint(
-            bundleIdentifier: ScreenshotSharingSupport.developerBundleIdentifier,
-            developerOverride: "https://test.example/")
-        suite.expect(testShareEndpoint.absoluteString == "https://test.example"
-                && ScreenshotSharingSupport.endpoint(
-                    bundleIdentifier: "com.vorssaint.utils",
-                    developerOverride: "https://test.example").absoluteString
-                    == ScreenshotSharingSupport.productionEndpoint.absoluteString
-                && ScreenshotSharingSupport.endpoint(
-                    bundleIdentifier: ScreenshotSharingSupport.developerBundleIdentifier,
-                    developerOverride: "http://test.example")
-                    == ScreenshotSharingSupport.productionEndpoint,
-               "only the Developer build accepts a valid HTTPS test endpoint")
-        suite.expect(ScreenshotSharingSupport.uploadURL(endpoint: testShareEndpoint,
-                                                  duration: .sixHours)?.absoluteString
-                == "https://test.example/v1/screenshots?expiresIn=21600",
-               "sharing builds the fixed upload route and expiration query")
-        let shareNow = Date(timeIntervalSince1970: 1_000)
-        let shareResponse = ScreenshotShareResponse(
-            id: String(repeating: "a", count: 32),
-            viewPath: "/s/\(String(repeating: "a", count: 32))",
-            expiresAt: "1970-01-01T01:16:40.125Z",
-            deleteToken: String(repeating: "b", count: 43))
-        suite.expect(ScreenshotSharingSupport.record(response: shareResponse,
-                                                endpoint: testShareEndpoint,
-                                                now: shareNow)?.url.absoluteString
-                == "https://test.example/s/\(String(repeating: "a", count: 32))",
-               "a valid service response becomes an owner-held link record")
-        let forgedShareResponse = ScreenshotShareResponse(
-            id: "guessable",
-            viewPath: "/s/guessable",
-            expiresAt: "1970-01-01T01:16:40.125Z",
-            deleteToken: "short")
-        suite.expect(ScreenshotSharingSupport.record(response: forgedShareResponse,
-                                                endpoint: testShareEndpoint,
-                                                now: shareNow) == nil,
-               "guessable ids and short deletion tokens are rejected")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.panelUtilityScreenshot] as? Bool == true,
                "the panel row ships visible like its siblings")
         let recentCaptureIDs = (0..<14).map { _ in UUID() }

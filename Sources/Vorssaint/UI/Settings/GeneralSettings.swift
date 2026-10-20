@@ -20,7 +20,6 @@ struct GeneralSettings: View {
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
-    private var feedbackStrings: FeedbackStrings { FeatureStrings.feedback(l10n.language) }
 
     var body: some View {
         ScrollView {
@@ -31,7 +30,6 @@ struct GeneralSettings: View {
                 if AppFeature.keepAwake.isAvailable {
                     shortcutCard
                 }
-                feedbackCard
             }
             .frame(maxWidth: 760)
             .frame(maxWidth: .infinity)
@@ -141,17 +139,6 @@ struct GeneralSettings: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.leading, settingsRowTextInset)
-            }
-        }
-    }
-
-    private var feedbackCard: some View {
-        SettingsCard {
-            SettingsRow(symbol: "bubble.left.and.text.bubble.right", title: feedbackStrings.sectionTitle,
-                        caption: feedbackStrings.sectionCaption) {
-                Button(feedbackStrings.openButton) {
-                    appDelegate()?.openFeedbackWindow()
-                }
             }
         }
     }

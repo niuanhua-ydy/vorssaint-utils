@@ -1583,56 +1583,6 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     // MARK: Export actions
 
-    /// Uploads the rendered editor result without copying the URL or closing
-    /// the editor. The view presents the owner controls after it succeeds.
-    func share(duration: ScreenshotShareDuration,
-               completion: @escaping (ScreenshotShareRecord?) -> Void) {
-        guard let export = model.exportImage() else {
-            QuickToolHUD.show(icon: "link", message: strings.shareFailedHUD)
-            completion(nil)
-            return
-        }
-        Task { @MainActor [weak self] in
-            guard let self else {
-                completion(nil)
-                return
-            }
-            let data = await Task.detached(priority: .userInitiated) {
-                ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
-            }.value
-            guard let data else {
-                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
-                completion(nil)
-                return
-            }
-            // Rendering may outlive the editor or the feature. Recheck before
-            // transmitting the capture, not only when the server answers.
-            guard self.window != nil,
-                  AppFeature.screenshot.isAvailable,
-                  UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
-                completion(nil)
-                return
-            }
-            do {
-                let record = try await ScreenshotShareService.shared.createLink(
-                    pngData: data, duration: duration)
-                guard self.window != nil,
-                      AppFeature.screenshot.isAvailable,
-                      UserDefaults.standard.bool(forKey: DefaultsKey.screenshotSharingEnabled) else {
-                    try? await ScreenshotShareService.shared.delete(record)
-                    completion(nil)
-                    return
-                }
-                self.model.markExported()
-                completion(record)
-            } catch {
-                QuickToolHUD.show(icon: "link", message: self.strings.shareFailedHUD)
-                NSSound.beep()
-                completion(nil)
-            }
-        }
-    }
-
     /// The edited image as it would be saved, in a temporary file for the
     /// system share sheet.
     func shareFile() -> URL? {

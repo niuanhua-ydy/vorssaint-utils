@@ -8,7 +8,6 @@ struct ScreenshotCaptureSettings: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var permissions = Permissions.shared
     @ObservedObject private var service = ScreenshotService.shared
-    @ObservedObject private var sharing = ScreenshotShareService.shared
     @AppStorage(DefaultsKey.screenshotFullScreenShortcutEnabled)
     private var fullScreenShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
@@ -45,11 +44,6 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotPreviewEnabled) private var previewEnabled = true
     @AppStorage(DefaultsKey.screenshotPreviewDuration) private var previewDuration =
         ScreenshotSupport.defaultConfirmationPreviewDuration
-    @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
-    @AppStorage(DefaultsKey.screenshotUploadShortcutEnabled) private var uploadShortcutEnabled = false
-    @AppStorage(DefaultsKey.screenshotUploadDuration) private var uploadDuration = ScreenshotShareDuration.oneHour.rawValue
-    @State private var showingSharedLinks = false
-    @State private var showingSharePrivacy = false
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
@@ -202,64 +196,6 @@ struct ScreenshotCaptureSettings: View {
             } header: {
                 Text(strings.toolShortcutsTitle)
             }
-
-            Section {
-                Toggle(strings.shareEnabledToggle, isOn: $sharingEnabled)
-                    .onChange(of: sharingEnabled) { _, _ in service.syncWithPreferences() }
-                if sharingEnabled {
-                    Toggle(strings.uploadLastCapture, isOn: $uploadShortcutEnabled)
-                        .onChange(of: uploadShortcutEnabled) { _, _ in service.syncWithPreferences() }
-                    ShortcutPreferenceRow(role: .screenshotUpload,
-                                          isEnabled: uploadShortcutEnabled) {
-                        service.syncWithPreferences()
-                    }
-                    Picker(strings.uploadExpiry, selection: $uploadDuration) {
-                        ForEach(ScreenshotShareDuration.allCases) { duration in
-                            Text(duration.title(strings)).tag(duration.rawValue)
-                        }
-                    }
-                    if uploadShortcutEnabled {
-                        if service.uploadShortcutRegistrationFailed {
-                            Text(l10n.s.shortcutUnavailable)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                    }
-                    Text(strings.shareCaption)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Button {
-                    showingSharePrivacy = true
-                } label: {
-                    Label(strings.sharePrivacyButton, systemImage: "hand.raised")
-                }
-                if !sharing.records.isEmpty {
-                    Button {
-                        showingSharedLinks = true
-                    } label: {
-                        HStack {
-                            Label(strings.sharedLinksTitle, systemImage: "link")
-                            Spacer()
-                            Text("\(sharing.records.count)")
-                                .foregroundStyle(.secondary)
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(.tertiary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-            } header: {
-                Text(strings.shareSectionTitle)
-            }
-        }
-        .onAppear { sharing.refresh() }
-        .sheet(isPresented: $showingSharedLinks) {
-            ScreenshotSharedLinksView()
-        }
-        .sheet(isPresented: $showingSharePrivacy) {
-            ScreenshotSharePrivacyView()
         }
     }
 
@@ -481,174 +417,6 @@ struct ScreenshotCaptureSettings: View {
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
             saveFolder = url.path
-        }
-    }
-}
-
-struct ScreenshotSharePrivacyView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var l10n = L10n.shared
-    let actionTitle: String?
-    let onAction: (() -> Void)?
-
-    init(actionTitle: String? = nil, onAction: (() -> Void)? = nil) {
-        self.actionTitle = actionTitle
-        self.onAction = onAction
-    }
-
-    private var strings: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Label(strings.sharePrivacyTitle, systemImage: "hand.raised")
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Button(actionTitle ?? strings.done) {
-                    dismiss()
-                    guard let onAction else { return }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                        onAction()
-                    }
-                }
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding(20)
-
-            Divider()
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    privacyParagraph(symbol: "photo", text: strings.sharePrivacyData)
-                    privacyParagraph(symbol: "externaldrive", text: strings.sharePrivacyStorage)
-                    privacyParagraph(symbol: "person.2", text: strings.sharePrivacyAccess)
-                }
-                .padding(20)
-            }
-        }
-        .frame(width: 560, height: 390)
-    }
-
-    private func privacyParagraph(symbol: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: symbol)
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-            Text(text)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-private struct ScreenshotSharedLinksView: View {
-    @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var sharing = ScreenshotShareService.shared
-    @State private var deletingID: String?
-    @State private var showingDeleteError = false
-
-    private var strings: ScreenshotFeatureStrings {
-        FeatureStrings.screenshot(l10n.language)
-    }
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(strings.sharedLinksTitle)
-                    .font(.title3.weight(.semibold))
-                Spacer()
-                Button(strings.done) { dismiss() }
-                    .keyboardShortcut(.defaultAction)
-            }
-            .padding(18)
-
-            Divider()
-
-            if sharing.records.isEmpty {
-                ContentUnavailableView(strings.sharedLinksEmpty,
-                                       systemImage: "link.badge.plus")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                List(sharing.records) { record in
-                    linkRow(record)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .frame(width: 560, height: 360)
-        .onAppear { sharing.refresh() }
-        .alert(strings.deleteFailedHUD, isPresented: $showingDeleteError) {
-            Button(strings.done, role: .cancel) {}
-        }
-    }
-
-    private func linkRow(_ record: ScreenshotShareRecord) -> some View {
-        HStack(spacing: 14) {
-            Image(systemName: "link")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 24)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(record.url.absoluteString)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
-                HStack(spacing: 4) {
-                    Text(strings.expiresLabel)
-                    Text(record.expiresAt, style: .relative)
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: 8)
-            Button {
-                copy(record.url)
-            } label: {
-                Image(systemName: "doc.on.doc")
-            }
-            .buttonStyle(.borderless)
-            .screenshotSafeHelp(strings.copyLink)
-            Button {
-                NSWorkspace.shared.open(record.url)
-            } label: {
-                Image(systemName: "arrow.up.forward.app")
-            }
-            .buttonStyle(.borderless)
-            .screenshotSafeHelp(strings.openLink)
-            Button(role: .destructive) {
-                delete(record)
-            } label: {
-                if deletingID == record.id {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "trash")
-                }
-            }
-            .buttonStyle(.borderless)
-            .disabled(deletingID != nil)
-            .screenshotSafeHelp(strings.deleteLink)
-        }
-        .padding(.vertical, 5)
-    }
-
-    private func copy(_ url: URL) {
-        sharing.copy(url)
-    }
-
-    private func delete(_ record: ScreenshotShareRecord) {
-        deletingID = record.id
-        Task {
-            do {
-                try await sharing.delete(record)
-                QuickToolHUD.show(icon: "link", message: strings.linkDeletedHUD)
-            } catch {
-                showingDeleteError = true
-            }
-            deletingID = nil
         }
     }
 }

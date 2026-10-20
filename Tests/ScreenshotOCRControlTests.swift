@@ -58,7 +58,6 @@ enum ScreenshotOCRControlTests {
         defer { NSApp.perform(setter, with: previous, with: attribute) }
         let domain = "vorss.tests.ocr-control.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: domain)!
-        defaults.set(true, forKey: DefaultsKey.screenshotSharingEnabled)
         defer {
             defaults.removePersistentDomain(forName: domain)
             FeatureRuntime.shared.available = false
@@ -76,9 +75,9 @@ enum ScreenshotOCRControlTests {
                 var presses = 0
                 let view = ScreenshotQuickPreviewView(
                     image: image, strings: strings, model: model, perform: { _ in },
-                    dragItem: { NSItemProvider() }, share: { _ in }, systemShare: {},
-                    shareAnchor: ShelfSharePickerAnchor.Anchor(), copySharedLink: {},
-                    deleteSharedLink: {}, showQR: {}, copyText: { presses += 1 },
+                    dragItem: { NSItemProvider() }, systemShare: {},
+                    shareAnchor: ShelfSharePickerAnchor.Anchor(),
+                    showQR: {}, copyText: { presses += 1 },
                     dismiss: {}, hoverChanged: { _ in }, showsDismissButton: true,
                     embedded: embedded)
                 let host = NSHostingView(rootView: (embedded ? view.toolbar : view)

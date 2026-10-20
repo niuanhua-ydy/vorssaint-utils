@@ -7,8 +7,8 @@ import Foundation
 /// created.
 ///
 /// Everything kept there is the user's own material: clipboard history, shelf
-/// files, recordings and the deletion tokens for temporary share links. A plain
-/// `createDirectory` and `Data.write` take whatever the process umask gives,
+/// files and recordings. A plain `createDirectory` and `Data.write` take
+/// whatever the process umask gives,
 /// typically 0755 and 0644, which leaves that material readable by every other
 /// account on the Mac. Directories are created owner-only, files are written
 /// owner-only, and both are set again on every write, so a container an earlier

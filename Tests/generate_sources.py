@@ -1372,7 +1372,6 @@ def main():
           + "}\n}\n")
     write("RecorderExportChip.swift", "import AppKit\nimport SwiftUI\n\nextension RecorderExportChipTests {\n"
           + "struct Chip: View {\n@ObservedObject var model: Model\nlet strings = Strings()\n"
-          + "var exportProgressLabel: String { strings.exportingLabel }\n"
           + "var body: some View { exportProgressChip }\n"
           + declaration("Sources/Vorssaint/UI/Recorder/RecorderEditorView.swift", "    private var exportProgressChip:")
           + "}\n}\n")
@@ -1464,30 +1463,15 @@ def main():
                                    "    func suspend()", "    private func cancelSession()",
                                    "    enum Outcome:"])
           + "}\n}\n")
-    write("ScreenshotShareCompletion.swift", "import Foundation\n"
-          + "extension ScreenshotShareCompletionTests {\nfinal class Controller: State {\n"
-          + "".join(declaration(preview, prefix).replace("private func", "func", 1)
-                    for prefix in ["    func shareLink()", "    private func performShare(",
-                                   "    private func copySharedLink()", "    private func scheduleAutoDismiss(",
-                                   "    private func copyText()"])
-          + "}\nfinal class Editor: EditorState {\n"
-          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift",
-                        "    func share(duration:")
-          + "}\n@MainActor final class CreationGate: CreationState {\n"
-          + declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotShareService.swift",
-                        "    func createLink(pngData:")
-          + "}\n}\n")
     screenshot_service = "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift"
-    write("ScreenshotShortcutCompletion.swift", "import Foundation\n"
-          + "extension ScreenshotShareCompletionTests {\n@MainActor final class Uploader: UploadState {\n"
+    write("ScreenshotCaptureCompletion.swift", "import Foundation\n"
+          + "extension ScreenshotCaptureCompletionTests {\nfinal class Controller: State {\n"
+          + declaration(preview, "    private func copyText()").replace("private func", "func", 1)
+          + "}\n@MainActor final class Service: ServiceState {\n"
           + "".join(declaration(screenshot_service, prefix).replace("private func", "func", 1)
-                    .replace("uploadShortcutEnabled()", "uploadShortcutEnabled(in: defaults)")
-                    .replace("retainsLatestCapture()", "retainsLatestCapture(in: defaults)")
-                    for prefix in ["    private func uploadLastCapture()", "    private func copyUploadedLink(",
-                                   "    func openEditor(with", "    func editorDidClose(",
-                                   "    private func invalidateLatestCaptureUploads()",
-                                   "    private func beginLatestCapture(", "    private func discardLatestCapture(",
-                                   "    private func withholdLatestCapture()", "    private func syncLatestCapture(",
+                    .replace("UserDefaults.standard.bool(", "defaults.bool(")
+                    for prefix in ["    func openEditor(with", "    func editorDidClose(",
+                                   "    private func beginLatestCapture(", "    private func syncLatestCapture(",
                                    "    func afterAutoCopy("])
           + "}\n}\n")
     write("ScreenshotAutoShelf.swift", "import Foundation\n"

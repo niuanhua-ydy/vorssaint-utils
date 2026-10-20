@@ -52,7 +52,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
-**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you share it yourself.
 
 **Optional.** Yes.
 
@@ -64,7 +64,7 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
 
-**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it; apps you route to AirPlay are streamed from memory to the speaker you pick on your local network, through macOS's own AirPlay. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
+**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it; apps you route to AirPlay are streamed from memory to the speaker you pick on your local network, through macOS's own AirPlay. The recorder saves audio only as part of a recording you start.
 
 ## Microphone
 
@@ -74,7 +74,7 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
 
-**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
+**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you share the finished video yourself.
 
 ## Camera
 
@@ -117,7 +117,6 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Keep awake**, with a note when a keep awake timer finishes.
 - **Battery**, with the battery protection alerts.
 - **Monitor**, with optional alerts for the conditions you turn on.
-- **Updates**, with a one time note when a new version shows up, and only while automatic update checks are on.
 - **App updates**, with a note when other apps on the Mac have a newer version, and only while the background check is on.
 
 **If you say no.** These system notifications are not posted. Status remains available inside the app, and alarms from timers you start still work. Mirroring existing system banners uses Accessibility instead of this permission.

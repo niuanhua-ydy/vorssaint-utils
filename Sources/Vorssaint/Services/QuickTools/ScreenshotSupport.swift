@@ -273,10 +273,6 @@ enum ScreenshotSupport {
         return duration == 0 ? nil : TimeInterval(duration)
     }
 
-    static func sharedPreviewDismissInterval(base: TimeInterval?) -> TimeInterval? {
-        base == nil ? nil : 30
-    }
-
     static func confirmationPreviewPresentationPolicy(
         dismissInterval: TimeInterval?,
         prefersFocus: Bool

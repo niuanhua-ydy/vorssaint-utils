@@ -49,8 +49,6 @@ enum RecorderFeatureTests {
                "a recording carries the sound of the Mac unless the person turns it off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.recorderMicrophone] as? Bool == false,
                "microphone recording is optional and ships off")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.recorderSharingEnabled] as? Bool == true,
-               "temporary recording links stay visible but do nothing until explicitly used")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.recorderQuality] as? String == "balanced"
                 && Defaults.registeredDefaults[DefaultsKey.recorderFrameRate] as? Int == 60
                 && Defaults.registeredDefaults[DefaultsKey.recorderCountdown] as? Int == 3
@@ -94,60 +92,13 @@ enum RecorderFeatureTests {
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderQuality)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderGIFSize)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderMicrophone)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderAutomaticZoom)
-                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSharingEnabled),
+                && SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderAutomaticZoom),
                "dedicated capture shortcuts and recorder settings travel in backups")
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.recorderSaveFolder),
                "the chosen recording save folder does not travel in backups, being authority on one Mac")
         suite.expect(RecorderSupport.exceptedOwnWindowIDs(
             ownWindowIDs: [1, 2, 3], protectedWindowIDs: [2, 4]) == [1, 3],
                "recording keeps existing ordinary app windows but never its protected chrome")
-
-        suite.expect(RecordingShareDuration.allCases.map(\.rawValue) == [3_600, 21_600],
-               "recording links allow only one or six hours")
-        let recordingShareEndpoint = RecordingSharingSupport.endpoint(
-            bundleIdentifier: RecordingSharingSupport.developerBundleIdentifier,
-            developerOverride: "https://test.example/")
-        suite.expect(RecordingSharingSupport.uploadURL(endpoint: recordingShareEndpoint,
-                                                 duration: .sixHours)?.absoluteString
-                == "https://test.example/v1/recordings?expiresIn=21600",
-               "recording sharing uses its fixed endpoint and expiration query")
-        let recordingID = String(repeating: "r", count: 32)
-        let recordingResponse = RecordingShareResponse(
-            id: recordingID,
-            viewPath: "/s/\(recordingID)",
-            expiresAt: "1970-01-01T06:16:40.000Z",
-            deleteToken: String(repeating: "t", count: 43))
-        suite.expect(RecordingSharingSupport.record(response: recordingResponse,
-                                              endpoint: recordingShareEndpoint,
-                                              now: Date(timeIntervalSince1970: 1_000))?.id
-                == recordingID,
-               "a valid six-hour recording response becomes an owner-held record")
-        let recordingPlan = RecordingSharingSupport.encodingPlan(
-            duration: 30,
-            baseSize: CGSize(width: 3840, height: 2160),
-            sourceFrameRate: 60,
-            hasAudio: true)
-        suite.expect(recordingPlan != nil
-                && max(recordingPlan!.size.width, recordingPlan!.size.height) <= 1920
-                && recordingPlan!.frameRate == 30
-                && recordingPlan!.audioBitRate == 128_000,
-               "a large short recording gets a web-sized video and keeps its audio")
-        if let recordingPlan {
-            let plannedBytes = (recordingPlan.videoBitRate + recordingPlan.audioBitRate)
-                * 30 / 8
-            suite.expect(plannedBytes < RecordingSharingSupport.targetUploadBytes,
-                   "the first compression pass stays inside the upload budget")
-        }
-        suite.expect(RecordingSharingSupport.encodingPlan(
-            duration: 3_600,
-            baseSize: CGSize(width: 1920, height: 1080),
-            sourceFrameRate: 30,
-            hasAudio: true) == nil,
-               "sharing refuses a duration that cannot fit without unusable quality")
-        suite.expect(RecordingSharingSupport.retryScale(current: 1,
-                                                  actualBytes: 100_000_000) ?? 1 < 1,
-               "an oversized first pass retries at a lower bitrate")
 
         // MARK: Screen recorder geometry and policy
 

@@ -342,14 +342,12 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ScreenshotStrings.swift
         Sources/Vorssaint/Core/RecentCaptureStrings.swift
         Sources/Vorssaint/Core/RecorderStrings.swift
-        Sources/Vorssaint/Core/RecorderShareStrings.swift
         Sources/Vorssaint/Core/CameraPreviewStrings.swift
         Sources/Vorssaint/Core/WallpaperStrings.swift
         Sources/Vorssaint/Services/Wallpaper/WallpaperSupport.swift
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
-        Sources/Vorssaint/Core/FeedbackStrings.swift
         Sources/Vorssaint/Core/RadialMenuStrings.swift
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
@@ -386,7 +384,6 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderGIFWriter.swift
         Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
-        Sources/Vorssaint/Services/Recorder/RecordingSharingSupport.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift
         Sources/Vorssaint/Services/Recorder/RecorderPresetImageStore.swift
@@ -506,7 +503,6 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/ScreenshotRenderer.swift
         Sources/Vorssaint/Services/QuickTools/ScreenshotImageLayerRendering.swift
         Sources/Vorssaint/Services/QuickTools/RecentCaptureStore.swift
-        Sources/Vorssaint/Services/QuickTools/ScreenshotSharingSupport.swift
         Sources/Vorssaint/Services/QuickTools/WindowActivationPolicy.swift
         Sources/Vorssaint/Services/KeyboardDebounce/KeyboardDebounceSupport.swift
         Sources/Vorssaint/Services/SuperKey/SuperKeySupport.swift

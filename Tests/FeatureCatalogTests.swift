@@ -1738,8 +1738,6 @@ enum FeatureCatalogTests {
             suite.expect(shortcutValues.allSatisfy { !$0.contains("—") }
                     && FeatureStrings.shortcuts(language).superKeyAlternativeFormat.contains("%@"),
                    "shortcut editor strings keep their format and avoid em-dashes (\(language.rawValue))")
-            suite.expect(FeatureStrings.feedback(language).charactersFormat.contains("%d"),
-                   "feedback character format keeps its placeholder (\(language.rawValue))")
             suite.expect(FeatureStrings.radialMenu(language).mediaOpenAppFormat.contains("%@"),
                    "Now Playing keeps the app-name placeholder (\(language.rawValue))")
             suite.expect(FeatureStrings.scratchpad(language).deletePadMessageFormat.contains("%@")
