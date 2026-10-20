@@ -46,8 +46,6 @@ enum UpdateFeatureTests {
                                           boolFor: { on.contains($0) },
                                           stringFor: { strings[$0] }))
         }
-        // MARK: Update installer helpers
-
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in false }).isEmpty,
                "no enabled gates means no active shortcuts")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { $0 == DefaultsKey.hotkeyEnabled })
@@ -213,64 +211,6 @@ enum UpdateFeatureTests {
             liveEntries: [LiveSystemShortcut(id: 27, shortcut: .switcherWindowDefault, enabled: true)],
             symbolicHotKeys: nil, role: .switcher),
                "the native exception stays scoped to the corresponding switcher action")
-
-        suite.expect(UpdateInstallerSupport.progressStepAdvanced(from: nil, to: 0.004),
-               "the first known download fraction always publishes")
-        suite.expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.011, to: 0.019),
-               "fractions inside the same percent stay quiet")
-        suite.expect(UpdateInstallerSupport.progressStepAdvanced(from: 0.019, to: 0.021),
-               "crossing into the next percent publishes")
-        suite.expect(!UpdateInstallerSupport.progressStepAdvanced(from: 0.5, to: 0.5),
-               "an unchanged fraction stays quiet")
-
-        let updateCeiling = UpdateInstallerSupport.downloadCeilingBytes
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 9_638_011) == 9_638_011,
-               "a download stops at the size the release advertises")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: nil) == updateCeiling,
-               "an asset with no size still stops at the ceiling")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: 0) == updateCeiling,
-               "a zero size is not a limit of zero")
-        suite.expect(UpdateInstallerSupport.downloadByteLimit(expectedBytes: updateCeiling + 1) == updateCeiling,
-               "an advertised size beyond the ceiling cannot raise it")
-
-        suite.expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                       receivedBytes: 9_638_011,
-                                                       expectedBytes: 9_638_011),
-               "a complete asset download is handed to the installer")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 404,
-                                                        receivedBytes: 1_200,
-                                                        expectedBytes: 9_638_011),
-               "an error page is refused whatever it contains")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: 4_000_000,
-                                                        expectedBytes: 9_638_011),
-               "a truncated body is refused")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: 0,
-                                                        expectedBytes: nil),
-               "an empty body is refused even with no advertised size")
-        suite.expect(!UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                        receivedBytes: updateCeiling + 1,
-                                                        expectedBytes: nil),
-               "a body past the ceiling is refused with no advertised size")
-        suite.expect(UpdateInstallerSupport.downloadIsUsable(status: 200,
-                                                       receivedBytes: 9_638_011,
-                                                       expectedBytes: nil),
-               "a plausible body with no advertised size is accepted")
-
-        // The showcase loader is a @StateObject, so it can be released without
-        // `.onDisappear` running. Its session holds the download delegate, and
-        // that delegate's deinit is what deletes the scratch file, so the
-        // release path has to invalidate the session too.
-        let showcaseSource = (try? String(
-            contentsOfFile: "Sources/Vorssaint/Services/Update/UpdateShowcaseMedia.swift",
-            encoding: .utf8)) ?? ""
-        let showcaseDeinitBody = (showcaseSource.components(separatedBy: "\n    deinit {")
-            .dropFirst().first ?? "").components(separatedBy: "\n    }").first ?? ""
-        suite.expect(showcaseDeinitBody.contains("session?.invalidateAndCancel()"),
-               "a released showcase loader invalidates its session, freeing the delegate and its scratch file")
-        suite.expect(!showcaseDeinitBody.contains("finishTasksAndInvalidate"),
-               "a released showcase loader cancels its download instead of letting it finish")
 
         suite.expect(SettingsSearchSupport.matches(query: "", title: "Monitor"),
                "a blank settings search matches everything")
@@ -888,15 +828,6 @@ enum UpdateFeatureTests {
                 && verticalPlacement.frame.maxY == 472,
                "vertical avoidance moves settings below the panel with the standard gap")
 
-        suite.expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-copy"),
-               "a copy failure retries through the admin prompt")
-        suite.expect(UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-swap"),
-               "a swap failure retries through the admin prompt")
-        suite.expect(!UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: "fail-verify"),
-               "a verification failure is not a permission problem")
-        suite.expect(!UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: nil),
-               "no remembered failure means the normal path")
-
         let adminSource = AdminShell.appleScriptSource(
             command: #"printf "quoted" \ path"#,
             prompt: #"Approve "update" \ now"#)
@@ -939,107 +870,16 @@ enum UpdateFeatureTests {
         suite.expect(!MediaSupport.outputGrew(originalBytes: 0, outputBytes: 12_000),
                "an unknown original size never triggers the grew caption")
 
-        suite.expect(UpdateInstallerSupport.shellSingleQuoted("/Applications/My App.app")
-                   == "'/Applications/My App.app'",
-               "shell quoting wraps paths with spaces")
-        suite.expect(UpdateInstallerSupport.shellSingleQuoted("it's") == "'it'\\''s'",
-               "shell quoting survives embedded single quotes")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: "ok\n") == nil,
-               "an ok marker is not a failure")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: " fail-verify\n") == "fail-verify",
-               "a fail marker surfaces its step code")
-        suite.expect(UpdateInstallerSupport.installFailureCode(fromMarker: "") == nil,
-               "an empty marker is not a failure")
-        suite.expect(UpdateInstallerSupport.runsFromImmutableLocation(
+        suite.expect(LaunchAtLoginSupport.runsFromImmutableLocation(
                    appPath: "/private/var/folders/ab/xyz/T/AppTranslocation/1F2/d/Vorssaint.app",
                    volumeIsReadOnly: { _ in false }),
-               "translocated apps are flagged as not updatable in place")
-        suite.expect(UpdateInstallerSupport.runsFromImmutableLocation(appPath: "/Volumes/Vorssaint/Vorssaint.app",
-                                                                volumeIsReadOnly: { _ in true }),
-               "apps on a read-only volume (the DMG) are flagged as not updatable in place")
-        suite.expect(!UpdateInstallerSupport.runsFromImmutableLocation(appPath: "/Volumes/ExternalSSD/Vorssaint.app",
-                                                                 volumeIsReadOnly: { _ in false }),
-               "apps on a writable external volume stay updatable in place")
-        let installerScript = UpdateInstallerSupport.installerScript()
-        for step in ["fail-dmg-verify", "fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
-                     "fail-copy", "fail-version", "fail-verify", "fail-swap", "note ok"] {
-            suite.expect(installerScript.contains(step),
-                   "installer script reports the \(step) step")
-        }
-        suite.expect(installerScript.contains("spctl --status"),
-               "installer script skips Gatekeeper assessment when the user disabled it")
-        let dmgVerification = installerScript.range(of: "DMG_VERIFY_REQ")
-        let dmgMount = installerScript.range(of: "/usr/bin/hdiutil attach")
-        suite.expect(dmgVerification != nil && dmgMount != nil
-               && dmgVerification!.lowerBound < dmgMount!.lowerBound,
-               "installer verifies the release signer before mounting the DMG")
-        suite.expect(installerScript.contains("BUNDLE_VERSION=")
-               && installerScript.contains("\"$BUNDLE_VERSION\" = \"$EXPECTED_VERSION\""),
-               "installer requires the signed app to match the offered release version")
-        suite.expect(installerScript.contains("chown -R"),
-               "an elevated install hands the bundle back to the user")
-        suite.expect(installerScript.contains("update-old.$PID"),
-               "the swap backup name is unique per run so a stale root-owned one never blocks it")
-        suite.expect(installerScript.contains("STAGE=\"$DIR/.$NAME.update-new\""),
-               "the staged copy is hidden so search never lists it under the staging name")
-        suite.expect(installerScript.contains("/bin/rm -rf \"$STAGE\" \"$DEST.update-new\""),
-               "a staged copy left under the old visible name is removed along with the hidden one")
-        suite.expect(installerScript.contains("launchctl asuser"),
-               "installer script relaunches as the user when running as root")
-        suite.expect(installerScript.contains("$RESULT.progress") && installerScript.contains("finalize"),
-               "installer markers stay in a progress file until the run finishes")
-        suite.expect(installerScript.contains("/usr/bin/sudo -n -u \"#$ASUSER\" /bin/sh -c")
-                && installerScript.contains("'/bin/echo \"$1\" > \"$2.progress\"' marker \"$1\" \"$RESULT\"")
-                && installerScript.contains("/usr/bin/sudo -n -u \"#$ASUSER\" /bin/mv -f")
-                && !installerScript.contains("note() { /bin/echo \"$1\" > \"$RESULT.progress\""),
-               "elevated marker writes drop to the original user's credentials")
-        let elevated = UpdateInstallerSupport.elevatedInstallCommand(
-            appPath: "/Applications/Vorssaint.app",
-            dmgPath: "/tmp/Vorssaint-update.dmg",
-            pid: 123,
-            resultPath: "/tmp/result",
-            uid: 501,
-            expectedVersion: "3.3.3")
-        suite.expect(elevated.contains("POSIX::setsid()") && elevated.hasSuffix("&"),
-               "elevated installer leaves this app's session so it outlives the app it replaces")
-        suite.expect(elevated.contains("nohup"),
-               "elevated installer keeps the nohup fallback if setsid is unavailable")
-        suite.expect(elevated.contains("'/Applications/Vorssaint.app'"),
-               "elevated installer passes the app path quoted for the shell")
-        suite.expect(elevated.contains("'3.3.3'"),
-               "elevated installer passes the expected version quoted for the shell")
-        // The script travels inline and is long; it must be spelled once, with
-        // both the setsid attempt and the fallback reusing the same "$@".
-        suite.expect(elevated.components(separatedBy: "DMG_VERIFY_REQ=").count == 2
-               && elevated.components(separatedBy: "\"$@\"").count == 3,
-               "elevated installer names its arguments once and reuses them for the fallback")
-
-        // The fallback branch has to be chosen on whether perl is there, never
-        // on an exit code: perl execs the payload, so the status the shell sees
-        // is the payload's own. Every `exit 1` inside the installer script would
-        // otherwise start the whole installer a second time, as root.
-        let detachRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("VorssaintDetachTests-\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: detachRoot, withIntermediateDirectories: true)
-        let detachPayload = detachRoot.appendingPathComponent("payload.sh")
-        let detachLedger = detachRoot.appendingPathComponent("runs")
-        try? "#!/bin/sh\n/bin/echo ran >> \"$1\"\nexit 1\n"
-            .write(to: detachPayload, atomically: true, encoding: .utf8)
-        let detachCommand = DetachedProcess.detachedShellCommand(
-            quotedArgv: ["/bin/sh", detachPayload.path, detachLedger.path]
-                .map(UpdateInstallerSupport.shellSingleQuoted)
-                .joined(separator: " "))
-        let foregroundDetachCommand = String(detachCommand.dropLast(2))
-        let detachResult = BoundedProcessRunner.run(
-            "/bin/sh", ["-c", foregroundDetachCommand], timeout: 2, maxOutputBytes: 1_024)
-        suite.expect(!detachResult.timedOut && detachResult.status == 1,
-                     "the foreground form of the detached command observes its payload exit")
-        func detachedRunCount() -> Int {
-            (try? String(contentsOf: detachLedger, encoding: .utf8))?
-                .split(separator: "\n").count ?? 0
-        }
-        suite.expect(detachedRunCount() == 1, "a detached command starts its payload once")
-        try? FileManager.default.removeItem(at: detachRoot)
+               "translocated apps are flagged as an unstable location")
+        suite.expect(LaunchAtLoginSupport.runsFromImmutableLocation(appPath: "/Volumes/Vorssaint/Vorssaint.app",
+                                                              volumeIsReadOnly: { _ in true }),
+               "apps on a read-only volume (the DMG) are flagged as an unstable location")
+        suite.expect(!LaunchAtLoginSupport.runsFromImmutableLocation(appPath: "/Volumes/ExternalSSD/Vorssaint.app",
+                                                               volumeIsReadOnly: { _ in false }),
+               "apps on a writable external volume stay a stable location")
 
         // A detached spawn is only detached if the child really is its own
         // session leader; `nohup` alone leaves it in ours.
@@ -1074,7 +914,7 @@ enum UpdateFeatureTests {
         do {
             let probe = "{ /bin/echo leaked >&\(holderDescriptor); } 2>/dev/null; INHERITED=$?; "
                 + "{ /bin/echo stdio; } 2>/dev/null; STDIO=$?; "
-                + "/bin/echo \"$INHERITED $STDIO\" > \(UpdateInstallerSupport.shellSingleQuoted(fdReport.path))"
+                + "/bin/echo \"$INHERITED $STDIO\" > \(HomebrewCommandBuilder.shellQuote(fdReport.path))"
             let child = try DetachedProcess.spawn("/bin/sh", ["-c", probe])
             var reaped: Int32 = 0
             waitpid(child, &reaped, 0)
@@ -1093,113 +933,57 @@ enum UpdateFeatureTests {
         close(holderDescriptor)
         try? FileManager.default.removeItem(at: fdRoot)
 
-        // MARK: - UpdateServiceSupport & SemVer channel reconciliation
+        // MARK: - Semantic versions
 
-        let vStable = UpdateServiceSupport.SemanticVersion(raw: "3.3.3")
+        let vStable = SemanticVersion(raw: "3.3.3")
         suite.expect(vStable?.major == 3 && vStable?.minor == 3 && vStable?.patch == 3 && !vStable!.isPrerelease,
                "parses standard stable version")
 
-        let vBeta = UpdateServiceSupport.SemanticVersion(raw: "v3.3.4-beta.1")
+        let vBeta = SemanticVersion(raw: "v3.3.4-beta.1")
         suite.expect(vBeta?.major == 3 && vBeta?.minor == 3 && vBeta?.patch == 4 && vBeta!.isPrerelease,
                "parses beta version with leading v")
 
-        let vBuild = UpdateServiceSupport.SemanticVersion(raw: "3.3.4-rc.2+20260822")
+        let vBuild = SemanticVersion(raw: "3.3.4-rc.2+20260822")
         suite.expect(vBuild?.major == 3 && vBuild?.minor == 3 && vBuild?.patch == 4 && vBuild!.isPrerelease,
                "parses version with build metadata")
 
         // SemVer 2.0.0 ordering rules
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.3"),
+        func isNewer(_ candidate: String, than current: String) -> Bool {
+            guard let candidate = SemanticVersion(raw: candidate),
+                  let current = SemanticVersion(raw: current) else { return false }
+            return candidate > current
+        }
+        suite.expect(isNewer("3.3.4", than: "3.3.3"),
                "newer major/minor/patch stable is newer")
-        suite.expect(!UpdateServiceSupport.isNewer("3.3.3", than: "3.3.4"),
+        suite.expect(!isNewer("3.3.3", than: "3.3.4"),
                "older stable is not newer")
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4-beta.1", than: "3.3.3"),
+        suite.expect(isNewer("3.3.4-beta.1", than: "3.3.3"),
                "beta of higher version is newer than older stable")
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4-beta.2", than: "3.3.4-beta.1"),
+        suite.expect(isNewer("3.3.4-beta.2", than: "3.3.4-beta.1"),
                "beta.2 is newer than beta.1 of the same cycle")
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4-rc.1", than: "3.3.4-beta.2"),
+        suite.expect(isNewer("3.3.4-rc.1", than: "3.3.4-beta.2"),
                "rc.1 is newer than beta.2")
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.4-beta.2"),
+        suite.expect(isNewer("3.3.4", than: "3.3.4-beta.2"),
                "final stable release is newer than beta of same version")
-        suite.expect(UpdateServiceSupport.isNewer("3.3.4", than: "3.3.4-rc.1"),
+        suite.expect(isNewer("3.3.4", than: "3.3.4-rc.1"),
                "final stable release is newer than rc of same version")
-        suite.expect(!UpdateServiceSupport.isNewer("3.3.3", than: "3.3.4-beta.1"),
+        suite.expect(!isNewer("3.3.3", than: "3.3.4-beta.1"),
                "older stable is never newer than a beta of higher version (no downgrade)")
-        suite.expect(!UpdateServiceSupport.isNewer("3.3.4-beta.1", than: "3.3.4"),
+        suite.expect(!isNewer("3.3.4-beta.1", than: "3.3.4"),
                "beta is not newer than the released final version")
 
-        suite.expect(UpdateServiceSupport.isNewer("3.4.0-beta.2.1", than: "3.4.0-beta.2")
-               && !UpdateServiceSupport.isNewer("3.4.0-beta.2", than: "3.4.0-beta.2.1")
-               && UpdateServiceSupport.isNewer("3.4.0-beta.3", than: "3.4.0-beta.2.1")
-               && UpdateServiceSupport.isNewer("3.4.0", than: "3.4.0-beta.2.1"),
+        suite.expect(isNewer("3.4.0-beta.2.1", than: "3.4.0-beta.2")
+               && !isNewer("3.4.0-beta.2", than: "3.4.0-beta.2.1")
+               && isNewer("3.4.0-beta.3", than: "3.4.0-beta.2.1")
+               && isNewer("3.4.0", than: "3.4.0-beta.2.1"),
                "beta hotfixes follow their parent beta and precede the next beta and stable version")
-        let betaHotfix = UpdateServiceSupport.ReleaseCandidate(
-            tagName: "v3.4.0-beta.2.1", isPrerelease: true, isDraft: false,
-            dmgURL: URL(string: "https://example.com/update.dmg"), dmgExpectedBytes: 1000, body: "Hotfix")
-        suite.expect(UpdateServiceSupport.selectUpdate(from: [betaHotfix], currentVersion: "3.4.0-beta.2",
-                                                 includeBetas: true)?.tagName == betaHotfix.tagName
-               && UpdateServiceSupport.selectUpdate(from: [betaHotfix], currentVersion: "3.3.5",
-                                                     includeBetas: false) == nil,
-               "the beta channel offers the hotfix while the stable channel ignores it")
-
-        // Release candidate selection
-        let dummyDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4/Vorssaint.dmg")!
-        let dummyBetaDMG = URL(string: "https://github.com/vorssaint/vorssaint-utils/releases/download/v3.3.4-beta.1/Vorssaint.dmg")!
-
-        let candidateList = [
-            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.4-beta.1", isPrerelease: true, isDraft: false, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Beta notes"),
-            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.3", isPrerelease: false, isDraft: false, dmgURL: dummyDMG, dmgExpectedBytes: 1000, body: "Stable notes"),
-            UpdateServiceSupport.ReleaseCandidate(tagName: "v3.3.5-beta.1", isPrerelease: true, isDraft: true, dmgURL: dummyBetaDMG, dmgExpectedBytes: 1000, body: "Draft notes")
-        ]
-
-        let selectedStable = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.2", includeBetas: false)
-        suite.expect(selectedStable?.tagName == "v3.3.3", "stable channel only picks stable releases")
-
-        let selectedBeta = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.2", includeBetas: true)
-        suite.expect(selectedBeta?.tagName == "v3.3.4-beta.1", "beta channel picks highest non-draft release")
-
-        let selectedFromHigherBeta = UpdateServiceSupport.selectUpdate(from: candidateList, currentVersion: "3.3.4-beta.1", includeBetas: false)
-        suite.expect(selectedFromHigherBeta == nil, "user on beta turning off betas does not downgrade to older stable")
-
-        let knownDigest = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
-        suite.expect(UpdateServiceSupport.sha256Matches(Data("abc".utf8), expectedHex: knownDigest),
-               "update media accepts its pinned SHA-256 digest")
-        suite.expect(!UpdateServiceSupport.sha256Matches(Data("altered".utf8), expectedHex: knownDigest),
-               "update media rejects content that does not match its pinned digest")
-        suite.expect(!UpdateServiceSupport.sha256Matches(Data("abc".utf8), expectedHex: "invalid"),
-               "update media rejects a malformed pinned digest")
-
-        // Defaults registered
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.includeBetaUpdates] as? Bool == false,
-               "includeBetaUpdates defaults to false in registeredDefaults")
-
-        let testDefaults = UserDefaults(suiteName: "com.vorssaint.tests.betaActivation")!
-        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
-        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
-        suite.expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == true,
-               "beta channel is activated automatically on a beta build")
-        testDefaults.set(false, forKey: DefaultsKey.includeBetaUpdates)
-        Defaults.activateBetaChannelIfRunningBeta(in: testDefaults, version: "3.3.3-beta.1")
-        suite.expect(testDefaults.bool(forKey: DefaultsKey.includeBetaUpdates) == false,
-               "manual opt-out on a beta build is preserved across launches")
-
-        // Stable version does not activate beta channel
-        let stableDefaults = UserDefaults(suiteName: "com.vorssaint.tests.stableActivation")!
-        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
-        Defaults.activateBetaChannelIfRunningBeta(in: stableDefaults, version: "3.3.3")
-        suite.expect(stableDefaults.object(forKey: DefaultsKey.includeBetaUpdates) == nil,
-               "stable release does not touch beta channel default")
-        stableDefaults.removePersistentDomain(forName: "com.vorssaint.tests.stableActivation")
-        testDefaults.removePersistentDomain(forName: "com.vorssaint.tests.betaActivation")
 
         // Localization completeness & formatting
         let originalLanguage = L10n.shared.language
         for language in AppLanguage.allCases {
             L10n.shared.language = language
             let s = L10n.shared.s
-            suite.expect(!s.includeBetaUpdatesToggle.isEmpty, "\(language.rawValue) includeBetaUpdatesToggle non-empty")
-            suite.expect(!s.includeBetaUpdatesCaption.isEmpty, "\(language.rawValue) includeBetaUpdatesCaption non-empty")
             suite.expect(!s.betaBadgeLabel.isEmpty, "\(language.rawValue) betaBadgeLabel non-empty")
-            suite.expect(!s.includeBetaUpdatesCaption.contains("—"), "\(language.rawValue) has no em dash")
         }
         L10n.shared.language = originalLanguage
 
@@ -1302,19 +1086,6 @@ enum UpdateFeatureTests {
                "release notes preserve an unheaded release-body summary paragraph")
         suite.expect(previewNotes.sections.first?.paragraphItems.first == "A short release summary from the GitHub release body.",
                "release notes keep summary text before the first subsection")
-        let githubReleaseBodyWithFooter = """
-        ### Fixed
-        - Update preview stays focused on changes.
-
-        Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later. Open the .dmg below and drag Vorssaint to Applications.
-        """
-        let inAppUpdateBody = ReleaseNotes.inAppUpdateNotes(from: githubReleaseBodyWithFooter) ?? ""
-        suite.expect(!inAppUpdateBody.contains("Signed with an Apple Developer ID"),
-               "in-app update notes remove the GitHub installation footer")
-        let githubPreviewNotes = ReleaseNotes.notes(for: "2.17.4",
-                                                    changelog: "## [2.17.4]\n\n" + inAppUpdateBody)
-        suite.expect(githubPreviewNotes.sections.first?.bulletItems == ["Update preview stays focused on changes."],
-               "in-app update notes keep release changes after removing the footer")
         let unreleasedChangelog = """
         ## [Unreleased]
 

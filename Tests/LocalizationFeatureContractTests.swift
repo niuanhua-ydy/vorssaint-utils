@@ -356,10 +356,6 @@ enum LocalizationFeatureContractTests {
                        && strings.discordIntroMessage.contains("em desenvolvimento"),
                        "Portuguese Discord introduction says the community is new and in development")
             }
-            suite.expect(!strings.updateShowcaseTitle.isEmpty, "\(prefix) update showcase title is present")
-            suite.expect(!strings.updateShowcaseMessage.isEmpty, "\(prefix) update showcase message is present")
-            suite.expect(!strings.updateShowcaseUnavailable.isEmpty, "\(prefix) update showcase fallback is present")
-            suite.expect(!strings.updateShowcaseRestart.isEmpty, "\(prefix) update showcase restart control is present")
             suite.expect(!strings.homebrewConfirmUpgradeAllTitle.isEmpty, "\(prefix) Homebrew update all confirmation title is present")
             suite.expect(!strings.homebrewConfirmUpgradeAllBody.isEmpty, "\(prefix) Homebrew update all confirmation body is present")
             suite.expect(!strings.homebrewConfirmUpdateHomebrewTitle.isEmpty, "\(prefix) Homebrew update Homebrew confirmation title is present")

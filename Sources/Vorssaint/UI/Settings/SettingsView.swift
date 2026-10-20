@@ -615,106 +615,12 @@ struct SettingsView: View {
 
 struct UpdatesView: View {
     @ObservedObject private var l10n = L10n.shared
-    @ObservedObject private var updates = UpdateService.shared
-    @AppStorage(DefaultsKey.autoCheckUpdates) private var autoCheck = true
-    @AppStorage(DefaultsKey.includeBetaUpdates) private var includeBetas = AppInfo.isBeta
-    @AppStorage(DefaultsKey.showReleaseNotesBeforeUpdate) private var showReleaseNotesFirst = true
     @AppStorage(DefaultsKey.releaseNotesOnUpdate) private var showWhatsNewAfter = true
 
     var body: some View {
         Section(l10n.s.updatesSection) {
-            Toggle(l10n.s.autoCheckToggle, isOn: $autoCheck)
-                .onChange(of: autoCheck) { _, value in
-                    UpdateService.shared.autoCheckEnabled = value
-                }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Toggle(l10n.s.includeBetaUpdatesToggle, isOn: $includeBetas)
-                    .onChange(of: includeBetas) { _, value in
-                        UpdateService.shared.includeBetaUpdates = value
-                    }
-                SettingsCaptionText(l10n.s.includeBetaUpdatesCaption)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                let whatsNew = FeatureStrings.whatsNew(l10n.language)
-                Toggle(whatsNew.showPreviewToggle, isOn: $showReleaseNotesFirst)
-                if showWhatsNewAfter {
-                    SettingsCaptionText(whatsNew.showPreviewCaption)
-                }
-            }
-
             Toggle(l10n.s.releaseNotesOnUpdateToggle, isOn: $showWhatsNewAfter)
-
-            statusRow
-
-            HStack {
-                Button(l10n.s.checkNowButton) {
-                    updates.check(manual: true)
-                }
-                .disabled(isBusy)
-
-                if case .available = updates.state {
-                    Button(l10n.s.updateInstallButton) {
-                        appDelegate()?.showUpdatePreview()
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-
-            if let lastChecked = updates.lastChecked {
-                Text("\(l10n.s.updateLastChecked) \(Self.format(lastChecked))")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
         }
-    }
-
-    @ViewBuilder
-    private var statusRow: some View {
-        switch updates.state {
-        case .idle:
-            EmptyView()
-        case .checking:
-            label(l10n.s.updateChecking, system: "arrow.triangle.2.circlepath", tint: .secondary)
-        case .upToDate:
-            label(l10n.s.updateUpToDate, system: "checkmark.circle.fill", tint: .green)
-        case let .available(version):
-            label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .accentColor)
-        case let .downloading(progress):
-            if let progress {
-                label("\(l10n.s.updateDownloading) \(Int(progress * 100))%",
-                      system: "arrow.down.circle", tint: .secondary)
-            } else {
-                label(l10n.s.updateDownloading, system: "arrow.down.circle", tint: .secondary)
-            }
-        case .installing:
-            label(l10n.s.updateInstalling, system: "gearshape.2.fill", tint: .secondary)
-        case let .failed(reason):
-            label("\(l10n.s.updateFailedPrefix) \(reason)", system: "exclamationmark.triangle.fill", tint: .orange)
-        }
-    }
-
-    private func label(_ text: String, system: String, tint: Color) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: system).foregroundStyle(tint)
-            Text(text).font(.callout)
-            Spacer()
-        }
-    }
-
-    private var isBusy: Bool {
-        switch updates.state {
-        case .checking, .downloading, .installing: return true
-        default: return false
-        }
-    }
-
-    private static func format(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .short
-        return f.string(from: date)
     }
 }
 

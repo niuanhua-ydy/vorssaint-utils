@@ -9,7 +9,6 @@ struct NotchView: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var music = NotchMusicService.shared
     @ObservedObject private var launcher = QuickLauncherService.shared
-    @ObservedObject private var updates = UpdateService.shared
     @AppStorage(DefaultsKey.notchLiquidGlassEnabled) private var glass = false
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -314,7 +313,6 @@ struct NotchView: View {
             // Opening the island makes its panel key, so Keyboard navigation would ring
             // the first control. Show the ring once keyboard input begins.
             .focusEffectDisabled(!service.showsKeyboardFocus)
-            .onAppear { UpdateService.shared.checkIfStale() }
     }
 
     private var pageName: String {
@@ -370,11 +368,6 @@ struct NotchView: View {
                 // fit their side, never pushing them under the camera; the menu
                 // offers the same actions either way.
                 ViewThatFits(in: .horizontal) {
-                    HStack(spacing: 6) { items.trailing; trailingSections(band); updateControl(band); pinMark }
-                    HStack(spacing: 6) {
-                        items.trailing; trailingSections(band)
-                        NotchUpdateControl(action: service.showUpdate, compact: true); pinMark
-                    }
                     HStack(spacing: 6) { items.trailing; trailingSections(band); pinMark }
                     HStack(spacing: 6) { items.trailing; trailingSections(band) }
                 }
@@ -399,20 +392,11 @@ struct NotchView: View {
         if band.trailingSectionsButton { NotchSectionsButton(action: service.toggleSections) }
     }
 
-    private func updateControl(_ band: NotchBand) -> some View {
-        NotchUpdateControl(action: service.showUpdate, compact: band.besideCamera)
-    }
-
     /// A kept-open island says so, and one click lets it go.
     @ViewBuilder private var pinMark: some View {
         if service.pinned {
             NotchIconButton(symbol: "pin.fill", title: text.unpin, selected: true) { service.pinned = false }
         }
-    }
-
-    private var updateOffered: Bool {
-        if case .available = updates.state { return true }
-        return false
     }
 
     @ViewBuilder private func bandLeading(_ band: NotchBand) -> some View {
@@ -445,12 +429,6 @@ struct NotchView: View {
         }
         Button(action: service.openSettings) {
             Label(l10n.s.menuSettings, systemImage: "gearshape")
-        }
-        // An offer the row has no room for still reaches the island.
-        if updateOffered {
-            Button(action: service.showUpdate) {
-                Label(l10n.s.updateBannerAction, systemImage: "arrow.down.circle")
-            }
         }
         Divider()
         Button(action: service.collapse) {

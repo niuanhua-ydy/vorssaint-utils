@@ -7,7 +7,6 @@ import SwiftUI
 /// Production rail, editor, and focus bodies with inert services. Windows stay
 /// hidden; these contracts neither capture pixels nor send input events.
 enum NotchCompactTests {
-    typealias L10n = NotchUpdateTests.L10n
     final class CameraPreviewService: ObservableObject {
         static let shared = CameraPreviewService()
         @Published var isEmbeddedPresented = false

@@ -264,7 +264,6 @@ struct Strings {
     let adminPromptClamshellOn: String
     let adminPromptClamshellOff: String
     let adminPromptRecover: String
-    let adminPromptUpdate: String
     let adminPromptSudoersInstall: String
     let adminPromptSudoersRemove: String
 
@@ -830,24 +829,7 @@ struct Strings {
 
     // MARK: Settings — updates
     let updatesSection: String
-    let autoCheckToggle: String
-    let includeBetaUpdatesToggle: String
-    let includeBetaUpdatesCaption: String
     let betaBadgeLabel: String
-    let checkNowButton: String
-    let updateChecking: String
-    let updateUpToDate: String
-    let updateAvailablePrefix: String  // + version
-    let updateInstallButton: String
-    let updateDownloading: String
-    let updateInstalling: String
-    let updateFailedPrefix: String
-    let updateLastChecked: String
-    let updateNotifyTitle: String
-    let updateInstallFailedBody: String
-    let updateNeedsApplicationsTitle: String
-    let updateNeedsApplicationsBody: String
-    let menuCheckUpdates: String
 
     // MARK: Permissions (shared by Settings & onboarding)
     let permissionRequired: String
@@ -1007,9 +989,7 @@ struct Strings {
     let peripheralBatteryNoDevices: String
     let monitorGraphsSection: String
 
-    // MARK: Update notification + onboarding menu bar setup
-    let updateBannerTitle: String
-    let updateBannerAction: String
+    // MARK: Onboarding menu bar setup
     let obStepMenuBarTitle: String
     let obStepMenuBarBody: String
     let obStepMenuBarNote: String
@@ -1113,7 +1093,6 @@ struct Strings {
     /// A quiet line under the donation button inviting a GitHub star instead.
     let supportIntroStarHint: String
     let supportIntroCoffeeButton: String
-    let supportIntroLaterButton: String
     let supportIntroDoneButton: String
     let discordIntroTitle: String
     let discordIntroMessage: String
@@ -1127,10 +1106,6 @@ struct Strings {
     let homebrewOfficialIntroMigrationTitle: String
     let homebrewOfficialIntroMigrationMessage: String
     let homebrewOfficialIntroCopyButton: String
-    let updateShowcaseTitle: String
-    let updateShowcaseMessage: String
-    let updateShowcaseUnavailable: String
-    let updateShowcaseRestart: String
     let showMenuBarIcon: String
     let menuBarIconStillHiddenTitle: String
     let menuBarIconStillHiddenBody: String
@@ -1421,7 +1396,6 @@ extension Strings {
         adminPromptClamshellOn: "O Vorssaint precisa da sua senha para manter o Mac ativo com a tampa fechada.",
         adminPromptClamshellOff: "O Vorssaint precisa da sua senha para reativar a suspensão normal do Mac.",
         adminPromptRecover: "O Vorssaint foi encerrado com a suspensão do Mac desativada. Digite a senha para restaurar a suspensão normal.",
-        adminPromptUpdate: "O Vorssaint precisa da sua senha para instalar a atualização.",
         adminPromptSudoersInstall: "O Vorssaint vai criar uma regra restrita (somente pmset disablesleep) para alternar a tampa fechada sem pedir senha. Esta é a única vez que a senha será necessária.",
         adminPromptSudoersRemove: "O Vorssaint vai remover a regra de tampa fechada sem senha.",
 
@@ -1963,24 +1937,7 @@ extension Strings {
         audioPriorityCaption: "Os dispositivos são selecionados por ordem de prioridade. Quando um dispositivo de maior prioridade é conectado, ele passa a ser usado. Quando o dispositivo ativo é desconectado, o próximo disponível é selecionado.",
 
         updatesSection: "Atualizações",
-        autoCheckToggle: "Procurar atualizações automaticamente",
-        includeBetaUpdatesToggle: "Receber atualizações beta",
-        includeBetaUpdatesCaption: "Versões beta incluem novidades em desenvolvimento e podem apresentar instabilidades ou comportamentos incompletos.",
         betaBadgeLabel: "Beta",
-        checkNowButton: "Procurar agora",
-        updateChecking: "Procurando…",
-        updateUpToDate: "Você está na versão mais recente.",
-        updateAvailablePrefix: "Atualização disponível:",
-        updateInstallButton: "Baixar e instalar",
-        updateDownloading: "Baixando atualização…",
-        updateInstalling: "Instalando e reiniciando…",
-        updateFailedPrefix: "Não foi possível verificar:",
-        updateLastChecked: "Última verificação:",
-        updateNotifyTitle: "Atualização do Vorssaint",
-        updateInstallFailedBody: "A atualização foi baixada, mas não pôde ser aplicada. Baixe a versão mais recente na página de releases do GitHub e arraste o app por cima do atual.",
-        updateNeedsApplicationsTitle: "Mova o Vorssaint para Aplicativos",
-        updateNeedsApplicationsBody: "O app está rodando de um lugar que não dá para atualizar, como a imagem de disco ou uma área temporária do sistema. Arraste o Vorssaint para a pasta Aplicativos, abra de lá e tente de novo.",
-        menuCheckUpdates: "Procurar atualizações…",
 
         permissionRequired: "Permissão necessária",
         permissionAccessibility: "Acessibilidade",
@@ -2129,8 +2086,6 @@ extension Strings {
         peripheralBatteryNoDevices: "Nenhum periférico encontrado",
         monitorGraphsSection: "Gráficos",
 
-        updateBannerTitle: "Atualização disponível",
-        updateBannerAction: "Atualizar",
         obStepMenuBarTitle: "Métricas na barra de menus",
         obStepMenuBarBody: "Escolha o que mostrar ao lado do ícone. A prévia acima muda em tempo real.",
         obStepMenuBarNote: "Novidade: blocos de Rede e Energia e gráficos no painel. Ajuste tudo depois em Ajustes › Monitor.",
@@ -2229,7 +2184,6 @@ extension Strings {
         supportIntroStarMessage: "Apoio financeiro nunca é esperado. Dar uma estrela no GitHub ajuda mais pessoas a encontrar o Vorssaint e faz uma diferença enorme no desenvolvimento.",
         supportIntroStarHint: "Uma estrela no GitHub também ajuda mais pessoas a conhecer o Vorssaint e significa muito.",
         supportIntroCoffeeButton: "Apoiar no Buy Me a Coffee",
-        supportIntroLaterButton: "Agora não",
         supportIntroDoneButton: "Concluir",
         discordIntroTitle: "A comunidade do Vorssaint no Discord está começando",
         discordIntroMessage: "A comunidade do Vorssaint é nova e ainda está em desenvolvimento. Entre desde o começo para conhecer outros usuários e ajudar a construir um espaço acolhedor em torno do app.",
@@ -2243,10 +2197,6 @@ extension Strings {
         homebrewOfficialIntroMigrationTitle: "Usava o tap antigo?",
         homebrewOfficialIntroMigrationMessage: "Remova o tap uma vez. O app e seus ajustes continuam no lugar.",
         homebrewOfficialIntroCopyButton: "Copiar comando",
-        updateShowcaseTitle: "Novidades da 3.1.4",
-        updateShowcaseMessage: "Veja uma prévia rápida das principais melhorias desta atualização.",
-        updateShowcaseUnavailable: "Não foi possível carregar o vídeo agora. Você ainda pode continuar.",
-        updateShowcaseRestart: "Voltar ao início",
         showMenuBarIcon: "Mostrar ícone na barra de menus",
         menuBarIconStillHiddenTitle: "O ícone continua escondido",
         menuBarIconStillHiddenBody: "O ícone foi recriado, mas o macOS não deu um lugar visível a ele. A barra de menus provavelmente está sem espaço: remova alguns ícones da barra (ou feche apps com menus longos) e tente de novo.",
@@ -2532,7 +2482,6 @@ extension Strings {
         adminPromptClamshellOn: "Vorssaint needs your password to keep the Mac going with the lid closed.",
         adminPromptClamshellOff: "Vorssaint needs your password to restore the Mac’s normal sleep.",
         adminPromptRecover: "Vorssaint quit while the Mac’s sleep was disabled. Enter the password to restore normal sleep.",
-        adminPromptUpdate: "Vorssaint needs your password to install the update.",
         adminPromptSudoersInstall: "Vorssaint will create a restricted rule (pmset disablesleep only) to toggle closed-lid mode without asking for a password. This is the only time the password is needed.",
         adminPromptSudoersRemove: "Vorssaint will remove the password-free closed-lid rule.",
 
@@ -3074,24 +3023,7 @@ extension Strings {
         audioPriorityCaption: "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
 
         updatesSection: "Updates",
-        autoCheckToggle: "Check for updates automatically",
-        includeBetaUpdatesToggle: "Receive beta updates",
-        includeBetaUpdatesCaption: "Beta versions include features in development and may contain bugs or incomplete behavior.",
         betaBadgeLabel: "Beta",
-        checkNowButton: "Check now",
-        updateChecking: "Checking…",
-        updateUpToDate: "You’re on the latest version.",
-        updateAvailablePrefix: "Update available:",
-        updateInstallButton: "Download and install",
-        updateDownloading: "Downloading update…",
-        updateInstalling: "Installing and restarting…",
-        updateFailedPrefix: "Couldn’t check:",
-        updateLastChecked: "Last checked:",
-        updateNotifyTitle: "Vorssaint update",
-        updateInstallFailedBody: "The update was downloaded but could not be applied. Download the latest version from the GitHub releases page and drag the app over the current one.",
-        updateNeedsApplicationsTitle: "Move Vorssaint to Applications",
-        updateNeedsApplicationsBody: "The app is running from a place that cannot be updated, such as the disk image or a temporary system location. Drag Vorssaint to the Applications folder, open it from there and try again.",
-        menuCheckUpdates: "Check for updates…",
 
         permissionRequired: "Permission required",
         permissionAccessibility: "Accessibility",
@@ -3240,8 +3172,6 @@ extension Strings {
         peripheralBatteryNoDevices: "No devices found",
         monitorGraphsSection: "Graphs",
 
-        updateBannerTitle: "Update available",
-        updateBannerAction: "Update",
         obStepMenuBarTitle: "Metrics in the menu bar",
         obStepMenuBarBody: "Pick what to show next to the icon. The preview above updates live.",
         obStepMenuBarNote: "New: Network and Power blocks and graphs in the panel. Fine-tune it all later in Settings › Monitor.",
@@ -3340,7 +3270,6 @@ extension Strings {
         supportIntroStarMessage: "Financial support is never expected. A star on GitHub helps more people discover Vorssaint and makes a real difference to its development.",
         supportIntroStarHint: "A star on GitHub also helps more people find Vorssaint, and it means a lot.",
         supportIntroCoffeeButton: "Support on Buy Me a Coffee",
-        supportIntroLaterButton: "Not now",
         supportIntroDoneButton: "Done",
         discordIntroTitle: "The Vorssaint Discord community is just getting started",
         discordIntroMessage: "The Vorssaint community is new and still being built. Join early to meet other users and help build a welcoming space around the app.",
@@ -3354,10 +3283,6 @@ extension Strings {
         homebrewOfficialIntroMigrationTitle: "Used the old tap?",
         homebrewOfficialIntroMigrationMessage: "Remove the tap once. The app and your settings stay in place.",
         homebrewOfficialIntroCopyButton: "Copy command",
-        updateShowcaseTitle: "What’s new in 3.1.4",
-        updateShowcaseMessage: "Take a quick look at the main improvements in this update.",
-        updateShowcaseUnavailable: "The video could not load right now. You can still continue.",
-        updateShowcaseRestart: "Restart",
         showMenuBarIcon: "Show menu bar icon",
         menuBarIconStillHiddenTitle: "The icon is still hidden",
         menuBarIconStillHiddenBody: "The icon was rebuilt, but macOS did not give it a visible spot. The menu bar is probably out of room: remove some menu bar icons (or close apps with long menus) and try again.",

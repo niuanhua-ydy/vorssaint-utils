@@ -18,10 +18,6 @@ struct WhatsNewStrings {
     /// VoiceOver value for a sidebar row whose unread dot is showing.
     let updated: String
     let chooseFeatureHint: String
-    /// Checkbox in the pre-install window footer, beside Cancel and Download and install.
-    let skipPreviewCheckbox: String
-    let showPreviewToggle: String
-    let showPreviewCaption: String
 }
 
 extension FeatureStrings {
@@ -37,10 +33,7 @@ extension FeatureStrings {
                 kindChanged: "Changed",
                 kindFixed: "Fixed",
                 updated: "Updated",
-                chooseFeatureHint: "Choose a feature to see what changed in it.",
-                skipPreviewCheckbox: "Don’t show what’s new before updating",
-                showPreviewToggle: "Show what’s new before updating",
-                showPreviewCaption: "What changed in your features still appears after each update.")
+                chooseFeatureHint: "Choose a feature to see what changed in it.")
         case .ptBR:
             return WhatsNewStrings(
                 updatedFromFormat: "Atualizado da versão %@",
@@ -51,10 +44,7 @@ extension FeatureStrings {
                 kindChanged: "Mudanças",
                 kindFixed: "Correções",
                 updated: "Atualizado",
-                chooseFeatureHint: "Escolha um recurso para ver o que mudou nele.",
-                skipPreviewCheckbox: "Não mostrar novidades antes de atualizar",
-                showPreviewToggle: "Mostrar novidades antes de atualizar",
-                showPreviewCaption: "O que mudou nos seus recursos continua aparecendo após cada atualização.")
+                chooseFeatureHint: "Escolha um recurso para ver o que mudou nele.")
         case .tr:
             return WhatsNewStrings(
                 updatedFromFormat: "%@ sürümünden güncellendi",
@@ -65,10 +55,7 @@ extension FeatureStrings {
                 kindChanged: "Değişen",
                 kindFixed: "Düzeltilen",
                 updated: "Güncellendi",
-                chooseFeatureHint: "Neyin değiştiğini görmek için bir özellik seçin.",
-                skipPreviewCheckbox: "Güncellemeden önce yenilikleri gösterme",
-                showPreviewToggle: "Güncellemeden önce yenilikleri göster",
-                showPreviewCaption: "Özelliklerinizdeki değişiklikler her güncellemeden sonra yine gösterilir.")
+                chooseFeatureHint: "Neyin değiştiğini görmek için bir özellik seçin.")
         case .ru:
             return WhatsNewStrings(
                 updatedFromFormat: "Обновлено с версии %@",
@@ -79,10 +66,7 @@ extension FeatureStrings {
                 kindChanged: "Изменено",
                 kindFixed: "Исправлено",
                 updated: "Обновлено",
-                chooseFeatureHint: "Выберите функцию, чтобы увидеть, что в ней изменилось.",
-                skipPreviewCheckbox: "Не показывать изменения перед обновлением",
-                showPreviewToggle: "Показывать изменения перед обновлением",
-                showPreviewCaption: "Изменения в ваших функциях по-прежнему показываются после каждого обновления.")
+                chooseFeatureHint: "Выберите функцию, чтобы увидеть, что в ней изменилось.")
         case .es:
             return WhatsNewStrings(
                 updatedFromFormat: "Actualizado desde la versión %@",
@@ -93,10 +77,7 @@ extension FeatureStrings {
                 kindChanged: "Cambios",
                 kindFixed: "Correcciones",
                 updated: "Actualizada",
-                chooseFeatureHint: "Elige una función para ver sus cambios.",
-                skipPreviewCheckbox: "No mostrar novedades antes de actualizar",
-                showPreviewToggle: "Mostrar novedades antes de actualizar",
-                showPreviewCaption: "Los cambios en tus funciones seguirán apareciendo después de cada actualización.")
+                chooseFeatureHint: "Elige una función para ver sus cambios.")
         case .sk:
             return WhatsNewStrings(
                 updatedFromFormat: "Aktualizované z verzie %@",
@@ -107,10 +88,7 @@ extension FeatureStrings {
                 kindChanged: "Zmenené",
                 kindFixed: "Opravené",
                 updated: "Aktualizované",
-                chooseFeatureHint: "Vyberte funkciu a pozrite si, čo sa v nej zmenilo.",
-                skipPreviewCheckbox: "Nezobrazovať novinky pred aktualizáciou",
-                showPreviewToggle: "Zobrazovať novinky pred aktualizáciou",
-                showPreviewCaption: "Zmeny vo vašich funkciách sa budú naďalej zobrazovať po každej aktualizácii.")
+                chooseFeatureHint: "Vyberte funkciu a pozrite si, čo sa v nej zmenilo.")
         case .de:
             return WhatsNewStrings(
                 updatedFromFormat: "Aktualisiert von Version %@",
@@ -121,10 +99,7 @@ extension FeatureStrings {
                 kindChanged: "Geändert",
                 kindFixed: "Behoben",
                 updated: "Aktualisiert",
-                chooseFeatureHint: "Wähle eine Funktion, um zu sehen, was sich geändert hat.",
-                skipPreviewCheckbox: "Neuigkeiten vor dem Update nicht anzeigen",
-                showPreviewToggle: "Neuigkeiten vor dem Update anzeigen",
-                showPreviewCaption: "Was sich in deinen Funktionen geändert hat, siehst du weiterhin nach jedem Update.")
+                chooseFeatureHint: "Wähle eine Funktion, um zu sehen, was sich geändert hat.")
         case .fr:
             return WhatsNewStrings(
                 updatedFromFormat: "Mis à jour depuis la version %@",
@@ -135,10 +110,7 @@ extension FeatureStrings {
                 kindChanged: "Modifications",
                 kindFixed: "Corrections",
                 updated: "Mise à jour",
-                chooseFeatureHint: "Choisissez une fonction pour voir ce qui a changé.",
-                skipPreviewCheckbox: "Masquer les nouveautés avant la mise à jour",
-                showPreviewToggle: "Afficher les nouveautés avant la mise à jour",
-                showPreviewCaption: "Ce qui a changé dans vos fonctions s’affiche toujours après chaque mise à jour.")
+                chooseFeatureHint: "Choisissez une fonction pour voir ce qui a changé.")
         case .it:
             return WhatsNewStrings(
                 updatedFromFormat: "Aggiornato dalla versione %@",
@@ -149,10 +121,7 @@ extension FeatureStrings {
                 kindChanged: "Modifiche",
                 kindFixed: "Correzioni",
                 updated: "Aggiornata",
-                chooseFeatureHint: "Scegli una funzione per vedere cosa è cambiato.",
-                skipPreviewCheckbox: "Non mostrare le novità prima di aggiornare",
-                showPreviewToggle: "Mostra le novità prima di aggiornare",
-                showPreviewCaption: "Le modifiche alle tue funzioni continuano ad apparire dopo ogni aggiornamento.")
+                chooseFeatureHint: "Scegli una funzione per vedere cosa è cambiato.")
         case .ja:
             return WhatsNewStrings(
                 updatedFromFormat: "バージョン%@からアップデート",
@@ -163,10 +132,7 @@ extension FeatureStrings {
                 kindChanged: "変更",
                 kindFixed: "修正",
                 updated: "アップデート済み",
-                chooseFeatureHint: "機能を選択すると、変更内容が表示されます。",
-                skipPreviewCheckbox: "アップデート前に新機能を表示しない",
-                showPreviewToggle: "アップデート前に新機能を表示",
-                showPreviewCaption: "インストール済みの機能の変更内容は、アップデートのたびに引き続き表示されます。")
+                chooseFeatureHint: "機能を選択すると、変更内容が表示されます。")
         case .ko:
             return WhatsNewStrings(
                 updatedFromFormat: "버전 %@에서 업데이트됨",
@@ -177,10 +143,7 @@ extension FeatureStrings {
                 kindChanged: "변경",
                 kindFixed: "수정",
                 updated: "업데이트됨",
-                chooseFeatureHint: "기능을 선택하면 변경된 내용을 볼 수 있습니다.",
-                skipPreviewCheckbox: "업데이트 전에 새로운 기능 보지 않기",
-                showPreviewToggle: "업데이트 전에 새로운 기능 보기",
-                showPreviewCaption: "업데이트할 때마다 설치된 기능의 변경 사항은 계속 표시됩니다.")
+                chooseFeatureHint: "기능을 선택하면 변경된 내용을 볼 수 있습니다.")
         case .uk:
             return WhatsNewStrings(
                 updatedFromFormat: "Оновлено з версії %@",
@@ -191,10 +154,7 @@ extension FeatureStrings {
                 kindChanged: "Змінено",
                 kindFixed: "Виправлено",
                 updated: "Оновлено",
-                chooseFeatureHint: "Виберіть функцію, щоб побачити, що в ній змінилося.",
-                skipPreviewCheckbox: "Не показувати зміни перед оновленням",
-                showPreviewToggle: "Показувати зміни перед оновленням",
-                showPreviewCaption: "Зміни у ваших функціях і далі показуватимуться після кожного оновлення.")
+                chooseFeatureHint: "Виберіть функцію, щоб побачити, що в ній змінилося.")
         case .zhHans:
             return WhatsNewStrings(
                 updatedFromFormat: "已从版本 %@ 更新",
@@ -205,10 +165,7 @@ extension FeatureStrings {
                 kindChanged: "变更",
                 kindFixed: "修复",
                 updated: "已更新",
-                chooseFeatureHint: "选择一个功能以查看其中的变化。",
-                skipPreviewCheckbox: "更新前不显示新功能",
-                showPreviewToggle: "更新前显示新功能",
-                showPreviewCaption: "每次更新后仍会显示已安装功能的变化。")
+                chooseFeatureHint: "选择一个功能以查看其中的变化。")
         case .zhTW, .zhHK:
             return WhatsNewStrings(
                 updatedFromFormat: "已從版本 %@ 更新",
@@ -219,10 +176,7 @@ extension FeatureStrings {
                 kindChanged: "變更",
                 kindFixed: "修正",
                 updated: "已更新",
-                chooseFeatureHint: "選擇一個功能以查看其中的變化。",
-                skipPreviewCheckbox: "更新前不顯示新功能",
-                showPreviewToggle: "更新前顯示新功能",
-                showPreviewCaption: "每次更新後仍會顯示已安裝功能的變化。")
+                chooseFeatureHint: "選擇一個功能以查看其中的變化。")
         }
     }
 }

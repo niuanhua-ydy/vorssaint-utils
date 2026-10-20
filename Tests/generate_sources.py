@@ -910,7 +910,10 @@ def main():
     scratchpad_service = "Sources/Vorssaint/Services/QuickTools/ScratchpadService.swift"
     scratchpad_view = "Sources/Vorssaint/UI/Notch/NotchScratchpadView.swift"
     scratchpad_reading = "Sources/Vorssaint/UI/Scratchpad/ScratchpadView.swift"
-    write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport SwiftUI\nextension NotchCompactTests {\n"
+    write("NotchCompact.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\nimport SwiftUI\nextension NotchCompactTests {\n"
+          + "final class L10n: ObservableObject {\nstatic let shared = L10n()\n@Published var language = AppLanguage.enUS\n"
+          + declaration("Sources/Vorssaint/Core/Localization.swift", "    var s: Strings")
+          + "}\n"
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraView:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCameraView.swift", "struct NotchCameraStopButton:")
           + declaration("Sources/Vorssaint/UI/Notch/NotchCalendarView.swift", "private struct NotchCalendarEventRow:")
@@ -942,23 +945,6 @@ def main():
               .replace("private var", "var", 1).replace("NotchSupport.controls()", "controls")
               .replace("BrightnessService.shared.islandSliderShowsFocusedDisplay", "brightnessSlider")
           + "}\n")
-    update = "Sources/Vorssaint/Services/Update/UpdateService.swift"
-    update_view = "Sources/Vorssaint/UI/Notch/NotchUpdateControl.swift"
-    write("NotchUpdate.swift", "import AppKit\nimport SwiftUI\nimport Combine\nextension NotchUpdateTests {\n"
-          + "final class UpdateService: ObservableObject {\nstatic let shared = UpdateService()\n"
-          + declaration(update, "    enum State:")
-          + "@Published var state: State = .idle\n}\n"
-          + "final class L10n: ObservableObject {\nstatic let shared = L10n()\n@Published var language = AppLanguage.enUS\n"
-          + declaration("Sources/Vorssaint/Core/Localization.swift", "    var s: Strings")
-          + "}\nfinal class Service: State {\n"
-          + declaration(notch, "    func showUpdate()")
-          + "}\n"
-          + declaration(update_view, "struct NotchUpdateControl:")
-          + "}\n")
-    write("UpdateAdminInstall.swift", "import Foundation\n\nextension UpdateAdminInstallContract {\n"
-          + "final class Service: Fixture {\n"
-          + declaration(update, "    private func launchAdminInstaller(").replace("private ", "", 1)
-          + "}\n}\n")
     highlights = "Sources/Vorssaint/UI/UpdateHighlightsView.swift"
     write("UpdateHighlights.swift", "import AppKit\nimport SwiftUI\nextension UpdateHighlightsTests {\n"
           + "".join(declaration(highlights, prefix) for prefix in [

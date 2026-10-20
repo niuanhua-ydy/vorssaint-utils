@@ -35,8 +35,7 @@ struct ReleaseNotes {
     }
 
     /// Raw markdown body of a version's changelog section (everything between its
-    /// `## [version]` header and the next one), so the Developer build can feed
-    /// the update preview real notes. Empty when the version is absent.
+    /// `## [version]` header and the next one). Empty when the version is absent.
     static func rawNotes(for version: String, changelog: String? = bundledChangelog()) -> String {
         guard let changelog else { return "" }
         let lines = changelog.components(separatedBy: .newlines)
@@ -51,15 +50,6 @@ struct ReleaseNotes {
             body.append(line)
         }
         return body.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    static func inAppUpdateNotes(from releaseBody: String?) -> String? {
-        guard let releaseBody else { return nil }
-        let lines = releaseBody
-            .components(separatedBy: .newlines)
-            .filter { !isDistributionFooter($0) }
-        let cleaned = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return cleaned.isEmpty ? nil : cleaned
     }
 
     static func bundledChangelog() -> String? {
@@ -173,11 +163,6 @@ struct ReleaseNotes {
     private static func shouldDisplaySection(_ title: String) -> Bool {
         let normalized = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return normalized != "website" && normalized != "links"
-    }
-
-    private static func isDistributionFooter(_ line: String) -> Bool {
-        let normalized = line.trimmingCharacters(in: .whitespacesAndNewlines)
-        return normalized == "Signed with an Apple Developer ID and notarized by Apple, so it downloads and opens normally. Requires macOS 14 or later. Open the .dmg below and drag Vorssaint to Applications."
     }
 }
 

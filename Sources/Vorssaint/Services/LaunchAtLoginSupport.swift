@@ -54,4 +54,14 @@ enum LaunchAtLoginSupport {
             return wanted && !locationIsUnstable ? .register : .none
         }
     }
+
+    /// True when the app runs from a location that will not survive: the
+    /// randomized read-only mount Gatekeeper uses for translocated apps, or
+    /// any other read-only volume (the mounted DMG). External writable
+    /// volumes are fine, so this asks the file system instead of guessing
+    /// from the path.
+    static func runsFromImmutableLocation(appPath: String,
+                                          volumeIsReadOnly: (String) -> Bool) -> Bool {
+        appPath.contains("/AppTranslocation/") || volumeIsReadOnly(appPath)
+    }
 }

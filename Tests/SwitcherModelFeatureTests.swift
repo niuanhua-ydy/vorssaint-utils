@@ -2033,12 +2033,6 @@ enum SwitcherModelFeatureTests {
                < DockPreviewSupport.openDelay(
                    milliseconds: DockPreviewSupport.openDelayMillisecondsRange.lowerBound),
                "a switch, reading its window list inline, still lands before the shortest fresh open")
-        suite.expect(registeredDefaults[DefaultsKey.autoCheckUpdates] as? Bool == true,
-               "update checks are on for clean installs")
-        suite.expect(registeredDefaults[DefaultsKey.updateShowcaseIntroVersion] as? String == "",
-               "update showcase intro starts unseen")
-        suite.expect(registeredDefaults[DefaultsKey.updateShowcaseMediaOverride] as? String == "",
-               "update showcase media override is empty by default")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.1",
                "support prompt is deliberately pinned to the 3.4.1 stable release")
         suite.expect(SupportUpdateIntroInfo.shouldShow(appVersion: "3.4.1", lastSeenVersion: "3.3.2")

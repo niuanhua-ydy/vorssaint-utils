@@ -444,8 +444,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Shelf/ShelfFilePromiseTransfer.swift
         Sources/Vorssaint/Core/ShelfPromiseDeliveryStrings.swift
         Sources/Vorssaint/Services/Finder/FinderRenameSupport.swift
-        Sources/Vorssaint/Services/Update/UpdateInstallerSupport.swift
-        Sources/Vorssaint/Services/Update/UpdateServiceSupport.swift
+        Sources/Vorssaint/Core/SemanticVersion.swift
         Sources/Vorssaint/Services/InstalledApps.swift
         Sources/Vorssaint/Services/LaunchAtLoginSupport.swift
         Sources/Vorssaint/UI/Settings/SettingsSearchSupport.swift

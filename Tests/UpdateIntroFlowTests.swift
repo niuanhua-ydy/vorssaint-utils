@@ -36,8 +36,6 @@ enum UpdateIntroFlowTests {
         var supportIntroIsReview = false
         var updateHighlightsWindow: NSWindow?
         var updateHighlightsIsReview = false
-        var updateShowcaseWindow: NSWindow?
-        var updatePreviewWindow: NSWindow?
         var whatsNewWindow: NSWindow?
         var whatsNewIsReview = false
         /// Whether the update touches anything this Mac uses.
@@ -45,9 +43,6 @@ enum UpdateIntroFlowTests {
         var isTerminating = false
         var shown: [String] = []
         func saveSettingsWindowSize(_ window: NSWindow) {}
-        func markUpdateShowcaseIntroSeenIfCurrentUpdate() {}
-        func markUpdateShowcaseIntroSeen() {}
-        func showUpdateShowcaseIntroIfNeeded() -> Bool { false }
         func showBrightnessUpdatePromptIfNeeded() { shown.append("finished") }
         func showUpdateHighlights(isReview: Bool = false) {
             updateHighlightsIsReview = isReview

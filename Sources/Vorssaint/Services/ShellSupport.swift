@@ -40,16 +40,7 @@ enum AdminShell {
     private static let promptLock = NSLock()
     private static var prompting = false
 
-    private enum RequestOrigin {
-        case systemScript
-        case signedApp
-    }
-
     static func runSync(_ command: String, prompt: String) -> Bool {
-        runSync(command, prompt: prompt, origin: .systemScript)
-    }
-
-    private static func runSync(_ command: String, prompt: String, origin: RequestOrigin) -> Bool {
         promptLock.lock()
         if prompting {
             promptLock.unlock()
@@ -65,33 +56,14 @@ enum AdminShell {
 
         bringAppToFront()
         let source = appleScriptSource(command: command, prompt: prompt)
-        switch origin {
-        case .systemScript:
-            // A person typing a password is not a stuck command. Keep the
-            // established bound without rushing a prompt that is being read.
-            return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
-        case .signedApp:
-            // NSAppleScript is main-thread-only. The updater's elevated shell
-            // detaches immediately after approval, so this wait covers only the
-            // system authorization interaction.
-            return DispatchQueue.main.sync {
-                AppleScriptRunner.run(source).ok
-            }
-        }
+        // A person typing a password is not a stuck command. Keep the
+        // established bound without rushing a prompt that is being read.
+        return Shell.run("/usr/bin/osascript", ["-e", source], timeout: 600).status == 0
     }
 
     static func run(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
         DispatchQueue.global(qos: .userInitiated).async {
             completion(runSync(command, prompt: prompt))
-        }
-    }
-
-    /// Runs the administrator request inside this signed process so system
-    /// policy can identify the app that initiated it. Reserved for the updater;
-    /// other administrative tools retain their bounded subprocess behavior.
-    static func runInProcess(_ command: String, prompt: String, completion: @escaping (Bool) -> Void) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            completion(runSync(command, prompt: prompt, origin: .signedApp))
         }
     }
 
