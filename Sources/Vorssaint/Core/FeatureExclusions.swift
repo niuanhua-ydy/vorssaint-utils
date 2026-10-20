@@ -19,8 +19,8 @@ extension AppFeature {
         .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll,
         .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
         .mouseClickDebounce, .keyboardDebounce, .textSnippets, .quitWindowProtection,
-        // Clipboard and files: history and plain paste stay
-        .finderCutPaste, .finderRename, .shelf, .urlCleaner, .diskImageInstaller,
+        // Clipboard and files: plain paste stays; ClipNote is the history now
+        .clipboardHistory, .finderCutPaste, .finderRename, .shelf, .urlCleaner, .diskImageInstaller,
         // Sound
         .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock,
         // Energy and display

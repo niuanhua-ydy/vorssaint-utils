@@ -1934,6 +1934,7 @@ enum Defaults {
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
         ClipNoteDefaults.migrateFromStandaloneApp(in: defaults)
+        ClipNoteDefaults.takeOverClipboardHistory(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: ClipNoteDefaults.registered)
         defaults.register(defaults: AppFeature.availabilityDefaults)

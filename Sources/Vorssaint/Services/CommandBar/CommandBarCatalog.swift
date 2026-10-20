@@ -9,6 +9,8 @@ struct CommandBarEntry: Identifiable {
         case symbol(String)
         case appIcon(path: String)
         case clipboardImage(name: String)
+        /// An image file anywhere, drawn as its thumbnail (ClipNote's copies).
+        case imageFile(path: String)
         case filePath(String)
         case color(ColorValue)
     }
@@ -174,7 +176,7 @@ enum CommandBarCatalog {
     /// Ids worth discovering before any habit forms; suggestion fill-ins.
     static let curatedSuggestionIDs = [
         "action.screenshot", "action.scrollingScreenshot", "action.keepAwake", "action.screenOCR",
-        "action.clipboardWindow", "action.colorPicker", "action.darkMode",
+        "action.clipboardWindow", "action.clipNote", "action.colorPicker", "action.darkMode",
         "action.snippetLibrary",
     ]
 
@@ -405,6 +407,9 @@ enum CommandBarCatalog {
                 confirmationPrompt: String(format: clipboard.clearRecentConfirmFormat, recentIDs.count),
                 run: { _ in ClipboardHistoryService.shared.clearRecent(recentIDs) }))
         }
+        entries += clipNoteActionEntries(subtitle: area(.clipNote),
+                                         panelShortcut: roleShortcut(.clipNote),
+                                         stackShortcut: roleShortcut(.clipNoteStack))
         if AppFeature.textSnippets.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.snippetLibrary",

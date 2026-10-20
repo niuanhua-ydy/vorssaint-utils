@@ -93,6 +93,15 @@ enum ClipNoteDefaults {
 
     static let standaloneDomain = "com.clipnote.app"
 
+    /// ClipNote replaced the clipboard history in this build. Whoever kept a
+    /// history keeps one: ClipNote starts switched on, once, unless its own
+    /// switch was ever set.
+    static func takeOverClipboardHistory(in defaults: UserDefaults) {
+        guard defaults.object(forKey: DefaultsKey.clipNoteEnabled) == nil,
+              defaults.object(forKey: DefaultsKey.clipboardHistoryEnabled) as? Bool == true else { return }
+        defaults.set(true, forKey: DefaultsKey.clipNoteEnabled)
+    }
+
     /// The standalone app's choices, copied once into Vorssaint's domain. Its
     /// own domain is only read, never changed, so the app keeps working if
     /// someone opens it again. Runs at launch before defaults are registered.

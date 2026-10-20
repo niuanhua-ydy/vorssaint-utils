@@ -108,6 +108,43 @@ final class ClipNoteService: ObservableObject {
         MainActor.assumeIsolated { runtime?.monitor.ignoreChanges(upTo: changeCount) }
     }
 
+    // MARK: - For the Command Bar
+
+    /// Items matching what was typed, best first, from ClipNote's own index
+    /// (so Chinese words and text read out of images match too). Empty while
+    /// ClipNote is off. Its read connection answers in milliseconds, so the
+    /// bar asks on every keystroke.
+    func search(_ query: String, limit: Int) -> [ClipItem] {
+        guard isRunning, let store else { return [] }
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return [] }
+        return store.fetch(ClipQuery(text: text, limit: limit))
+    }
+
+    /// The latest items, newest first.
+    func recent(limit: Int) -> [ClipItem] {
+        guard isRunning, let store else { return [] }
+        return store.fetch(ClipQuery(limit: limit))
+    }
+
+    func imageURL(of item: ClipItem) -> URL? {
+        guard item.type == .image else { return nil }
+        return store?.url(forRelativePath: item.content)
+    }
+
+    /// Puts the item on the clipboard and pastes it into the app in front,
+    /// for a surface that has already handed focus back (the Command Bar).
+    func paste(itemID: Int64, plainText: Bool = false) {
+        guard let runtime, let store, let item = store.item(id: itemID) else { return }
+        MainActor.assumeIsolated {
+            ClipNotePasteboard.write(item, mode: plainText ? .plainText : .original, store: store,
+                                     monitor: runtime.monitor) {
+                store.markUsed(id: itemID)
+                ClipNotePasteboard.pasteIntoFrontApp()
+            }
+        }
+    }
+
     func openSettings(_ tab: ClipNoteSettingsTab? = nil) {
         if let tab { settingsTab = tab }
         SettingsRouter.shared.request(FeatureSettingsDestination(.clipNote))

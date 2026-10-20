@@ -57,6 +57,13 @@ enum TransientPasteTests {
         struct History { func ignoreNextChange(upTo: Int) {} }
     }
 
+    /// Records what ClipNote is told to leave out of its history.
+    final class ClipNoteService {
+        static let shared = ClipNoteService()
+        var ignored: [Int] = []
+        func ignoreChanges(upTo changeCount: Int) { ignored.append(changeCount) }
+    }
+
     private static func pump(until condition: () -> Bool) {
         let deadline = Date(timeIntervalSinceNow: 3)
         while !condition(), Date() < deadline {
@@ -111,6 +118,10 @@ enum TransientPasteTests {
         pump { pasteboard.string(forType: .string) == "original" }
         suite.expect(pasteboard.string(forType: .string) == "original",
                      "successful paste still restores the original clipboard")
+        pump { ClipNoteService.shared.ignored.last == pasteboard.changeCount }
+        suite.expect(ClipNoteService.shared.ignored.last == pasteboard.changeCount
+                         && ClipNoteService.shared.ignored.count >= 2,
+                     "ClipNote leaves both the temporary text and the restore out of its history")
 
         suite.expect(pasteboard.data(forType: .rtf) == rich,
                      "successful paste preserves the original rich-text flavor")

@@ -1116,6 +1116,8 @@ final class CommandBarService: ObservableObject {
         case .clipboard:
             rows = CommandBarCatalog.clipboardBrowseEntries(limit: limit, bar: bar) { [weak self] entry in
                 self?.paste(entry)
+            } + CommandBarCatalog.clipNoteBrowseEntries(limit: limit, bar: bar) { [weak self] id in
+                self?.pasteClipNote(id)
             }
         case .killProcess: rows = killProcessEntries
         case .ports: rows = portEntries
@@ -1827,10 +1829,12 @@ final class CommandBarService: ObservableObject {
         // but not on screen over whatever the person is doing every time it
         // opens.
         if isEnabled(.clipboard) {
-            let copied = CommandBarCatalog.clipboardBrowseEntries(limit: 6, bar: bar) {
+            let copied = (CommandBarCatalog.clipboardBrowseEntries(limit: 6, bar: bar) {
                 [weak self] entry in
                 self?.paste(entry)
-            }.filter { !hidden.contains($0.stableKey) && shown.insert($0.id).inserted }
+            } + CommandBarCatalog.clipNoteBrowseEntries(limit: 6, bar: bar) { [weak self] id in
+                self?.pasteClipNote(id)
+            }).filter { !hidden.contains($0.stableKey) && shown.insert($0.id).inserted }
             if !copied.isEmpty {
                 titles[rows.count] = bar.kindClipboard
                 rows.append(contentsOf: copied)
@@ -1899,9 +1903,11 @@ final class CommandBarService: ObservableObject {
             fileSearch.cancelPending()
             let hidden = hiddenCache
             let pool = category == .clipboard
-                ? CommandBarCatalog.clipboardEntries(matching: trimmed, bar: bar, limit: 40) {
+                ? (CommandBarCatalog.clipboardEntries(matching: trimmed, bar: bar, limit: 40) {
                     [weak self] entry in self?.paste(entry)
-                }
+                } + CommandBarCatalog.clipNoteEntries(matching: trimmed, bar: bar, limit: 40) {
+                    [weak self] id in self?.pasteClipNote(id)
+                })
                 // A row the person hid stays hidden here too; the browse path
                 // filters it and searching inside the category must agree.
                 .filter { !hidden.contains($0.stableKey) }
@@ -2030,6 +2036,8 @@ final class CommandBarService: ObservableObject {
         let clipboard = CommandBarCatalog.clipboardEntries(matching: trimmed,
                                                            bar: bar) { [weak self] entry in
             self?.paste(entry)
+        } + CommandBarCatalog.clipNoteEntries(matching: trimmed, bar: bar) { [weak self] id in
+            self?.pasteClipNote(id)
         }
 
         let names = aliasCache
@@ -3374,6 +3382,27 @@ final class CommandBarService: ObservableObject {
                 Self.postPasteWhenModifiersReleased(attempt: 0)
             }
         }
+    }
+
+    /// The same, for a ClipNote item: the bar leaves, then ClipNote writes
+    /// the item and presses ⌘V once the keys are let go.
+    private func pasteClipNote(_ id: Int64) {
+        hide()
+        if NSWorkspace.shared.frontmostApplication?.processIdentifier
+            == ProcessInfo.processInfo.processIdentifier {
+            NSSound.beep()
+            return
+        }
+        guard AXIsProcessTrusted() else {
+            if promptedForAccessibility {
+                NSSound.beep()
+            } else {
+                promptedForAccessibility = true
+                Permissions.shared.requestAccessibility()
+            }
+            return
+        }
+        ClipNoteService.shared.paste(itemID: id)
     }
 
     /// The proven dance: ⌘V posted while the summoning chord is still held

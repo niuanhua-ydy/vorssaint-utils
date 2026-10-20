@@ -849,6 +849,10 @@ struct CommandBarView: View {
             ClipboardThumbnailImage(source: .stored(name: name), contentMode: .fill)
                 .frame(width: 28, height: 28)
                 .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+        case .imageFile(let path):
+            ClipboardThumbnailImage(source: .file(path: path), contentMode: .fill)
+                .frame(width: 28, height: 28)
+                .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         case .filePath(let path):
             Image(nsImage: CommandBarIconCache.icon(forPath: path))
                 .resizable()

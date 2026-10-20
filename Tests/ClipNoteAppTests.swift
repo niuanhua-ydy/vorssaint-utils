@@ -82,6 +82,17 @@ enum ClipNoteAppTests {
         suite.expect(ClipNoteDefaults.standaloneShortcut(bare) == nil, "a shortcut without a modifier is dropped")
         suite.expect(ClipNoteDefaults.standaloneShortcut("not data") == nil, "an unreadable shortcut is dropped")
 
+        defaults.removePersistentDomain(forName: name)
+        ClipNoteDefaults.takeOverClipboardHistory(in: defaults)
+        suite.expect(defaults.object(forKey: DefaultsKey.clipNoteEnabled) == nil,
+                     "without a kept history, ClipNote waits for its own switch")
+        defaults.set(true, forKey: DefaultsKey.clipboardHistoryEnabled)
+        ClipNoteDefaults.takeOverClipboardHistory(in: defaults)
+        suite.expect(defaults.bool(forKey: DefaultsKey.clipNoteEnabled), "a kept history becomes ClipNote switched on")
+        defaults.set(false, forKey: DefaultsKey.clipNoteEnabled)
+        ClipNoteDefaults.takeOverClipboardHistory(in: defaults)
+        suite.expect(!defaults.bool(forKey: DefaultsKey.clipNoteEnabled), "ClipNote switched off stays off")
+
         let registered = ClipNoteDefaults.registered
         suite.expect(registered[DefaultsKey.clipNoteEnabled] as? Bool == false,
                      "recording waits for its own switch")

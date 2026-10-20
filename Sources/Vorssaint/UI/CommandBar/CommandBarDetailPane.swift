@@ -117,6 +117,10 @@ struct CommandBarDetailPane: View {
             ClipboardThumbnailImage(source: .stored(name: name), contentMode: .fit)
                 .frame(maxWidth: 260, maxHeight: 180)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        case .imageFile(let path):
+            ClipboardThumbnailImage(source: .file(path: path), contentMode: .fit)
+                .frame(maxWidth: 260, maxHeight: 180)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         case .color(let color):
             ColorSwatch(color: color, size: 72)
         }
@@ -250,6 +254,9 @@ struct CommandBarDetailPane: View {
                 .aspectRatio(contentMode: .fit)
         case .clipboardImage(let name):
             ClipboardThumbnailImage(source: .stored(name: name), contentMode: .fill)
+                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+        case .imageFile(let path):
+            ClipboardThumbnailImage(source: .file(path: path), contentMode: .fill)
                 .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
         case .color(let color):
             ColorSwatch(color: color, size: 16)

@@ -89,6 +89,7 @@ final class TransientPaste {
 
             DispatchQueue.main.async {
                 ClipboardHistoryService.shared.ignoreNextChange(upTo: changeCount)
+                ClipNoteService.shared.ignoreChanges(upTo: changeCount)
                 self.pendingRestore = (snapshot, changeCount)
                 Self.postPasteWhenModifiersReleased(
                     attempt: 0,
@@ -118,6 +119,7 @@ final class TransientPaste {
                 let restoredCount = pasteboard.changeCount
                 DispatchQueue.main.async {
                     ClipboardHistoryService.shared.ignoreNextChange(upTo: restoredCount)
+                    ClipNoteService.shared.ignoreChanges(upTo: restoredCount)
                 }
             }
         }

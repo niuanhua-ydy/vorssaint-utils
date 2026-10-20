@@ -136,7 +136,7 @@ struct CommandBarCommandsView: View {
         case .appIcon(let path), .filePath(let path):
             Image(nsImage: CommandBarIconCache.icon(forPath: path))
                 .resizable()
-        case .clipboardImage, .color:
+        case .clipboardImage, .imageFile, .color:
             EmptyView()
         }
     }

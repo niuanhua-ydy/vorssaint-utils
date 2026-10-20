@@ -68,7 +68,8 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .switcher: return .switcher
         case .dock, .dockClick, .spacesOrder: return .dock
         case .finderCutPaste, .finderRename: return .cutPaste
-        case .clipboardHistory, .pastePlain: return .clipboard
+        case .clipboardHistory: return .clipboard
+        case .pastePlain: return .clipNote
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .wallpaper, .scratchpad, .cleaningMode:
             return .quickTools
         case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
@@ -315,7 +316,7 @@ extension AppFeature {
             return FeatureSettingsDestination(.clipboard, sectionAnchor: .clipboardHistory)
         case .clipNote: return FeatureSettingsDestination(.clipNote)
         case .pastePlain:
-            return FeatureSettingsDestination(.clipboard, sectionAnchor: .pastePlain)
+            return FeatureSettingsDestination(.clipNote, sectionAnchor: .pastePlain)
         case .finderCutPaste:
             return FeatureSettingsDestination(.cutPaste, sectionAnchor: .finderCutPaste)
         case .finderRename:
@@ -403,8 +404,9 @@ enum FeatureVisibilitySupport {
         case .windowLayout: return [.windowLayout, .windowMaximizer]
         case .autoQuit: return [.autoQuit]
         case .quitProtection: return [.quitWindowProtection]
-        case .clipboard: return [.clipboardHistory, .pastePlain, .finderCutPaste]
-        case .clipNote: return [.clipNote]
+        case .clipboard: return [.clipboardHistory, .finderCutPaste]
+        // Plain paste lives on ClipNote's page in this build.
+        case .clipNote: return [.clipNote, .pastePlain]
         case .cutPaste: return [.finderCutPaste, .finderRename]
         case .shelf: return [.shelf]
         case .media: return [.mediaTools]

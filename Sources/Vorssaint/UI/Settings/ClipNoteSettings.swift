@@ -21,65 +21,74 @@ struct ClipNoteSettings: View {
 
     var body: some View {
         Form {
-            Section {
-                Toggle(text.enable, isOn: $enabled)
-                    .onChange(of: enabled) { _, _ in ClipNoteService.shared.syncWithPreferences() }
-                Text(text.caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(text.localNote)
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-                if let error = service.storeError {
-                    Text(String(format: text.storeErrorFormat, error))
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                } else if service.isRunning {
-                    Label(preferences.isPaused ? strings.pausedHelp : text.active,
-                          systemImage: preferences.isPaused ? "pause.circle.fill" : "checkmark.circle.fill")
-                        .font(.caption)
-                        .foregroundStyle(preferences.isPaused ? .orange : .green)
-                }
-            }
-
-            Section {
-                Picker("", selection: $service.settingsTab) {
-                    ForEach(ClipNoteSettingsTab.allCases) { tab in
-                        Label(text.tabTitle(tab), systemImage: tab.symbolName).tag(tab)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-            }
-
-            switch service.settingsTab {
-            case .general: generalTab
-            case .privacy: ClipNotePrivacySettings(preferences: preferences, text: text, strings: strings)
-            case .storage:
-                if let parts = service.parts {
-                    ClipNoteStorageSettings(store: parts.store, preferences: preferences,
-                                            ocrBackfill: parts.ocrBackfill, text: text, strings: strings)
-                } else {
-                    turnOnFirst
-                }
-            case .ai: ClipNoteAISettings(preferences: preferences, text: text)
-            case .sync:
-                if let parts = service.parts {
-                    ClipNoteSyncSettings(sync: parts.sync, preferences: preferences, text: text, strings: strings)
-                } else {
-                    turnOnFirst
-                }
-            case .backup:
-                if let parts = service.parts {
-                    ClipNoteBackupSettings(backup: parts.backup, pasteImport: parts.pasteImport,
-                                           preferences: preferences, text: text, strings: strings)
-                } else {
-                    turnOnFirst
-                }
+            if AppFeature.clipNote.isAvailable {
+                clipNoteSections
+            } else {
+                plainPasteSection
             }
         }
         .formStyle(.grouped)
         .toggleStyle(.switch)
+    }
+
+    @ViewBuilder
+    private var clipNoteSections: some View {
+        Section {
+            Toggle(text.enable, isOn: $enabled)
+                .onChange(of: enabled) { _, _ in ClipNoteService.shared.syncWithPreferences() }
+            Text(text.caption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(text.localNote)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            if let error = service.storeError {
+                Text(String(format: text.storeErrorFormat, error))
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            } else if service.isRunning {
+                Label(preferences.isPaused ? strings.pausedHelp : text.active,
+                      systemImage: preferences.isPaused ? "pause.circle.fill" : "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(preferences.isPaused ? .orange : .green)
+            }
+        }
+
+        Section {
+            Picker("", selection: $service.settingsTab) {
+                ForEach(ClipNoteSettingsTab.allCases) { tab in
+                    Label(text.tabTitle(tab), systemImage: tab.symbolName).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+
+        switch service.settingsTab {
+        case .general: generalTab
+        case .privacy: ClipNotePrivacySettings(preferences: preferences, text: text, strings: strings)
+        case .storage:
+            if let parts = service.parts {
+                ClipNoteStorageSettings(store: parts.store, preferences: preferences,
+                                        ocrBackfill: parts.ocrBackfill, text: text, strings: strings)
+            } else {
+                turnOnFirst
+            }
+        case .ai: ClipNoteAISettings(preferences: preferences, text: text)
+        case .sync:
+            if let parts = service.parts {
+                ClipNoteSyncSettings(sync: parts.sync, preferences: preferences, text: text, strings: strings)
+            } else {
+                turnOnFirst
+            }
+        case .backup:
+            if let parts = service.parts {
+                ClipNoteBackupSettings(backup: parts.backup, pasteImport: parts.pasteImport,
+                                       preferences: preferences, text: text, strings: strings)
+            } else {
+                turnOnFirst
+            }
+        }
     }
 
     private var turnOnFirst: some View {
@@ -140,6 +149,11 @@ struct ClipNoteSettings: View {
             }
         }
 
+        plainPasteSection
+    }
+
+    @ViewBuilder
+    private var plainPasteSection: some View {
         if AppFeature.pastePlain.isAvailable {
             Section {
                 Toggle(l10n.s.pastePlainName, isOn: $pastePlainEnabled)
