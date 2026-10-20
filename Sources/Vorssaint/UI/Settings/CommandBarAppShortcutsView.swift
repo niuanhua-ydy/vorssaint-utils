@@ -240,7 +240,7 @@ private struct AppColumnOrder: SortComparator {
     }
 }
 
-private struct CommandBarAppAliasField: View {
+struct CommandBarAppAliasField: View {
     let entry: CommandBarEntry
     let savedAlias: String
     let text: CommandBarFeatureStrings

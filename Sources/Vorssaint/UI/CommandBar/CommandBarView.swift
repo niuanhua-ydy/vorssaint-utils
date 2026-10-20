@@ -30,6 +30,13 @@ struct CommandBarView: View {
     /// past what a laptop screen can show above the fold.
     static let listCeiling: CGFloat = 452
     static let width: CGFloat = 560
+    /// The bar in its own window: the list, and beside it the selected row
+    /// told in full. Fixed, so nothing moves under the pointer while typing.
+    static let wideWidth: CGFloat = 760
+    static let listColumnWidth: CGFloat = 440
+    /// Always this tall while the columns show, actions or not, so walking
+    /// from an app to a sum does not pull the panel up under the pointer.
+    static let actionStripHeight: CGFloat = 50
     /// The field alone, as the compact bar shows it.
     static let fieldHeight: CGFloat = 50
     private static let homeChipID = "category.all"
@@ -147,7 +154,14 @@ struct CommandBarView: View {
                     Divider()
                     categoryChipsRow
                 }
-                if service.rows.isEmpty {
+                if isWide {
+                    if showsColumns {
+                        if !showsCategoryChips { Divider() }
+                        columns
+                        Divider()
+                        actionStrip
+                    }
+                } else if service.rows.isEmpty {
                     // A category with nothing in it needs the same way out a
                     // fruitless search gets, or the panel is a room with no
                     // door in it.
@@ -188,7 +202,7 @@ struct CommandBarView: View {
                 footer
             }
         }
-        .frame(width: Self.width)
+        .frame(width: isWide ? Self.wideWidth : Self.width)
         .environment(\.colorScheme, shownAs == .window ? colorScheme : .dark)
         .background(backdrop)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -210,6 +224,10 @@ struct CommandBarView: View {
     private var isShown: Bool {
         presentation == .island ? service.presentation == .island : service.presentation != .island
     }
+
+    /// The island has room for one column only; everywhere else the bar
+    /// shows the list and the detail pane side by side.
+    private var isWide: Bool { shownAs != .island }
 
     private func focusSearch() {
         DispatchQueue.main.async { if isShown { searchFocused = true } }
@@ -451,6 +469,76 @@ struct CommandBarView: View {
         }
     }
 
+    private var showsColumns: Bool {
+        !service.rows.isEmpty || !trimmedQuery.isEmpty || service.activeCategory != nil
+    }
+
+    /// The list on the left and the selected row on the right, at one fixed
+    /// height: a list that grew and shrank with every keystroke would drag
+    /// the pane up and down beside it.
+    private var columns: some View {
+        HStack(spacing: 0) {
+            Group {
+                if service.rows.isEmpty {
+                    emptyState
+                        .frame(maxHeight: .infinity)
+                } else {
+                    resultsList
+                }
+            }
+            .frame(width: Self.listColumnWidth)
+            Divider()
+            CommandBarDetailPane(entry: service.rows.isEmpty ? nil : service.selectedEntry)
+        }
+        .frame(height: Self.listCeiling)
+    }
+
+    /// The selected row's actions, the ⌘K list laid flat: each one a click
+    /// away, or ⌥ and its number. The numbers show only while Option is
+    /// held, the way ⌘ numbers the rows.
+    private var actionStrip: some View {
+        let actions = Array(service.quickActions.prefix(9))
+        return HStack(spacing: 2) {
+            ForEach(Array(actions.enumerated()), id: \.element.id) { index, action in
+                Button {
+                    service.runQuickAction(action)
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: action.symbolName)
+                            .font(.system(size: 13.5, weight: .semibold))
+                            .frame(height: 17)
+                        Text(action.title)
+                            .font(.system(size: 9.5))
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                    .foregroundStyle(action.isDestructive ? Color.red : Color.primary.opacity(0.8))
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 5)
+                    .overlay(alignment: .topTrailing) {
+                        if service.optionIsHeld {
+                            Text("⌥\(index + 1)")
+                                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color.accentColor)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .fill(Color.accentColor.opacity(0.12))
+                                )
+                        }
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help(action.title)
+                .accessibilityLabel("\(action.title), ⌥\(index + 1)")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(height: Self.actionStripHeight)
+    }
+
     private var resultsList: some View {
         VStack(alignment: .leading, spacing: 0) {
             if service.isShowingSuggestions, service.activeCategory == nil {
@@ -501,10 +589,11 @@ struct CommandBarView: View {
                 // A short list makes the panel exactly as tall as it needs to
                 // be. A long one is pinned to its ceiling instead: asking the
                 // layout for the ideal height of a hundred rows would measure
-                // every one of them and throw the laziness away.
-                .frame(maxHeight: Self.listCeiling)
-                .fixedSize(horizontal: false, vertical: service.rows.count <= 14)
-                .frame(minHeight: service.rows.count > 14 ? Self.listCeiling : nil)
+                // every one of them and throw the laziness away. Beside the
+                // detail pane the column is already fixed, and the list fills it.
+                .frame(maxHeight: isWide ? .infinity : Self.listCeiling)
+                .fixedSize(horizontal: false, vertical: !isWide && service.rows.count <= 14)
+                .frame(minHeight: !isWide && service.rows.count > 14 ? Self.listCeiling : nil)
                 .onChange(of: service.selectedIndex) { _, index in
                     guard service.rows.indices.contains(index) else { return }
                     proxy.scrollTo(service.rows[index].id)

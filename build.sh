@@ -339,6 +339,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/ScratchpadStrings.swift
         Sources/Vorssaint/Core/FinderRenameStrings.swift
         Sources/Vorssaint/Core/CommandBarStrings.swift
+        Sources/Vorssaint/Core/CommandBarDetailStrings.swift
+        Sources/Vorssaint/Core/CommandBarCommandStrings.swift
         Sources/Vorssaint/Core/RadialMenuStrings.swift
         Sources/Vorssaint/Core/MenuBarAppearanceStrings.swift
         Sources/Vorssaint/Core/AppAppearance.swift
@@ -471,6 +473,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarConfirmationSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarColors.swift

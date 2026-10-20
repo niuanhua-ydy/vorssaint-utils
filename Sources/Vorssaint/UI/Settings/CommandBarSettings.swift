@@ -12,6 +12,8 @@ struct CommandBarSettings: View {
     @AppStorage(DefaultsKey.commandBarCompactMode) private var compactMode = false
     @AppStorage(DefaultsKey.commandBarEmojiSkinTone) private var emojiSkinTone = ""
     @AppStorage(DefaultsKey.commandBarASCIILayoutEnabled) private var asciiLayoutEnabled = false
+    @AppStorage(DefaultsKey.notchCommandBar) private var fromIsland = true
+    @AppStorage(DefaultsKey.notchCommandBarStyle) private var islandStyle = NotchCommandBarStyle.droplet.rawValue
     @AppStorage(DefaultsKey.commandBarDisabledSources) private var disabledSources = ""
     @AppStorage(DefaultsKey.commandBarAliases) private var aliasesRaw = ""
     @AppStorage(DefaultsKey.commandBarPins) private var pinsRaw = ""
@@ -25,6 +27,7 @@ struct CommandBarSettings: View {
     @State private var showsFileOptions = false
     @State private var showsLayoutOptions = false
     @State private var showsAppShortcuts = false
+    @State private var showsCommands = false
 
     private var text: CommandBarFeatureStrings { FeatureStrings.commandBar(l10n.language) }
     /// The snippet library already says "save", "delete" and "name" in every
@@ -84,6 +87,25 @@ struct CommandBarSettings: View {
                 Text(text.compactModeCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                // The same switch the island's companion page has, here too:
+                // whether the bar comes out of the island is a question about
+                // the bar, and this is where it gets looked for. Only shown
+                // while the companion is on, the one case it changes anything.
+                if NotchMascotSupport.isEnabled() {
+                    let mascot = FeatureStrings.notchMascot(l10n.language)
+                    Toggle(mascot.commandBar, isOn: $fromIsland)
+                    Text(mascot.commandBarHint)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    if fromIsland {
+                        Picker(mascot.opensAs, selection: $islandStyle) {
+                            ForEach(NotchCommandBarStyle.allCases) { style in
+                                Text(mascot.commandBarStyle(style)).tag(style.rawValue)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
                 if CommandBarPreferences.isEnabled(.emoji, disabledRaw: disabledSources) {
                     Picker(text.emojiSkinToneLabel, selection: $emojiSkinTone) {
                         ForEach(CommandBarEmoji.SkinTone.allCases) { tone in
@@ -137,6 +159,15 @@ struct CommandBarSettings: View {
                     Label(text.appCenterTitle, systemImage: "app.badge")
                 }
                 Text(text.appCenterCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                let commands = FeatureStrings.commandBarCommands(l10n.language)
+                Button {
+                    showsCommands = true
+                } label: {
+                    Label(commands.title, systemImage: "command")
+                }
+                Text(commands.caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -369,6 +400,9 @@ struct CommandBarSettings: View {
         .observesSecureInput()
         .sheet(isPresented: $showsAppShortcuts) {
             CommandBarAppShortcutsView()
+        }
+        .sheet(isPresented: $showsCommands) {
+            CommandBarCommandsView()
         }
         .sheet(item: $editing) { link in
             CommandBarLinkEditor(draft: link, text: text, common: common) { saved in

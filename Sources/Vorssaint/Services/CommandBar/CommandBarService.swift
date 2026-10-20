@@ -119,6 +119,8 @@ final class CommandBarService: ObservableObject {
     /// rows with ⌘1…⌘9, but nothing ever said so; holding the key now shows the
     /// numbers, which teaches it without a single pixel of permanent clutter.
     @Published private(set) var commandIsHeld = false
+    /// The same for Option alone, which numbers the action strip's ⌥1…⌥9.
+    @Published private(set) var optionIsHeld = false
 
     /// True when the bar was dragged off the spot it opens on by default,
     /// so Settings can offer the way back.
@@ -1083,6 +1085,88 @@ final class CommandBarService: ObservableObject {
         return rows.filter { !hidden.contains($0.stableKey) }
     }
 
+    // MARK: - Command table
+
+    /// The bar's own commands, freshly built, for the table in Settings.
+    func commandRows() -> [CommandBarEntry] {
+        rebuildCatalog()
+        let hidden = hiddenCache
+        var seen = Set<String>()
+        return catalog.filter {
+            CommandBarConfirmations.accepts($0) && !hidden.contains($0.stableKey)
+                && seen.insert($0.stableKey).inserted
+        }
+    }
+
+    /// Whether this command asks before it runs, said once and kept.
+    func setConfirms(_ asks: Bool, for entry: CommandBarEntry) {
+        var map = CommandBarConfirmationSupport.decode(
+            UserDefaults.standard.string(forKey: DefaultsKey.commandBarConfirmations))
+        map[entry.stableKey] = asks
+        UserDefaults.standard.set(CommandBarConfirmationSupport.encode(map), forKey: DefaultsKey.commandBarConfirmations)
+        rebuildCatalog()
+        if isVisible { refreshResults() }
+    }
+
+    // MARK: - Detail pane and action strip
+
+    /// The category a row steps into on Tab or Return, so the pane beside the
+    /// list can show what is in there before the step is taken.
+    func enteredCategory(for entry: CommandBarEntry) -> CommandBarSource? {
+        guard entry.keepsBarOpen else { return nil }
+        switch entry.id {
+        case "action.uninstaller", "uninstall.browse": return .uninstallApps
+        case CommandBarPreferences.emojiBrowserRowID: return .emoji
+        case CommandBarPreferences.killProcessBrowserRowID: return .killProcess
+        default: return nil
+        }
+    }
+
+    /// The first rows of a category, as the pane previews them.
+    func previewRows(in source: CommandBarSource, limit: Int) -> [CommandBarEntry] {
+        Array(categoryContent(source, bar: FeatureStrings.commandBar(L10n.shared.language), limit: limit)
+            .prefix(limit))
+    }
+
+    /// The selected row's actions, laid out under the list so they can be
+    /// seen without ⌘K and reached with ⌥1…⌥9.
+    var quickActions: [RowAction] {
+        guard canOpenActions, let entry = selectedEntry else { return [] }
+        return actions(for: entry)
+    }
+
+    /// Runs one of the strip's actions exactly as if it had been picked from
+    /// the ⌘K list: the actions already know how to leave that list, by
+    /// closing the bar, asking to confirm or coming back to the search.
+    func runQuickAction(_ action: RowAction) {
+        guard case .search = mode, let entry = selectedEntry else { return }
+        savedQuery = query
+        mode = .actions(entryID: entry.id)
+        actionIndex = 0
+        action.run()
+        // One that did none of those leaves the list standing as it was.
+        if case .actions(let id) = mode, id == entry.id { leaveActions() }
+    }
+
+    private func runQuickAction(at index: Int) -> Bool {
+        let actions = quickActions
+        guard actions.indices.contains(index) else { return false }
+        runQuickAction(actions[index])
+        return true
+    }
+
+    private func copyPath(_ path: String) {
+        hide()
+        GeneralPasteboardAccess.shared.async({
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.declareVorssaintSource()
+            return NSPasteboard.general.setString(path, forType: .string)
+        }, then: { copied in
+            QuickToolHUD.show(icon: copied ? "doc.on.doc" : "exclamationmark.circle",
+                              message: copied ? path : FeatureStrings.commandBar(L10n.shared.language).copyFailed)
+        })
+    }
+
     /// The heading a category shows above its rows, with how many there are.
     private func categoryHeading(_ source: CommandBarSource, count: Int) -> String {
         categoryTitle(source) + " · \(count)"
@@ -1338,7 +1422,11 @@ final class CommandBarService: ObservableObject {
     private var builtEmojiInputs: EmojiInputs?
 
     private func rebuildCatalog(index: Bool = true) {
-        catalog = CommandBarCatalog.build(automationDenied: finderAutomationDenied)
+        catalog = CommandBarConfirmations.applied(
+            to: CommandBarCatalog.build(automationDenied: finderAutomationDenied),
+            map: CommandBarConfirmationSupport.decode(
+                UserDefaults.standard.string(forKey: DefaultsKey.commandBarConfirmations)),
+            promptFormat: FeatureStrings.commandBarCommands(L10n.shared.language).confirmPromptFormat)
         // The emoji rows are most of the pool and depend on nothing the
         // catalog's other rebuild triggers touch, so they are kept until one
         // of their own inputs moves. Assigning them again would also drop
@@ -2173,6 +2261,13 @@ final class CommandBarService: ObservableObject {
                 self?.revealInFinder(entry)
             })
         }
+        if let path = entry.revealPath {
+            actions.append(RowAction(id: "copyPath",
+                                     title: FeatureStrings.commandBarDetail(L10n.shared.language).copyPath,
+                                     symbolName: "doc.on.clipboard") { [weak self] in
+                self?.copyPath(path)
+            })
+        }
         if let process = killProcessEntry(for: entry), !process.isProtected {
             let killStrings = FeatureStrings.killProcess(L10n.shared.language)
             actions.append(RowAction(id: "forceKillProcess",
@@ -2217,6 +2312,16 @@ final class CommandBarService: ObservableObject {
                                      title: named ? bar.actionRename : bar.actionName,
                                      symbolName: "character.cursor.ibeam") { [weak self] in
                 self?.beginNaming(entry)
+            })
+        }
+        if CommandBarConfirmations.accepts(entry) {
+            let commands = FeatureStrings.commandBarCommands(L10n.shared.language)
+            let asks = entry.confirmationPrompt != nil
+            actions.append(RowAction(id: "confirm",
+                                     title: asks ? commands.stopAsking : commands.askBeforeRunning,
+                                     symbolName: asks ? "checkmark.shield" : "questionmark.circle") { [weak self] in
+                self?.setConfirms(!asks, for: entry)
+                self?.leaveActions()
             })
         }
         if CommandBarPreferences.acceptsAlias(rowID: entry.id) {
@@ -3644,6 +3749,13 @@ final class CommandBarService: ObservableObject {
                     self.run(at: index)
                     return nil
                 }
+                // ⌥1…⌥9 run the selected row's actions, as the strip under
+                // the list numbers them.
+                if navigationModifiers == [.option], case .search = self.mode,
+                   let index = Self.digitIndex(for: event.keyCode),
+                   self.runQuickAction(at: index) {
+                    return nil
+                }
                 if navigationModifiers == [.control],
                    let key = event.charactersIgnoringModifiers?.lowercased() {
                     // Match the typed letter so alternate keyboard layouts
@@ -3684,6 +3796,8 @@ final class CommandBarService: ObservableObject {
             guard let self else { return event }
             let held = event.modifierFlags.contains(.command)
             if held != self.commandIsHeld { self.commandIsHeld = held }
+            let option = event.modifierFlags.intersection([.command, .option, .control]) == [.option]
+            if option != self.optionIsHeld { self.optionIsHeld = option }
             return event
         }
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
@@ -3735,6 +3849,7 @@ final class CommandBarService: ObservableObject {
             self.flagsMonitor = nil
         }
         commandIsHeld = false
+        optionIsHeld = false
         if let activationObserver {
             NSWorkspace.shared.notificationCenter.removeObserver(activationObserver)
             self.activationObserver = nil
