@@ -2153,7 +2153,7 @@ final class CommandBarService: ObservableObject {
                 actions.append(RowAction(id: "uninstallApp",
                                          title: String(format: bar.uninstallAppFormat, app.name),
                                          symbolName: "trash") { [weak self] in
-                    self?.openUninstaller(for: app.url)
+                    self?.openUninstaller(for: app.url, entryID: entry.id)
                 })
             }
         }
@@ -2447,7 +2447,17 @@ final class CommandBarService: ObservableObject {
     /// The row is offered only for an app the shared checks accept, so the
     /// one way `select` still says no is a removal already running. The page
     /// opens on that removal instead of the bar closing on nothing.
-    private func openUninstaller(for url: URL) {
+    private func openUninstaller(for url: URL, entryID: String) {
+        if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
+            // The review runs right here, as when the app is picked from the
+            // uninstall list; Esc returns to the search the actions came from.
+            if case .actions = mode {
+                mode = .search
+                query = savedQuery
+            }
+            beginUninstallReview(appURL: url, entryID: entryID)
+            return
+        }
         hide()
         let uninstaller = AppUninstaller.shared
         guard uninstaller.select(appURL: url) || uninstaller.isRemoving else { return }
