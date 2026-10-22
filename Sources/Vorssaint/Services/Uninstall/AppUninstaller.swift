@@ -256,14 +256,17 @@ final class AppUninstaller: ObservableObject {
 
         // Quit the app and any background app embedded inside it before the
         // bundle moves. Embedded helpers do not always share the main bundle ID.
+        var quitting: [pid_t] = []
         if let targetURL = target?.url {
             for app in NSWorkspace.shared.runningApplications where
                 app.bundleURL?.resolvingSymlinksInPath().standardizedFileURL == targetURL
                 || UninstallerSupport.isNestedBundle(app.bundleURL, in: targetURL) {
-                app.terminate()
+                if app.terminate() { quitting.append(app.processIdentifier) }
             }
         }
 
+        let removesApplication = chosen.contains { $0.category == .app }
+        let servicesPrompt = L10n.shared.s.adminPromptUninstallerServices
         let allowedPaths = allowedRemovalPaths
         let targetURL = target?.url
         let targetBundleID = target?.bundleID
@@ -275,7 +278,7 @@ final class AppUninstaller: ObservableObject {
         let alreadyFreed = homebrewRemovalSize
         let packageRemovedApplication = homebrewRemovedApplication
 
-        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let fm = FileManager.default
             var freed = alreadyFreed
             var stubborn: [Leftover] = []
@@ -288,7 +291,19 @@ final class AppUninstaller: ObservableObject {
             let targetWasRemovedByPackageManager = packageRemovedApplication
                 && targetURL.map { UninstallerSupport.isConfirmedAbsent(at: $0) } == true
             let mayClaimSharedData = targetIsOriginal || targetWasRemovedByPackageManager
+            // The identifiers the departing bundle answers to, whose privacy
+            // permissions go with it unless another copy still uses them.
+            let applicationBundleIDs: Set<String>
+            if removesApplication, targetIsOriginal, let targetURL {
+                applicationBundleIDs = Self.allBundleIDs(in: targetURL, fm: fm)
+            } else if targetWasRemovedByPackageManager,
+                      let id = UninstallerSupport.verifiedBundleID(targetBundleID) {
+                applicationBundleIDs = [id]
+            } else {
+                applicationBundleIDs = []
+            }
             let lookupBundleIDs = candidateBundleIDs.union(evidenceBundleIDs)
+                .union(applicationBundleIDs)
             // Only the shared-data claims below read this roster, and building
             // it opens every installed app. Same gate `select()` already uses.
             let knownApplications = mayClaimSharedData
@@ -320,8 +335,18 @@ final class AppUninstaller: ObservableObject {
                 Self.exclusiveGroupIDs(currentGroupIDs, selectedURL: $0,
                                        knownApplications: knownApplications)
             } ?? [] : []
+            let permissionBundleIDs = mayClaimSharedData ? targetURL.map {
+                UninstallerSupport.exclusiveBundleIDs(
+                    applicationBundleIDs, selectedURL: $0,
+                    knownApplications: knownApplicationIDs)
+            } ?? [] : []
+            let linkFolders = UninstallerSupport.commandLinkFolders(home: fm.homeDirectoryForCurrentUser)
+            var owned: [Leftover] = []
             for item in chosen {
-                if item.category != .app {
+                // A command link proves itself by pointing into the bundle at
+                // scan time; its file identity is checked again before it moves.
+                if item.category != .app,
+                   !UninstallerSupport.commandLinkLocationIsSafe(item.url, folders: linkFolders) {
                     let keepsOwnership: Bool
                     if let groupID = item.ownerGroupID {
                         keepsOwnership = exclusiveGroupIDs.contains(groupID)
@@ -338,6 +363,18 @@ final class AppUninstaller: ObservableObject {
                         continue
                     }
                 }
+                owned.append(item)
+            }
+
+            // Stop what keeps running before its files move, then let the
+            // quitting apps finish so none writes its state back afterwards.
+            let embeddedJobsOf = removesApplication && targetIsOriginal ? targetURL : nil
+            Self.stopBackgroundJobs(of: owned, embeddedIn: embeddedJobsOf,
+                                    allowedPaths: allowedPaths, targetURL: targetURL,
+                                    prompt: servicesPrompt)
+            Self.waitForExit(of: quitting)
+
+            for item in owned {
                 guard Self.removalIsStillSafe(item.url,
                                               expectedIdentity: item.fileIdentity,
                                               allowedPaths: allowedPaths,
@@ -388,6 +425,10 @@ final class AppUninstaller: ObservableObject {
                         failed.append(item)
                     }
                 }
+            }
+
+            if let targetURL {
+                Self.resetPermissions(ofRemovedAppAt: targetURL, bundleIDs: permissionBundleIDs)
             }
 
             DispatchQueue.main.async {
@@ -465,6 +506,7 @@ final class AppUninstaller: ObservableObject {
         } else {
             phase = .done(freed: homebrewRemovalSize, failed: [])
             Self.removeCommandBarState(ofRemovedAppAt: targetURL, bundleID: target?.bundleID)
+            Self.resetPermissions(ofPackageRemovedAppAt: targetURL, bundleID: target?.bundleID)
         }
     }
 
@@ -512,6 +554,105 @@ final class AppUninstaller: ObservableObject {
         _ = AppleScriptRunner.run(source)
     }
 
+    /// Unloads the launchd jobs among the chosen plists, and those the app
+    /// registered from inside its bundle, before anything moves. A plist in
+    /// the Trash does not stop a job that is already loaded: it would keep
+    /// running, and keep its privileged helper alive, until the next restart.
+    /// Agents stop silently; running daemons share one administrator prompt.
+    private static func stopBackgroundJobs(of items: [Leftover],
+                                           embeddedIn appURL: URL?,
+                                           allowedPaths: Set<String>,
+                                           targetURL: URL?,
+                                           prompt: String) {
+        let fm = FileManager.default
+        var jobs: [(label: String, domain: UninstallerSupport.LaunchDomain)] = []
+        for item in items {
+            guard let domain = UninstallerSupport.launchDomain(
+                      forLeftoverAt: item.url, home: fm.homeDirectoryForCurrentUser),
+                  removalIsStillSafe(item.url, expectedIdentity: item.fileIdentity,
+                                     allowedPaths: allowedPaths, targetURL: targetURL),
+                  let plist = NSDictionary(contentsOf: item.url) as? [String: Any],
+                  let label = UninstallerSupport.launchJobLabel(
+                      plist, fileName: item.name,
+                      ownerBundleIDs: Set([item.ownerBundleID].compactMap { $0 }),
+                      runsFromBundle: appURL.map {
+                          UninstallerSupport.launchPlistRunsFromBundle(plist, appURL: $0)
+                      } ?? false)
+            else { continue }
+            jobs.append((label, domain))
+        }
+        if let appURL {
+            let owners = allBundleIDs(in: appURL, fm: fm)
+            for folder in ["LaunchAgents", "LaunchDaemons"] {
+                let dir = appURL.appendingPathComponent("Contents/Library/\(folder)", isDirectory: true)
+                for url in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] {
+                    guard let domain = UninstallerSupport.launchDomain(forEmbeddedPlistAt: url, in: appURL),
+                          UninstallerSupport.removalPathIsSafe(url, within: appURL),
+                          let plist = NSDictionary(contentsOf: url) as? [String: Any],
+                          let label = UninstallerSupport.launchJobLabel(
+                              plist, fileName: url.lastPathComponent, ownerBundleIDs: owners)
+                    else { continue }
+                    jobs.append((label, domain))
+                }
+            }
+        }
+
+        var daemons: [String] = []
+        for job in jobs {
+            switch job.domain {
+            case .gui:
+                // A job that was never loaded makes launchctl exit nonzero;
+                // there is nothing to stop then.
+                Shell.run("/bin/launchctl", ["bootout", UninstallerSupport.launchServiceTarget(
+                    label: job.label, domain: .gui, uid: getuid())])
+            case .system:
+                // Reading a system job needs no password, so the prompt only
+                // appears for a daemon that is actually loaded.
+                let loaded = Shell.run("/bin/launchctl", ["print", UninstallerSupport.launchServiceTarget(
+                    label: job.label, domain: .system, uid: getuid())]).status == 0
+                if loaded, !daemons.contains(job.label) { daemons.append(job.label) }
+            }
+        }
+        if let command = UninstallerSupport.systemBootoutCommand(labels: daemons) {
+            _ = AdminShell.runSync(command, prompt: prompt)
+        }
+    }
+
+    /// Gives the apps asked to quit a few seconds to finish, so one saving its
+    /// state on the way out does not write it back after its files moved. An
+    /// app that is still busy after that is left running, never forced.
+    private static func waitForExit(of pids: [pid_t], timeout: TimeInterval = 5) {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline, pids.contains(where: { kill($0, 0) == 0 || errno == EPERM }) {
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+    }
+
+    /// Clears the privacy permissions macOS keeps for a removed app, so it no
+    /// longer sits in Accessibility, Screen Recording or Full Disk Access.
+    /// Only once the bundle is gone, and only for identifiers no other copy
+    /// still answers to; the identifiers are verified, never typed text.
+    private static func resetPermissions(ofRemovedAppAt url: URL, bundleIDs: Set<String>) {
+        guard !bundleIDs.isEmpty, UninstallerSupport.isConfirmedAbsent(at: url) else { return }
+        for id in bundleIDs.sorted() {
+            guard let verified = UninstallerSupport.verifiedBundleID(id) else { continue }
+            Shell.run("/usr/bin/tccutil", ["reset", "All", verified])
+        }
+    }
+
+    /// The same, after the package manager removed the app with nothing else
+    /// chosen, so no removal pass ran to check for other copies.
+    private static func resetPermissions(ofPackageRemovedAppAt url: URL, bundleID: String?) {
+        guard let id = UninstallerSupport.verifiedBundleID(bundleID),
+              UninstallerSupport.applicationIsInTrustedInstallRoot(
+                  url, home: FileManager.default.homeDirectoryForCurrentUser) else { return }
+        DispatchQueue.global(qos: .utility).async {
+            let known = applicationBundleIdentifiers(in: knownApplicationURLs(candidateBundleIDs: [id]))
+            resetPermissions(ofRemovedAppAt: url, bundleIDs: UninstallerSupport.exclusiveBundleIDs(
+                [id], selectedURL: url, knownApplications: known))
+        }
+    }
+
     // MARK: - Scanning
 
     private static func collect(appURL: URL,
@@ -553,9 +694,16 @@ final class AppUninstaller: ObservableObject {
             guard !cancellation.isCancelled else { return [] }
             appendMatches(in: folder, identity: identity, fm: fm, into: &paths)
         }
+        // A job whose program lives in this bundle is the app's whatever its
+        // label says. Removal still asks that no other copy owns the app.
+        if exclusiveBundleIDs.contains(primaryBundleID) {
+            appendLaunchJobs(runningFrom: appURL, owner: primaryBundleID, home: home, fm: fm, into: &paths)
+        }
         guard !cancellation.isCancelled else { return [] }
         appendSpotlightMatches(identity: identity, roots: spotlightRoots(home: home),
                                fm: fm, into: &paths)
+        let linkFolders = UninstallerSupport.commandLinkFolders(home: URL(fileURLWithPath: home, isDirectory: true))
+        appendCommandLinks(into: appURL, folders: linkFolders, fm: fm, paths: &paths)
 
         // Last line of defense: nothing outside the scanned roots (or the app
         // bundle itself) may ever reach the removal list.
@@ -564,6 +712,10 @@ final class AppUninstaller: ObservableObject {
             let path = candidate.url.standardizedFileURL.path
             if path == appPath {
                 return !UninstallerSupport.isSymbolicLink(candidate.url)
+            }
+            if UninstallerSupport.commandLinkLocationIsSafe(candidate.url, folders: linkFolders) {
+                return UninstallerSupport.commandLinkPointsInto(candidate.url, appURL: appURL,
+                                                                folders: linkFolders)
             }
             guard let root = allowedRoots.first(where: { path.hasPrefix($0.path + "/") }) else {
                 return false
@@ -690,6 +842,48 @@ final class AppUninstaller: ObservableObject {
                 : nil
             return UninstallerSupport.DirListing(name: name, children: children,
                                                   bundleIdentifier: bundleIdentifier)
+        }
+    }
+
+    private static func appendLaunchJobs(runningFrom appURL: URL,
+                                         owner: String,
+                                         home: String,
+                                         fm: FileManager,
+                                         into paths: inout [ScanCandidate]) {
+        let folders = [home + "/Library/LaunchAgents", "/Library/LaunchAgents", "/Library/LaunchDaemons"]
+        for folder in folders {
+            guard let entries = try? fm.contentsOfDirectory(atPath: folder) else { continue }
+            for entry in entries where entry.lowercased().hasSuffix(".plist") && !entry.hasPrefix(".") {
+                let url = URL(fileURLWithPath: folder, isDirectory: true).appendingPathComponent(entry)
+                guard !UninstallerSupport.isSymbolicLink(url),
+                      let plist = NSDictionary(contentsOf: url) as? [String: Any],
+                      UninstallerSupport.launchPlistRunsFromBundle(plist, appURL: appURL) else { continue }
+                paths.append(ScanCandidate(url: url, category: .other,
+                                           ownerBundleID: owner, ownerGroupID: nil,
+                                           evidenceBundleID: nil,
+                                           confidence: .exact, include: true))
+            }
+        }
+    }
+
+    /// Links the app put on the shell's search path, pointing into its own
+    /// bundle. They dangle once it is gone, so they start checked.
+    private static func appendCommandLinks(into appURL: URL,
+                                           folders: [URL],
+                                           fm: FileManager,
+                                           paths: inout [ScanCandidate]) {
+        for folder in folders {
+            guard let entries = try? fm.contentsOfDirectory(
+                at: folder, includingPropertiesForKeys: [.isSymbolicLinkKey], options: []) else { continue }
+            for entry in entries where (try? entry.resourceValues(
+                forKeys: [.isSymbolicLinkKey]))?.isSymbolicLink == true {
+                guard UninstallerSupport.commandLinkPointsInto(entry, appURL: appURL,
+                                                               folders: folders) else { continue }
+                paths.append(ScanCandidate(url: entry, category: .other,
+                                           ownerBundleID: nil, ownerGroupID: nil,
+                                           evidenceBundleID: nil,
+                                           confidence: .exact, include: true))
+            }
         }
     }
 
@@ -904,6 +1098,11 @@ final class AppUninstaller: ObservableObject {
         if path == targetURL.standardizedFileURL.path {
             return !UninstallerSupport.isSymbolicLink(url)
         }
+        // The identity above is the link the scan saw pointing into the app.
+        if UninstallerSupport.commandLinkLocationIsSafe(url, folders: UninstallerSupport.commandLinkFolders(
+            home: URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true))) {
+            return true
+        }
         guard let root = scanRoots(home: NSHomeDirectory()).first(where: {
             path.hasPrefix($0.path + "/")
         }) else { return false }
@@ -912,9 +1111,11 @@ final class AppUninstaller: ObservableObject {
 
     private static func allBundleIDs(in appURL: URL, fm: FileManager) -> Set<String> {
         var result = Set<String>()
-        if let primary = UninstallerSupport.verifiedBundleID(Bundle(url: appURL)?.bundleIdentifier) {
+        let bundle = Bundle(url: appURL)
+        if let primary = UninstallerSupport.verifiedBundleID(bundle?.bundleIdentifier) {
             result.insert(primary)
         }
+        result.formUnion(UninstallerSupport.privilegedHelperLabels(infoDictionary: bundle?.infoDictionary))
         let keys: Set<URLResourceKey> = [.isDirectoryKey, .isSymbolicLinkKey]
         guard let enumerator = fm.enumerator(at: appURL,
                                              includingPropertiesForKeys: Array(keys),

@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint sa ukončil, kým bol spánok Macu vypnutý. Zadajte heslo na obnovenie normálneho spánku.",
         adminPromptSudoersInstall: "Vorssaint vytvorí obmedzené pravidlo (iba pmset disablesleep), aby sa režim zatvoreného veka prepínal bez hesla. Heslo je potrebné len teraz.",
         adminPromptSudoersRemove: "Vorssaint odstráni pravidlo pre režim zatvoreného veka bez hesla.",
+        adminPromptUninstallerServices: "Vorssaint potrebuje vaše heslo, aby pred odstránením zastavil služby tejto aplikácie bežiace na pozadí.",
 
         settingsTitle: "Nastavenia Vorssaintu",
         tabGeneral: "Všeobecné",

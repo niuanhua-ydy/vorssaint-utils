@@ -13,12 +13,6 @@ import Combine
 final class ClipNoteService: ObservableObject {
     static let shared = ClipNoteService()
 
-    /// The standalone app's folder, so its history is right here.
-    static var dataDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("ClipNote", isDirectory: true)
-    }
-
     @Published private(set) var isRunning = false
     /// Why the history could not be opened, shown on the Settings page.
     @Published private(set) var storeError: String?
@@ -66,7 +60,30 @@ final class ClipNoteService: ObservableObject {
     private func start() {
         guard runtime == nil else { return }
         do {
-            let store = try self.store ?? ClipStore(directory: Self.dataDirectory)
+            let store: ClipStore
+            if let opened = self.store {
+                store = opened
+            } else {
+                // Vorssaint's own folder only: falling back to the standalone
+                // app's would share the history with it again.
+                guard let directory = ClipNoteStorage.directory else {
+                    storeError = "no Application Support folder"
+                    return
+                }
+                switch ClipNoteStorage.prepare(directory: directory,
+                                               standalone: ClipNoteStorage.standaloneDirectory,
+                                               container: PrivateFileStore.containerURL) {
+                case let .failed(reason):
+                    storeError = reason
+                    NSLog("[ClipNote] could not move the history: \(reason)")
+                    return
+                case .copied:
+                    NSLog("[ClipNote] copied the standalone app's history into \(directory.path)")
+                case .ready:
+                    break
+                }
+                store = try ClipStore(directory: directory)
+            }
             self.store = store
             runtime = MainActor.assumeIsolated { ClipNoteRuntime(store: store, service: self) }
             storeError = nil

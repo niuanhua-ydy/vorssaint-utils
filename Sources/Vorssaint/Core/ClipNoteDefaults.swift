@@ -73,7 +73,7 @@ enum ClipNoteDefaults {
             DefaultsKey.clipNotePaused: false,
             DefaultsKey.clipNoteAutoPaste: true,
             DefaultsKey.clipNoteSkipConcealed: true,
-            DefaultsKey.clipNoteOCR: true,
+            DefaultsKey.clipNoteOCR: false,
             DefaultsKey.clipNoteOCRBackfill: false,
             DefaultsKey.clipNoteRetentionDays: 90,
             DefaultsKey.clipNoteMaxItems: 5000,

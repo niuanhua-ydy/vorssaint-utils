@@ -63,6 +63,7 @@ final class ClipNotePanelModel: ObservableObject {
     var onPaste: ((ClipItem, ClipNotePasteMode) -> Void)?
     var onCopy: ((ClipItem) -> Void)?
     var onPreview: ((ClipItem) -> Void)?
+    var onEdit: ((ClipItem) -> Void)?
     var onOpenSettings: (() -> Void)?
     var onClearHistory: (() -> Void)?
     var onFocusSearch: (() -> Void)?

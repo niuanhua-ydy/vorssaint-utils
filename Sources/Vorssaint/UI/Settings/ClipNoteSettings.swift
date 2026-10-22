@@ -69,8 +69,7 @@ struct ClipNoteSettings: View {
         case .privacy: ClipNotePrivacySettings(preferences: preferences, text: text, strings: strings)
         case .storage:
             if let parts = service.parts {
-                ClipNoteStorageSettings(store: parts.store, preferences: preferences,
-                                        ocrBackfill: parts.ocrBackfill, text: text, strings: strings)
+                ClipNoteStorageSettings(store: parts.store, preferences: preferences, text: text, strings: strings)
             } else {
                 turnOnFirst
             }
@@ -138,6 +137,19 @@ struct ClipNoteSettings: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 PermissionRow(kind: .accessibility)
+            }
+        }
+
+        Section {
+            Toggle(isOn: $preferences.ocrEnabled) {
+                ClipNoteRowLabel(text.ocr, text.ocrCaption)
+            }
+            Toggle(isOn: $preferences.ocrBackfillEnabled) {
+                ClipNoteRowLabel(text.ocrBackfill, text.ocrBackfillCaption)
+            }
+            if let parts = service.parts {
+                ClipNoteOCRProgressRow(backfill: parts.ocrBackfill, enabled: preferences.ocrBackfillEnabled,
+                                       text: text)
             }
         }
 
@@ -281,7 +293,6 @@ private struct ClipNotePrivacySettings: View {
 private struct ClipNoteStorageSettings: View {
     let store: ClipStore
     @ObservedObject var preferences: ClipNotePreferences
-    @ObservedObject var ocrBackfill: ClipNoteOCRBackfill
     let text: ClipNoteSettingsStrings
     let strings: ClipNoteStrings
     @State private var count = 0
@@ -316,21 +327,6 @@ private struct ClipNoteStorageSettings: View {
             }
         }
         Section {
-            Toggle(isOn: $preferences.ocrEnabled) {
-                ClipNoteRowLabel(text.ocr, text.ocrCaption)
-            }
-            Toggle(isOn: $preferences.ocrBackfillEnabled) {
-                ClipNoteRowLabel(text.ocrBackfill, text.ocrBackfillCaption)
-            }
-            if ocrBackfill.stats.total > 0 {
-                LabeledContent {
-                    ClipNoteOCRProgress(backfill: ocrBackfill, enabled: preferences.ocrBackfillEnabled, text: text)
-                } label: {
-                    Text(text.ocrProgress)
-                }
-            }
-        }
-        Section {
             LabeledContent(text.itemCount) {
                 Text("\(count)").foregroundStyle(.secondary).monospacedDigit()
             }
@@ -357,6 +353,23 @@ private struct ClipNoteStorageSettings: View {
 }
 
 /// How far background recognition has got.
+/// The backfill's progress, once there are images to count.
+private struct ClipNoteOCRProgressRow: View {
+    @ObservedObject var backfill: ClipNoteOCRBackfill
+    let enabled: Bool
+    let text: ClipNoteSettingsStrings
+
+    var body: some View {
+        if backfill.stats.total > 0 {
+            LabeledContent {
+                ClipNoteOCRProgress(backfill: backfill, enabled: enabled, text: text)
+            } label: {
+                Text(text.ocrProgress)
+            }
+        }
+    }
+}
+
 private struct ClipNoteOCRProgress: View {
     @ObservedObject var backfill: ClipNoteOCRBackfill
     let enabled: Bool

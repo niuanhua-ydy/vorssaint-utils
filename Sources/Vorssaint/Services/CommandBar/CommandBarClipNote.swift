@@ -29,7 +29,7 @@ extension CommandBarCatalog {
             .map { clipNoteRow($0, query: nil, bar: bar, paste: paste) }
     }
 
-    /// Opening the panel and Paste Stack, among the bar's own actions.
+    /// Browsing clipboard history and opening Paste Stack among the bar's actions.
     static func clipNoteActionEntries(subtitle: String,
                                       panelShortcut: GlobalShortcut?,
                                       stackShortcut: GlobalShortcut?) -> [CommandBarEntry] {
@@ -41,14 +41,19 @@ extension CommandBarCatalog {
         return [
             CommandBarEntry(
                 id: "action.clipNote",
-                title: strings.title,
+                title: FeatureStrings.commandBar(L10n.shared.language).sourceClipboard,
                 subtitle: subtitle,
-                keywords: ["ClipNote", "clipboard", "history", "pinboard", ClipNoteStrings.enUS.title]
+                keywords: ["ClipNote", "clipboard", "history", "pinboard", "粘贴板历史",
+                           strings.title, ClipNoteStrings.enUS.title]
                     .joined(separator: " "),
                 icon: .symbol("list.clipboard"),
                 shortcut: panelShortcut,
-                trouble: trouble,
-                run: { _ in afterClipNoteBeat { ClipNoteService.shared.showPanel() } }),
+                keepsBarOpen: true,
+                run: { _ in
+                    let service = CommandBarService.shared
+                    service.query = ""
+                    service.setCategory(.clipboard)
+                }),
             CommandBarEntry(
                 id: "action.clipNoteStack",
                 title: strings.stackTitle,

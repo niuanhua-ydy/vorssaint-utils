@@ -32,6 +32,7 @@ struct MetricsTests {
                 ClipNoteBackupTests.run(suite)
                 ClipNoteNetworkTests.run(suite)
                 ClipNoteAppTests.run(suite)
+                ClipNoteStorageTests.run(suite)
             }),
             ("pointer-input", {
                 PointerOnDisplayContract.run(suite)
@@ -46,6 +47,7 @@ struct MetricsTests {
             ("preferences", { PreferencesFeatureTests.run(suite) }),
             ("app-management", {
                 AppManagementFeatureTests.run(suite)
+                UninstallerBackgroundJobsTests.run(suite)
                 DiskImageHomebrewTests.run(suite)
             }),
             ("window-layout", { WindowLayoutFeatureTests.run(suite) }),

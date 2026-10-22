@@ -53,6 +53,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     private let previewPanel = ClipNoteFloatingPanel()
     private let previewModel = ClipNotePreviewModel()
     let ai: ClipNoteAIController
+    private let textEditor: ClipNoteEditController
     private var eventMonitors: [Any] = []
     private var observers: [NSObjectProtocol] = []
     /// Where the mouse went down on a card (window coordinates), and that
@@ -73,6 +74,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         self.monitor = monitor
         model = ClipNotePanelModel(store: store)
         ai = ClipNoteAIController(store: store, preferences: preferences, monitor: monitor)
+        textEditor = ClipNoteEditController(store: store)
         super.init()
 
         let hosting = NSHostingView(rootView: ClipNotePanelView(model: model))
@@ -88,6 +90,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         model.onPaste = { [weak self] item, mode in self?.paste(item, mode: mode) }
         model.onCopy = { [weak self] item in self?.copy(item) }
         model.onPreview = { [weak self] item in self?.togglePreview(item) }
+        model.onEdit = { [weak self] item in self?.edit(item) }
         model.onOpenSettings = { [weak self] in
             self?.hide(restoreFocus: false)
             self?.onOpenSettings?(nil)
@@ -101,6 +104,12 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         }
         // After the AI window closes, the panel takes the keyboard back.
         ai.onClosed = { [weak self] in
+            guard let self, self.model.isPresented else { return }
+            self.panel.makeKey()
+        }
+        // The edited text is a new item; the selection follows it.
+        textEditor.onSaved = { [weak self] id in self?.model.selectedID = id }
+        textEditor.onClosed = { [weak self] in
             guard let self, self.model.isPresented else { return }
             self.panel.makeKey()
         }
@@ -181,12 +190,57 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             guard let self, event.window === self.panel else { return false }
             return ClipNoteScrollRedirect.handle(event, in: self.panel) == nil
         }
+
+        // A click on the empty desktop lands on a catcher and hides the panel.
+        addMonitor([.leftMouseDown, .rightMouseDown, .otherMouseDown]) { [weak self] event in
+            guard let self, let window = event.window,
+                  self.desktopCatchers.contains(where: { $0 === window }) else { return false }
+            self.hide()
+            return true
+        }
+    }
+
+    // MARK: - Desktop clicks
+
+    /// Clear windows just above the wallpaper, one per screen, while the panel
+    /// is open. A click on the empty desktop makes no app active (with desktop
+    /// icons off nothing owns it, and other apps' clicks never reach a global
+    /// monitor), so the resign-active path never hears of it; it reaches these
+    /// instead. They sit below Finder's icons and every other window, so a
+    /// click on anything else goes where it always did.
+    private var desktopCatchers: [NSPanel] = []
+
+    private func showDesktopCatchers() {
+        hideDesktopCatchers()
+        let level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) + 1)
+        desktopCatchers = NSScreen.screens.map { screen in
+            let catcher = NSPanel(contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
+                                  backing: .buffered, defer: false)
+            catcher.level = level
+            catcher.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            catcher.isOpaque = false
+            catcher.backgroundColor = .clear
+            catcher.hasShadow = false
+            // Set explicitly, a clear window takes clicks rather than passing them through.
+            catcher.ignoresMouseEvents = false
+            catcher.animationBehavior = .none
+            catcher.isReleasedWhenClosed = false
+            catcher.setFrame(screen.frame, display: false)
+            catcher.orderFrontRegardless()
+            return catcher
+        }
+    }
+
+    private func hideDesktopCatchers() {
+        desktopCatchers.forEach { $0.orderOut(nil) }
+        desktopCatchers = []
     }
 
     /// Removes every monitor and window; the controller is done after this.
     func tearDown() {
         hide(restoreFocus: false)
         ai.tearDown()
+        textEditor.tearDown()
         eventMonitors.forEach(NSEvent.removeMonitor)
         eventMonitors = []
         observers.forEach(NotificationCenter.default.removeObserver)
@@ -251,6 +305,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         NSApp.activate()
         panel.orderFrontRegardless()
         panel.makeKey()
+        showDesktopCatchers()
         focusSearch()
 
         // The slide in starts once the window is really on screen, or it
@@ -314,6 +369,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     /// user already switched elsewhere).
     func hide(restoreFocus: Bool = true, completion: (() -> Void)? = nil) {
         restoreParkedWindows()
+        hideDesktopCatchers()
         guard panel.isVisible, model.isPresented else {
             completion?()
             return
@@ -330,6 +386,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             model.isPresented = false
         }
         ai.close()
+        textEditor.close(saving: true)
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.hideDuration) { [weak self] in
             MainActor.assumeIsolated {
                 guard let self, generation == self.presentationGeneration else { return }
@@ -534,14 +591,25 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
 
     private func runAI(_ action: ClipNoteAIAction, on item: ClipItem) {
         hidePreview()
+        textEditor.close(saving: true)
         model.select(item)
         ai.run(action, on: item, above: panel)
     }
 
     private func beginCustomAI(on item: ClipItem) {
         hidePreview()
+        textEditor.close(saving: true)
         model.select(item)
         ai.beginCustom(on: item, above: panel)
+    }
+
+    /// Opens a text item in the editor window above the panel.
+    private func edit(_ item: ClipItem) {
+        guard ClipNoteEditController.isAvailable(for: item) else { return }
+        hidePreview()
+        ai.close()
+        model.select(item)
+        textEditor.edit(item, above: panel)
     }
 
     // MARK: - Keyboard
@@ -551,7 +619,8 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         return editor.selectedRange().length > 0
     }
 
-    private func handleTextEditingKey(_ keyCode: Int, flags: NSEvent.ModifierFlags, editor: NSTextView) -> Bool {
+    /// The standard editing keys in a text view; the editor window uses them too.
+    static func handleTextEditingKey(_ keyCode: Int, flags: NSEvent.ModifierFlags, editor: NSTextView) -> Bool {
         let hasSelection = editor.selectedRange().length > 0
         switch (keyCode, flags) {
         case (kVK_ANSI_A, .command), (kVK_ANSI_A, .control):
@@ -589,7 +658,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         // The standard editing keys in a field (select all, cut, copy, paste,
         // undo); the panel has no Edit menu to route them. ⌃A selects all too,
         // over macOS's own "move to line start".
-        if let editor = panel.firstResponder as? NSTextView, handleTextEditingKey(keyCode, flags: flags, editor: editor) {
+        if let editor = panel.firstResponder as? NSTextView, Self.handleTextEditingKey(keyCode, flags: flags, editor: editor) {
             return true
         }
 
@@ -615,6 +684,8 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         case kVK_Escape:
             if ai.isVisible {
                 ai.close()
+            } else if textEditor.isVisible {
+                textEditor.close(saving: false)
             } else if previewPanel.isVisible {
                 hidePreview()
             } else if !model.query.isEmpty {
@@ -679,6 +750,9 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             return true
         case kVK_ANSI_Y:
             if let item = model.selectedItem { togglePreview(item) }
+            return true
+        case kVK_ANSI_E:
+            if let item = model.selectedItem { edit(item) }
             return true
         case kVK_ANSI_Comma:
             model.onOpenSettings?()

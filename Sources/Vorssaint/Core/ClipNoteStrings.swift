@@ -28,6 +28,11 @@ struct ClipNoteStrings {
     let rename: String
     let color: String
     let preview: String
+    let editEllipsis: String
+    let editTitle: String
+    let save: String
+    let editSaveHelp: String
+    let editRichNote: String
     let revealInFinder: String
     let openInBrowser: String
     let retry: String
@@ -380,6 +385,11 @@ extension ClipNoteStrings {
         rename: "Rename",
         color: "Color",
         preview: "Preview",
+        editEllipsis: "Edit…",
+        editTitle: "Edit",
+        save: "Save",
+        editSaveHelp: "Save (⌘S)",
+        editRichNote: "Saving keeps the text and drops its formatting",
         revealInFinder: "Show in Finder",
         openInBrowser: "Open in Browser",
         retry: "Try Again",
@@ -609,6 +619,11 @@ extension ClipNoteStrings {
         rename: "重命名",
         color: "颜色",
         preview: "预览",
+        editEllipsis: "编辑…",
+        editTitle: "编辑",
+        save: "保存",
+        editSaveHelp: "保存（⌘S）",
+        editRichNote: "保存后只保留文字，原有格式会去掉",
         revealInFinder: "在访达中显示",
         openInBrowser: "在浏览器中打开",
         retry: "重试",
@@ -838,6 +853,11 @@ extension ClipNoteStrings {
         rename: "名前を変更",
         color: "カラー",
         preview: "プレビュー",
+        editEllipsis: "編集…",
+        editTitle: "編集",
+        save: "保存",
+        editSaveHelp: "保存（⌘S）",
+        editRichNote: "保存するとテキストだけが残り、書式は失われます",
         revealInFinder: "Finder に表示",
         openInBrowser: "ブラウザで開く",
         retry: "再試行",
@@ -1067,6 +1087,11 @@ extension ClipNoteStrings {
         rename: "이름 변경",
         color: "색상",
         preview: "미리보기",
+        editEllipsis: "편집…",
+        editTitle: "편집",
+        save: "저장",
+        editSaveHelp: "저장 (⌘S)",
+        editRichNote: "저장하면 텍스트만 남고 서식은 사라집니다",
         revealInFinder: "Finder에서 보기",
         openInBrowser: "브라우저에서 열기",
         retry: "다시 시도",

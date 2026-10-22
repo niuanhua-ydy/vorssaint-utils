@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint a quitté alors que la veille du Mac était désactivée. Saisissez le mot de passe pour rétablir la veille normale.",
         adminPromptSudoersInstall: "Vorssaint va créer une règle restreinte (pmset disablesleep uniquement) pour basculer le mode écran rabattu sans demander de mot de passe. C’est la seule fois où le mot de passe est nécessaire.",
         adminPromptSudoersRemove: "Vorssaint va supprimer la règle d’écran rabattu sans mot de passe.",
+        adminPromptUninstallerServices: "Vorssaint a besoin de votre mot de passe pour arrêter les services d’arrière-plan encore actifs de cette app avant de la supprimer.",
 
         settingsTitle: "Réglages de Vorssaint",
         tabGeneral: "Général",

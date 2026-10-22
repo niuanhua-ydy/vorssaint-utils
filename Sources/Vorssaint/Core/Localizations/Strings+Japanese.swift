@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Mac のスリープを無効化したまま Vorssaint が終了しました。通常のスリープに戻すにはパスワードを入力してください。",
         adminPromptSudoersInstall: "ふたを閉じたモードをパスワードなしで切り替えられるよう、Vorssaint が制限付きルール（pmset disablesleep のみ）を作成します。パスワードが必要なのはこの一度きりです。",
         adminPromptSudoersRemove: "パスワード不要のふたを閉じたモードのルールを Vorssaint が削除します。",
+        adminPromptUninstallerServices: "削除の前にこのアプリのバックグラウンドサービスを停止するため、Vorssaint にパスワードが必要です。",
 
         settingsTitle: "Vorssaint 設定",
         tabGeneral: "一般",

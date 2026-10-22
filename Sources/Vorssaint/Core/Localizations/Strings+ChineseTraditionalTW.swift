@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint 在 Mac 睡眠被停用時結束了。請輸入密碼以恢復正常睡眠。",
         adminPromptSudoersInstall: "Vorssaint 將建立一條受限規則（僅限 pmset disablesleep），用於切換闔蓋模式時不需要輸入密碼。這是唯一一次需要密碼。",
         adminPromptSudoersRemove: "Vorssaint 將移除免密碼的闔蓋規則。",
+        adminPromptUninstallerServices: "Vorssaint 需要您的密碼，才能在解除安裝前停止這個 App 仍在執行的背景服務。",
 
         settingsTitle: "Vorssaint 設定",
         tabGeneral: "通用",

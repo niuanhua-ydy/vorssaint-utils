@@ -132,6 +132,7 @@ enum CommandBarFeatureTests {
         CommandBarInputSourceContract.run(suite)
         CommandBarTerminationContract.run(suite)
         CommandBarAppSortContract.run(suite)
+        CommandBarLauncherTests.run(suite)
         CommandBarKillProcessOrderContract.run(suite)
         CommandBarPortLoadContract.run(suite)
         CommandBarPortRowsContract.run(suite)

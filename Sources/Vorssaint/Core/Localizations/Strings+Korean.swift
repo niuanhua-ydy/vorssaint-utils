@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Mac의 절전이 비활성화된 상태에서 Vorssaint가 종료되었습니다. 일반 절전 모드를 복원하려면 암호를 입력하세요.",
         adminPromptSudoersInstall: "덮개 닫힘 모드를 암호 없이 전환할 수 있도록 Vorssaint가 제한된 규칙(pmset disablesleep만)을 만듭니다. 암호는 이번 한 번만 필요합니다.",
         adminPromptSudoersRemove: "Vorssaint가 암호 없이 사용하는 덮개 닫힘 모드 규칙을 제거합니다.",
+        adminPromptUninstallerServices: "제거하기 전에 이 앱의 백그라운드 서비스를 중지하려면 Vorssaint에 암호가 필요합니다.",
 
         settingsTitle: "Vorssaint 설정",
         tabGeneral: "일반",

@@ -52,6 +52,8 @@ struct CommandBarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @FocusState private var searchFocused: Bool
     @State private var showHomebrewDetails = false
+    /// The row under the pointer, lit softly. Only a click selects it.
+    @State private var hoveredRowID: String?
 
     /// The mark, made a handle. Dragging rides on AppKit's own window
     /// dragging — the same machinery a title bar uses — rather than a
@@ -648,9 +650,7 @@ struct CommandBarView: View {
     private func row(_ entry: CommandBarEntry, index: Int) -> some View {
         let isSelected = index == service.selectedIndex
         return Button {
-            // By identity, not by position: a background load can rebuild the
-            // list between the click and this call.
-            service.run(entry, fromClick: true)
+            service.click(entry)
         } label: {
             HStack(spacing: 10) {
                 iconView(entry)
@@ -707,12 +707,14 @@ struct CommandBarView: View {
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(isSelected ? Color.accentColor.opacity(0.14) : .clear)
+                    .fill(isSelected ? Color.accentColor.opacity(0.14)
+                          : hoveredRowID == entry.id ? Color.primary.opacity(0.06) : .clear)
             )
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            if hovering { service.selectFromHover(index) }
+            if hovering { hoveredRowID = entry.id }
+            else if hoveredRowID == entry.id { hoveredRowID = nil }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel(entry))

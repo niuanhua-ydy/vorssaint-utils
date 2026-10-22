@@ -255,9 +255,6 @@ final class CommandBarService: ObservableObject {
     private var completedQuery: String?
     /// The last thing typed, kept only in memory so reopening can offer it.
     private var lastQuery = ""
-    /// Where the pointer sat when the bar opened. A row under a pointer that
-    /// has not moved must not steal the selection from the keyboard.
-    private var lastPointerLocation = NSPoint.zero
     private var panelScreen: NSRect?
     /// The island's panel while the bar is open inside it.
     private weak var islandHost: NSPanel?
@@ -415,7 +412,6 @@ final class CommandBarService: ObservableObject {
         completedQuery = nil
         queryWhenRun = ""
         selectionWhenRun = ""
-        lastPointerLocation = NSEvent.mouseLocation
         selectedID = nil
         lastRankedQuery = nil
         activeCategory = nil
@@ -1825,21 +1821,6 @@ final class CommandBarService: ObservableObject {
             rows.append(contentsOf: members.prefix(Self.browseGroupLimit))
         }
 
-        // What was copied comes last, behind a scroll: it belongs in the bar,
-        // but not on screen over whatever the person is doing every time it
-        // opens.
-        if isEnabled(.clipboard) {
-            let copied = (CommandBarCatalog.clipboardBrowseEntries(limit: 6, bar: bar) {
-                [weak self] entry in
-                self?.paste(entry)
-            } + CommandBarCatalog.clipNoteBrowseEntries(limit: 6, bar: bar) { [weak self] id in
-                self?.pasteClipNote(id)
-            }).filter { !hidden.contains($0.stableKey) && shown.insert($0.id).inserted }
-            if !copied.isEmpty {
-                titles[rows.count] = bar.kindClipboard
-                rows.append(contentsOf: copied)
-            }
-        }
         return (rows, titles)
     }
 
@@ -2020,8 +2001,8 @@ final class CommandBarService: ObservableObject {
             fileSearch.cancelPending()
         }
 
-        // "brilho 40" is a command with a value; "code 1234" is a search for
-        // something copied. The number is only taken off when a command that
+        // "brilho 40" is a command with a value; "code 1234" is a search.
+        // The number is only taken off when a command that
         // actually takes one answers to what is left.
         let split = CommandBarSearch.splitTrailingNumber(trimmed)
         let effectiveQuery = split.number != nil && numericCommandMatches(split.text)
@@ -2030,15 +2011,6 @@ final class CommandBarService: ObservableObject {
 
         let usage = usageCache
         let now = Date().timeIntervalSince1970
-
-        // The clipboard is searched with everything that was typed: digits
-        // are part of what people look for.
-        let clipboard = CommandBarCatalog.clipboardEntries(matching: trimmed,
-                                                           bar: bar) { [weak self] entry in
-            self?.paste(entry)
-        } + CommandBarCatalog.clipNoteEntries(matching: trimmed, bar: bar) { [weak self] id in
-            self?.pasteClipNote(id)
-        }
 
         let names = aliasCache
         let pinnedKeys = pinCache
@@ -2079,7 +2051,6 @@ final class CommandBarService: ObservableObject {
         if effectiveQuery.count >= 2 {
             pool.append(contentsOf: menuEntries)
         }
-        pool.append(contentsOf: clipboard)
         pool.append(contentsOf: fileRows)
 
         // The kind of each surviving row, worked out once: the ranking below
@@ -2143,9 +2114,11 @@ final class CommandBarService: ObservableObject {
                                     + (pinnedKeys.contains(entry.stableKey)
                                         ? CommandBarPreferences.pinTieBreak : 0))
         }
-        let ranked = CommandBarSearch.featureOrdered(
-            CommandBarSearch.rankedIndexes(candidates: candidates, matching: effectiveQuery),
-            id: { pool[$0].id }, priority: { candidates[$0].priority })
+        let ranked = CommandBarSearch.launcherOrdered(
+            CommandBarSearch.featureOrdered(
+                CommandBarSearch.rankedIndexes(candidates: candidates, matching: effectiveQuery),
+                id: { pool[$0].id }, priority: { candidates[$0].priority }),
+            id: { pool[$0].id })
 
         // A fact about the Mac only shows when it was asked for by name:
         // "st" must not answer "Storage" over what the person meant.
@@ -2246,15 +2219,18 @@ final class CommandBarService: ObservableObject {
         selectedID = rows[index].id
     }
 
-    /// Hover selection, ignored until the pointer really moves. SwiftUI
-    /// reports a hover for whatever row slides under a still cursor, and the
-    /// list slides on every keystroke, so a resting pointer would keep
-    /// stealing the selection back from the keyboard.
-    func selectFromHover(_ index: Int) {
-        let location = NSEvent.mouseLocation
-        guard location != lastPointerLocation else { return }
-        lastPointerLocation = location
-        select(index)
+    /// A click selects the row and shows its details; a double click runs
+    /// it, as Return would. A press with no mouse behind it, VoiceOver's,
+    /// runs at once: it has no second click to wait for. By identity, not by
+    /// position: a background load can rebuild the list between the click
+    /// and this call.
+    func click(_ entry: CommandBarEntry) {
+        guard case .search = mode else { return }
+        if let event = NSApp.currentEvent, event.type == .leftMouseUp, event.clickCount < 2 {
+            if let index = rows.firstIndex(where: { $0.id == entry.id }) { select(index) }
+            return
+        }
+        run(entry)
     }
 
     var selectedEntry: CommandBarEntry? {
@@ -3162,14 +3138,6 @@ final class CommandBarService: ObservableObject {
     func run(at index: Int) {
         guard case .search = mode, rows.indices.contains(index) else { return }
         run(rows[index])
-    }
-
-    /// Runs the row the person actually clicked, by identity: between the
-    /// click and this call the list may have been rebuilt by a background
-    /// load, and a position would then point at a different command.
-    func run(_ entry: CommandBarEntry, fromClick: Bool) {
-        guard case .search = mode, fromClick else { return }
-        run(entry)
     }
 
     private func beginUninstallReview(appURL url: URL, entryID: String) {

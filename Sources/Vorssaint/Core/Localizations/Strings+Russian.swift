@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint завершился, пока сон Mac был отключён. Введите пароль, чтобы вернуть обычный режим сна.",
         adminPromptSudoersInstall: "Vorssaint создаст ограниченное правило (только pmset disablesleep), чтобы переключать режим закрытой крышки без запроса пароля. Пароль понадобится только сейчас.",
         adminPromptSudoersRemove: "Vorssaint удалит правило для режима закрытой крышки без пароля.",
+        adminPromptUninstallerServices: "Vorssaint нужен ваш пароль, чтобы остановить фоновые службы этого приложения перед удалением.",
 
         settingsTitle: "Настройки Vorssaint",
         tabGeneral: "Основное",

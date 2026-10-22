@@ -381,15 +381,22 @@ enum CommandBarCatalog {
             let canUseHistory = CommandBarClipboardAccess.canUseHistory(
                 captureEnabled: keepsHistory,
                 hasSavedItems: !ClipboardHistoryService.shared.entries.isEmpty)
-            entries.append(CommandBarEntry(
-                id: "action.clipboardWindow",
-                title: clipboard.title,
-                subtitle: area(.clipboardHistory, under: clipboard.title),
-                icon: .symbol("doc.on.clipboard"),
-                shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
-                trouble: canUseHistory ? nil
-                    : .needsSetup(featureTitle: clipboard.title, page: .clipboard),
-                run: { _ in afterBeat(0.1) { ClipboardHistoryService.shared.showHistoryWindow() } }))
+            // ClipNote owns the single history entrance when both backends exist.
+            if !AppFeature.clipNote.isAvailable {
+                entries.append(CommandBarEntry(
+                    id: "action.clipboardWindow",
+                    title: bar.sourceClipboard,
+                    subtitle: area(.clipboardHistory, under: clipboard.title),
+                    keywords: "clipboard history 粘贴板历史 " + clipboard.title,
+                    icon: .symbol("doc.on.clipboard"),
+                    shortcut: keepsHistory ? roleShortcut(.clipboard) : nil,
+                    keepsBarOpen: true,
+                    run: { _ in
+                        let service = CommandBarService.shared
+                        service.query = ""
+                        service.setCategory(.clipboard)
+                    }))
+            }
             // Counted when the bar lists it: a copy made before confirming is kept.
             let recentIDs = ClipboardHistoryService.shared.recentEntriesSnapshot
             entries.append(CommandBarEntry(

@@ -236,6 +236,57 @@ public final class ClipStore: @unchecked Sendable {
         }
     }
 
+    /// 编辑正文。内容即身份（哈希，也是同步的键），所以编辑是以新正文替换原条目：原条目删除
+    /// （同步为删除），新条目移到最前，沿用原有的创建时间、使用次数、分类、标题与 AI 字段。
+    /// 更新时间取当前时间，否则改回曾经删除过的正文时，其他设备会因删除记录更晚而忽略它。
+    /// 新正文与另一条已有条目相同时并入那一条（移到最前，仅在其尚无分类 / 标题时补上）。
+    /// 返回编辑后条目的 id；原条目已不存在时返回 nil。
+    @discardableResult
+    public func replaceContent(itemID: Int64, with clip: NewClip) throws -> Int64? {
+        var files: [String] = []
+        let id: Int64? = try mutate {
+            guard let old = try db.query("""
+                SELECT hash, created_at, use_count, pinboard_id, pinned_at, title, title_at, tags, ai_summary
+                FROM clip_item WHERE id = ?
+                """, [.int(itemID)], map: { row in
+                    (hash: row.text(0), createdAt: row.double(1), useCount: row.int(2), pinboardID: row.optionalInt(3),
+                     pinnedAt: row.double(4), title: row.optionalText(5), titledAt: row.double(6),
+                     tags: row.optionalText(7), aiSummary: row.optionalText(8))
+                }).first else { return nil }
+            guard old.hash != clip.hash else { return itemID }
+            let now = Date().timeIntervalSince1970
+
+            if let existing = try db.query("SELECT id, pinboard_id, title FROM clip_item WHERE hash = ?",
+                                           [.text(clip.hash)], map: { ($0.int(0), $0.optionalInt(1), $0.optionalText(2)) }).first {
+                files = try deleteLocked("id = ?", [.int(itemID)], recordSync: true, at: now)
+                var changed = false
+                if existing.1 == nil, let board = old.pinboardID {
+                    try db.run("UPDATE clip_item SET pinboard_id = ?, pinned_at = ? WHERE id = ?",
+                               [.int(board), .double(old.pinnedAt), .int(existing.0)])
+                    changed = true
+                }
+                if existing.2 == nil, let title = old.title {
+                    try db.run("UPDATE clip_item SET title = ?, title_at = ? WHERE id = ?",
+                               [.text(title), .double(old.titledAt), .int(existing.0)])
+                    changed = true
+                }
+                if changed { try recordItemChangeLocked(where: "id = ?", [.int(existing.0)], kind: .meta) }
+                try renewLocked(where: "id = ?", [.int(existing.0)])
+                return existing.0
+            }
+
+            files = try deleteLocked("id = ?", [.int(itemID)], recordSync: true, at: now)
+            let date = Date()
+            let imported = ImportedClip(clip: clip, createdAt: Date(timeIntervalSince1970: old.createdAt),
+                                        updatedAt: date, useCount: Int(old.useCount), pinboardID: old.pinboardID,
+                                        tags: old.tags, aiSummary: old.aiSummary, title: old.title, titledAt: old.titledAt)
+            return try insertLocked(clip, date: date, imported: imported, pinnedAt: old.pinnedAt)
+        }
+        removeFiles(files)
+        notifyChange()
+        return id
+    }
+
     // MARK: - 图片文字识别状态
 
     public enum OCRState: Int, Sendable {

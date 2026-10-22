@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint se cerró mientras el reposo del Mac estaba desactivado. Introduce la contraseña para restaurar el reposo normal.",
         adminPromptSudoersInstall: "Vorssaint creará una regla restringida (solo pmset disablesleep) para alternar el modo de tapa cerrada sin pedir contraseña. Esta es la única vez que se necesita la contraseña.",
         adminPromptSudoersRemove: "Vorssaint eliminará la regla de tapa cerrada sin contraseña.",
+        adminPromptUninstallerServices: "Vorssaint necesita tu contraseña para detener los servicios en segundo plano de esta app antes de eliminarla.",
 
         settingsTitle: "Ajustes de Vorssaint",
         tabGeneral: "General",

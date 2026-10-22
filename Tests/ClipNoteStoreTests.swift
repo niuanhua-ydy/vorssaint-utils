@@ -14,6 +14,7 @@ enum ClipNoteStoreTests {
         migration(suite)
         pinboardsAndFiles(suite)
         titles(suite)
+        editing(suite)
         ocrBackfill(suite)
         mergeImport(suite)
         textUtilities(suite)
@@ -311,6 +312,48 @@ enum ClipNoteStoreTests {
             store.setTitle(itemID: id, title: "")
             suite.expect(store.item(id: id)?.title == nil, "an empty title clears it")
             suite.expectEqual(store.item(id: id)?.displayTitle, ClipType.text.displayName, "a cleared title shows the type again")
+        }
+    }
+
+    private static func editing(_ suite: TestSuite) {
+        suite.clipNoteCase("editing content") { scratch in
+            let store = try scratch.store()
+            store.isSyncRecording = true
+            func clip(_ text: String) -> NewClip {
+                NewClip(type: .text, content: text, searchText: text, charCount: text.count, hash: ContentHash.forText(text))
+            }
+            let t = Date(timeIntervalSince1970: 1_700_000_000)
+            let id = try store.insert(clip("部署到测试环境"), date: t)
+            store.markUsed(id: id)
+            let board = try clipNoteUnwrap(store.createPinboard(name: "常用", color: "#FF9F0A"), "pinboard")
+            store.setPinboard(itemID: id, pinboardID: board.id)
+            store.setTitle(itemID: id, title: "部署")
+            try store.addTestText("更新的另一条")
+
+            let edited = try clipNoteUnwrap(store.replaceContent(itemID: id, with: clip("部署到生产环境")), "edited id")
+            suite.expect(store.item(id: id) == nil, "the old item is gone")
+            let item = try clipNoteUnwrap(store.item(id: edited), "edited item")
+            suite.expectEqual(item.content, "部署到生产环境", "an edit replaces the content")
+            suite.expectEqual(item.title, "部署", "an edit keeps the title")
+            suite.expectEqual(item.pinboardID, board.id, "an edit keeps the pinboard")
+            suite.expectEqual(item.useCount, 1, "an edit keeps the use count")
+            suite.expectEqual(item.createdAt, t, "an edit keeps the creation date")
+            suite.expectEqual(store.fetch(ClipQuery()).first?.id, edited, "an edited item moves to the front")
+            suite.expectEqual(store.fetch(ClipQuery(text: "生产")).map(\.id), [edited], "the index finds the new text")
+            suite.expect(store.fetch(ClipQuery(text: "测试环境")).isEmpty, "the index forgets the old text")
+            let keys = Dictionary(uniqueKeysWithValues: store.pendingSyncChanges().map { ($0.key, $0.kind) })
+            suite.expectEqual(keys["item:" + ContentHash.forText("部署到测试环境")], .delete, "the old content syncs as deleted")
+            suite.expectEqual(keys["item:" + ContentHash.forText("部署到生产环境")], .upsert, "the new content syncs as added")
+
+            suite.expectEqual(try store.replaceContent(itemID: edited, with: clip("部署到生产环境")), edited,
+                              "saving unchanged text keeps the item")
+            let other = try clipNoteUnwrap(store.itemID(hash: ContentHash.forText("更新的另一条")), "other id")
+            suite.expectEqual(try store.replaceContent(itemID: edited, with: clip("更新的另一条")), other,
+                              "editing into existing text merges with that item")
+            suite.expectEqual(store.count(), 1, "the merge leaves one item")
+            suite.expectEqual(store.item(id: other)?.title, "部署", "the merged item takes the missing title")
+            suite.expectEqual(store.item(id: other)?.pinboardID, board.id, "the merged item takes the missing pinboard")
+            suite.expect(try store.replaceContent(itemID: id, with: clip("x")) == nil, "a missing item edits nothing")
         }
     }
 

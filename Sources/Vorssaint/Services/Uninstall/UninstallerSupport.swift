@@ -670,7 +670,154 @@ enum UninstallerSupport {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Background jobs
+
+    /// Where launchd runs the job a plist describes: an agent in the
+    /// person's login session, a daemon in the system, which only an
+    /// administrator may stop.
+    enum LaunchDomain: Equatable {
+        case gui, system
+    }
+
+    /// The domain of a leftover plist, read from the folder that holds it.
+    /// Only the launchd folders count; a plist found anywhere else is data.
+    static func launchDomain(forLeftoverAt url: URL, home: URL) -> LaunchDomain? {
+        guard url.pathExtension.lowercased() == "plist" else { return nil }
+        let parent = url.deletingLastPathComponent().standardizedFileURL.path
+        let userAgents = home.appendingPathComponent("Library/LaunchAgents", isDirectory: true)
+            .standardizedFileURL.path
+        if parent == userAgents || parent == "/Library/LaunchAgents" { return .gui }
+        if parent == "/Library/LaunchDaemons" { return .system }
+        return nil
+    }
+
+    /// The domain of a plist an app ships for SMAppService, which registers
+    /// it from Contents/Library inside the bundle rather than copying it out.
+    static func launchDomain(forEmbeddedPlistAt url: URL, in appURL: URL) -> LaunchDomain? {
+        guard url.pathExtension.lowercased() == "plist" else { return nil }
+        let parent = url.deletingLastPathComponent().standardizedFileURL.path
+        let library = appURL.appendingPathComponent("Contents/Library", isDirectory: true)
+            .standardizedFileURL.path
+        if parent == library + "/LaunchAgents" { return .gui }
+        if parent == library + "/LaunchDaemons" { return .system }
+        return nil
+    }
+
+    /// The label a launchd plist names, when it may be handed to launchctl:
+    /// plain reverse-DNS characters, never a protected identifier, and tied
+    /// to the plist's own file name, to an identifier the app owns or to a
+    /// program inside the app, so a plist cannot point the removal at
+    /// another product's job.
+    static func launchJobLabel(_ plist: [String: Any],
+                               fileName: String,
+                               ownerBundleIDs: Set<String>,
+                               runsFromBundle: Bool = false) -> String? {
+        guard let label = plist["Label"] as? String,
+              !label.isEmpty, label.count <= 255,
+              !label.hasPrefix("."), !label.hasPrefix("-"), !label.contains(".."),
+              label.unicodeScalars.allSatisfy(launchLabelCharacters.contains),
+              !CleanerSupport.isProtectedBundleID(label) else { return nil }
+        if runsFromBundle { return label }
+        let stem = (fileName as NSString).deletingPathExtension
+        if label.caseInsensitiveCompare(stem) == .orderedSame { return label }
+        let lowered = label.lowercased()
+        let owned = ownerBundleIDs.contains { id in
+            let lowerID = id.lowercased()
+            return lowered == lowerID || lowered.hasPrefix(lowerID + ".")
+        }
+        return owned ? label : nil
+    }
+
+    /// The privileged helpers an app installs with SMJobBless, named in its
+    /// Info.plist. Each label names the helper's launchd plist and its tool
+    /// in PrivilegedHelperTools, so it identifies them as surely as a bundle
+    /// identifier identifies the app.
+    static func privilegedHelperLabels(infoDictionary: [String: Any]?) -> Set<String> {
+        guard let helpers = infoDictionary?["SMPrivilegedExecutables"] as? [String: Any] else { return [] }
+        return Set(helpers.keys.compactMap(verifiedBundleID))
+    }
+
+    /// Whether a launchd plist runs a program from inside the selected app.
+    /// Only absolute paths count; the bundle is compared as found on disk.
+    static func launchPlistRunsFromBundle(_ plist: [String: Any], appURL: URL) -> Bool {
+        let appPaths = Set([appURL.standardizedFileURL.path,
+                            appURL.resolvingSymlinksInPath().standardizedFileURL.path])
+        return CleanerSupport.executablePaths(inLaunchPlist: plist).contains { raw in
+            let path = URL(fileURLWithPath: raw).standardizedFileURL.path
+            return appPaths.contains { path.hasPrefix($0 + "/") }
+        }
+    }
+
+    /// The launchctl service target for a job, such as gui/501/com.vendor.agent.
+    static func launchServiceTarget(label: String, domain: LaunchDomain, uid: uid_t) -> String {
+        switch domain {
+        case .gui: return "gui/\(uid)/\(label)"
+        case .system: return "system/\(label)"
+        }
+    }
+
+    /// One administrator command that stops every running system job. Labels
+    /// come from launchJobLabel, whose characters need no shell quoting; the
+    /// trailing true keeps a job that stopped meanwhile from failing the rest.
+    static func systemBootoutCommand(labels: [String]) -> String? {
+        let safe = labels.filter { $0.unicodeScalars.allSatisfy(launchLabelCharacters.contains) }
+        guard !safe.isEmpty else { return nil }
+        return (safe.map { "/bin/launchctl bootout system/\($0)" } + ["true"])
+            .joined(separator: "; ")
+    }
+
+    // MARK: - Command-line links
+
+    /// Folders on the shell's search path where an app links its command-line
+    /// tool into its own bundle, as Visual Studio Code does with code.
+    static func commandLinkFolders(home: URL) -> [URL] {
+        [
+            URL(fileURLWithPath: "/usr/local/bin", isDirectory: true),
+            URL(fileURLWithPath: "/opt/homebrew/bin", isDirectory: true),
+            home.appendingPathComponent(".local/bin", isDirectory: true),
+            home.appendingPathComponent("bin", isDirectory: true),
+        ].map(\.standardizedFileURL)
+    }
+
+    /// Whether an entry is a link, straight in a command folder, whose
+    /// destination lies inside the selected app. A script or a copied binary
+    /// may be the person's own; a link into the bundle can only be the app's.
+    static func commandLinkPointsInto(_ link: URL, appURL: URL, folders: [URL]) -> Bool {
+        guard commandLinkLocationIsSafe(link, folders: folders) else { return false }
+        let appPaths = Set([appURL.standardizedFileURL.path,
+                            appURL.resolvingSymlinksInPath().standardizedFileURL.path])
+        // The link's own destination, and where the chain of links ends:
+        // either one inside the bundle makes it the app's.
+        var destinations = [link.resolvingSymlinksInPath().standardizedFileURL.path]
+        if let raw = try? FileManager.default.destinationOfSymbolicLink(atPath: link.path) {
+            let first = raw.hasPrefix("/")
+                ? URL(fileURLWithPath: raw)
+                : link.deletingLastPathComponent().appendingPathComponent(raw)
+            destinations.append(first.standardizedFileURL.path)
+        }
+        return destinations.contains { destination in
+            appPaths.contains { destination.hasPrefix($0 + "/") }
+        }
+    }
+
+    /// A link may be trashed only while it is still a link directly inside a
+    /// command folder that is itself no link. Once the bundle has gone the
+    /// link dangles, so the destination is proven by the scan and the file
+    /// identity, not read again here.
+    static func commandLinkLocationIsSafe(_ link: URL, folders: [URL]) -> Bool {
+        let parent = link.deletingLastPathComponent().standardizedFileURL
+        guard folders.contains(where: { $0.standardizedFileURL.path == parent.path }),
+              isSymbolicLink(link),
+              parent.resolvingSymlinksInPath().standardizedFileURL.path == parent.path
+        else { return false }
+        return true
+    }
+
     // MARK: - Private
+
+    /// What a launchd label may hold to be passed on: reverse-DNS characters.
+    private static let launchLabelCharacters = CharacterSet(
+        charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-")
 
     private struct LibraryFolderSpec: Equatable {
         let relative: String

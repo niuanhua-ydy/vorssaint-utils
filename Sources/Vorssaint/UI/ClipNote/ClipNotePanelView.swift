@@ -494,6 +494,9 @@ private struct ClipNoteCardMenu: View {
         }
         Button(strings.copy) { model.copy(item) }
         Button(strings.preview) { model.onPreview?(item) }
+        if ClipNoteEditController.isAvailable(for: item) {
+            Button(strings.editEllipsis) { model.onEdit?(item) }
+        }
 
         let actions = ClipNoteTextAction.textCleaning.filter { $0.isAvailable(item) }
         if !actions.isEmpty {

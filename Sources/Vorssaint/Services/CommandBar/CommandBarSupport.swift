@@ -377,6 +377,23 @@ enum CommandBarSearch {
             .map(\.index)
     }
 
+    /// Ordinary search is a launcher first. Keep the existing match and habit
+    /// order within each group, but put apps and quick actions before discovery.
+    static func launcherOrdered(_ ranked: [Int], id: (Int) -> String) -> [Int] {
+        var primary: [Int] = []
+        var secondary: [Int] = []
+        for index in ranked {
+            let rowID = id(index)
+            if CommandBarPreferences.source(ofRowID: rowID) == .apps
+                || CommandBarPreferences.isActionRow(rowID) {
+                primary.append(index)
+            } else {
+                secondary.append(index)
+            }
+        }
+        return primary + secondary
+    }
+
     /// A feature's own rows keep one order whatever their titles score: its
     /// main command, then its presets, then its Settings page. Ranked by title
     /// alone, the page named exactly like the feature led, the presets that

@@ -398,6 +398,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Recorder/RecorderGIFWorkspace.swift
         Sources/Vorssaint/Services/Recorder/RecorderComposition.swift
         Sources/Vorssaint/Services/PrivateFileStore.swift
+        Sources/Vorssaint/Services/ClipNote/ClipNoteStorage.swift
         Sources/Vorssaint/Services/Recorder/RecorderTakeStore.swift
         Sources/Vorssaint/Services/Recorder/RecorderPresetImageStore.swift
         Sources/Vorssaint/Services/Recorder/RecorderMotion.swift

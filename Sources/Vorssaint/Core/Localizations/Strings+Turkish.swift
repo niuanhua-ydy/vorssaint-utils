@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Mac’in uykusu kapalıyken Vorssaint kapandı. Normal uykuyu geri yüklemek için parolayı gir.",
         adminPromptSudoersInstall: "Vorssaint, parola sormadan kapak kapalı modunu açıp kapatmak için kısıtlı bir kural oluşturacak (yalnızca pmset disablesleep). Parolanın gerektiği tek zaman bu.",
         adminPromptSudoersRemove: "Vorssaint, parolasız kapak kapalı kuralını kaldıracak.",
+        adminPromptUninstallerServices: "Vorssaint, bu uygulamanın arka planda çalışan hizmetlerini kaldırmadan önce durdurmak için parolanıza ihtiyaç duyuyor.",
 
         settingsTitle: "Vorssaint Ayarları",
         tabGeneral: "Genel",

@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint è stato chiuso mentre lo stop del Mac era disattivato. Inserisci la password per ripristinare lo stop normale.",
         adminPromptSudoersInstall: "Vorssaint creerà una regola limitata (solo pmset disablesleep) per attivare la modalità a coperchio chiuso senza chiedere la password. È l’unica volta che la password è necessaria.",
         adminPromptSudoersRemove: "Vorssaint rimuoverà la regola del coperchio chiuso senza password.",
+        adminPromptUninstallerServices: "Vorssaint ha bisogno della password per fermare i servizi in background ancora attivi di questa app prima di rimuoverla.",
 
         settingsTitle: "Impostazioni di Vorssaint",
         tabGeneral: "Generali",

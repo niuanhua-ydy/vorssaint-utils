@@ -266,6 +266,7 @@ struct Strings {
     let adminPromptRecover: String
     let adminPromptSudoersInstall: String
     let adminPromptSudoersRemove: String
+    let adminPromptUninstallerServices: String
 
     // MARK: Settings — window & tabs
     let settingsTitle: String
@@ -1398,6 +1399,7 @@ extension Strings {
         adminPromptRecover: "O Vorssaint foi encerrado com a suspensão do Mac desativada. Digite a senha para restaurar a suspensão normal.",
         adminPromptSudoersInstall: "O Vorssaint vai criar uma regra restrita (somente pmset disablesleep) para alternar a tampa fechada sem pedir senha. Esta é a única vez que a senha será necessária.",
         adminPromptSudoersRemove: "O Vorssaint vai remover a regra de tampa fechada sem senha.",
+        adminPromptUninstallerServices: "O Vorssaint precisa da sua senha para parar os serviços em segundo plano deste app antes de removê-lo.",
 
         settingsTitle: "Ajustes do Vorssaint",
         tabGeneral: "Geral",
@@ -2484,6 +2486,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint quit while the Mac’s sleep was disabled. Enter the password to restore normal sleep.",
         adminPromptSudoersInstall: "Vorssaint will create a restricted rule (pmset disablesleep only) to toggle closed-lid mode without asking for a password. This is the only time the password is needed.",
         adminPromptSudoersRemove: "Vorssaint will remove the password-free closed-lid rule.",
+        adminPromptUninstallerServices: "Vorssaint needs your password to stop this app’s background services before removing it.",
 
         settingsTitle: "Vorssaint Settings",
         tabGeneral: "General",

@@ -112,6 +112,10 @@ enum UninstallerCommandBarCleanupTests {
         var items: [Leftover] = []
         var removals = 0
         func removeSelected() { removals += 1; phase = .removing }
+        static var permissionResets: [URL] = []
+        static func resetPermissions(ofPackageRemovedAppAt url: URL, bundleID: String?) {
+            permissionResets.append(url)
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -265,6 +269,7 @@ enum UninstallerCommandBarCleanupTests {
                 }
                 return uninstaller
             }
+            Uninstaller.permissionResets = []
             let brew = brewRemoval()
             suite.expect(brew.isRemovingWithHomebrew && brew.isRemoving,
                          "Homebrew completion begins while its stored status still blocks selection changes")
@@ -273,6 +278,8 @@ enum UninstallerCommandBarCleanupTests {
             suite.expect(brew.phase == .done(freed: 12, failed: [])
                          && !service.hasStoredApplicationState(bundleID: bundleID) && Apps.scans == 1,
                          "Homebrew completion without leftovers runs the same last-copy cleanup once")
+            suite.expect(Uninstaller.permissionResets == [removed],
+                         "Homebrew completion without leftovers also clears the removed app's privacy permissions")
             seed()
             Apps.remaining = [App(bundleID: bundleID, url: survivor)]
             let duplicateBrew = brewRemoval()
@@ -285,6 +292,8 @@ enum UninstallerCommandBarCleanupTests {
             suite.expect(leftovers.removals == 1 && leftovers.phase == .removing
                          && Queue.pending.isEmpty,
                          "Homebrew with leftovers defers cleanup to the ordinary removal completion")
+            suite.expect(Uninstaller.permissionResets.count == 2,
+                         "Homebrew with leftovers leaves the permission reset to the ordinary removal pass")
             try fm.createDirectory(at: removed, withIntermediateDirectories: true)
             let incompleteBrew = brewRemoval()
             incompleteBrew.finishRemovalAfterHomebrew(package: package)

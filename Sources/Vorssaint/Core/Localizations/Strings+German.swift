@@ -108,6 +108,7 @@ extension Strings {
         adminPromptRecover: "Vorssaint wurde beendet, während der Ruhezustand des Mac deaktiviert war. Gib das Passwort ein, um den normalen Ruhezustand wiederherzustellen.",
         adminPromptSudoersInstall: "Vorssaint legt eine eingeschränkte Regel an (nur pmset disablesleep), um den Modus bei geschlossenem Display ohne Passwortabfrage umzuschalten. Nur dieses eine Mal wird das Passwort benötigt.",
         adminPromptSudoersRemove: "Vorssaint entfernt die passwortfreie Regel für das geschlossene Display.",
+        adminPromptUninstallerServices: "Vorssaint braucht dein Passwort, um die noch laufenden Hintergrunddienste dieser App vor dem Entfernen zu stoppen.",
 
         settingsTitle: "Vorssaint-Einstellungen",
         tabGeneral: "Allgemein",
