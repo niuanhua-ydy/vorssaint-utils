@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import os
 
 /// Starts a coding agent in a terminal, in a folder picked from the bar. The
 /// agents and folders are looked up away from the main thread and kept for a
@@ -9,6 +10,7 @@ import AppKit
 enum CommandBarAgents {
     typealias Directory = CommandBarAgentsSupport.Directory
 
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "vorssaint", category: "agents")
     private static let lock = NSLock()
     private static var installedPaths: [String: String] = [:]
     private static var loginPath: String?
@@ -120,13 +122,18 @@ enum CommandBarAgents {
         }
         let command = command(for: agent)
         let wasRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: terminal.bundleID).isEmpty
+        log.notice("launch \(agent.id, privacy: .public) in \(directory, privacy: .public) with \(terminal.rawValue, privacy: .public), running: \(wasRunning)")
         DispatchQueue.global(qos: .userInitiated).async {
             let opened: Bool
             if terminal == .otty {
                 let cli = appURL.appending(path: "Contents/MacOS/otty-cli").path
                 opened = CommandBarAgentsSupport.ottyAttempts(isRunning: wasRunning, directory: directory,
                                                               command: command)
-                    .contains { Shell.run(cli, $0, timeout: 10).status == 0 }
+                    .contains { arguments in
+                        let result = runOtty(cli, arguments, timeout: 10)
+                        log.notice("otty \(arguments.prefix(2).joined(separator: " "), privacy: .public) → \(result.status): \(result.output.prefix(300), privacy: .public)")
+                        return result.status == 0
+                    }
                 if opened {
                     // The bar never takes focus, so Vorssaint is not the active
                     // app and may not hand activation over itself; Launch
@@ -139,7 +146,9 @@ enum CommandBarAgents {
                 }
             } else if let script = CommandBarAgentsSupport.appleScript(for: terminal, directory: directory,
                                                                        command: command, wasRunning: wasRunning) {
-                opened = AppleScriptRunner.run(script).ok
+                let result = AppleScriptRunner.run(script)
+                log.notice("\(terminal.rawValue, privacy: .public) script ok: \(result.ok) \(result.output.prefix(300), privacy: .public)")
+                opened = result.ok
             } else {
                 opened = false
             }
@@ -264,16 +273,37 @@ enum CommandBarAgents {
         }
     }
 
+    /// `otty` finds the running app's socket under `$HOME`, and a child of
+    /// `Shell.run` starts with an empty environment, so it is handed this
+    /// process's own, with a home folder whatever launched the app.
+    private static func runOtty(_ cli: String, _ arguments: [String],
+                                timeout: TimeInterval) -> (status: Int32, output: String) {
+        var environment = ProcessInfo.processInfo.environment
+        if (environment["HOME"] ?? "").isEmpty { environment["HOME"] = NSHomeDirectory() }
+        let result = BoundedProcessRunner.run(cli, arguments, timeout: timeout,
+                                              maxOutputBytes: 1024 * 1024, environment: environment)
+        return (result.status, String(decoding: result.output, as: UTF8.self))
+    }
+
     private static func ottyFolders() -> [Directory] {
         guard let app = applicationURL(for: .otty) else { return [] }
         let cli = app.appending(path: "Contents/MacOS/otty-cli").path
         guard FileManager.default.isExecutableFile(atPath: cli) else { return [] }
-        let result = Shell.run(cli, ["jump", "ls", "100", "--json"], timeout: 3)
+        let result = runOtty(cli, ["jump", "ls", "100", "--json"], timeout: 3)
         guard result.status == 0 else { return [] }
         return CommandBarAgentsSupport.ottyDirectories(json: Data(result.output.utf8))
     }
 
     // MARK: - Rows
+
+    /// The ranking priority of an agent row for what was typed.
+    static func priority(forRowID id: String, normalizedQuery: String) -> Int {
+        guard id.hasPrefix(CommandBarAgentsSupport.agentRowPrefix),
+              let agent = CommandBarAgentsSupport.preset(id: String(id.dropFirst(CommandBarAgentsSupport.agentRowPrefix.count))),
+              CommandBarAgentsSupport.queryNames(agent, command: command(for: agent), normalizedQuery: normalizedQuery)
+        else { return 0 }
+        return CommandBarAgentsSupport.namedPriority
+    }
 
     private static func icon(for agent: CommandBarAgent) -> CommandBarEntry.Icon {
         for id in agent.iconBundleIDs {
@@ -319,7 +349,11 @@ enum CommandBarAgents {
                 countsUsage: false,
                 revealPath: path,
                 run: { _ in
-                    guard let agent else { NSSound.beep(); return }
+                    guard let agent else {
+                        log.error("folder row ran without an agent")
+                        NSSound.beep()
+                        return
+                    }
                     launch(agent, in: path)
                 })
         }

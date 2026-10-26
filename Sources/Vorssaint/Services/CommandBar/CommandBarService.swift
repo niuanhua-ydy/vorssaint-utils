@@ -2254,7 +2254,9 @@ final class CommandBarService: ObservableObject {
                                                               query: effectiveQuery),
                                 normalizedKeywords: folded?.keywords
                                     ?? CommandBarSearch.normalized(entry.keywords),
-                                priority: max(aliasBoost, habitPriority),
+                                priority: max(aliasBoost, habitPriority,
+                                              CommandBarAgents.priority(forRowID: entry.id,
+                                                                        normalizedQuery: foldedQuery)),
                                 // A running app is likelier to be the one
                                 // wanted, but never enough to beat a better
                                 // name match.

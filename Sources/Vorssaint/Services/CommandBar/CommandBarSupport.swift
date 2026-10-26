@@ -385,7 +385,8 @@ enum CommandBarSearch {
         for index in ranked {
             let rowID = id(index)
             if CommandBarPreferences.source(ofRowID: rowID) == .apps
-                || CommandBarPreferences.isActionRow(rowID) {
+                || CommandBarPreferences.isActionRow(rowID)
+                || rowID.hasPrefix(CommandBarAgentsSupport.agentRowPrefix) {
                 primary.append(index)
             } else {
                 secondary.append(index)

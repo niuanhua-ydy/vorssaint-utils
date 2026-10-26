@@ -46,6 +46,24 @@ enum CommandBarAgentTests {
                      && Support.settingAgent("codex", enabled: true, disabledRaw: disabled).isEmpty,
                      "agents switch off and back on")
 
+        // A query that plainly names an agent.
+        let codex = Support.preset(id: "codex")!
+        let cursor = Support.preset(id: "cursor-agent")!
+        func names(_ agent: CommandBarAgent, _ query: String, command: String? = nil) -> Bool {
+            Support.queryNames(agent, command: command ?? agent.command,
+                               normalizedQuery: CommandBarSearch.normalized(query))
+        }
+        suite.expect(names(claude, "claude") && names(claude, "Claude Code") && names(claude, "claude vors")
+                     && names(codex, "codex") && names(cursor, "cursor-agent")
+                     && names(claude, "cc", command: "/opt/bin/cc --x"),
+                     "an agent's program, id or name finds it plainly")
+        suite.expect(!names(claude, "clau") && !names(claude, "claudette") && !names(cursor, "cursor")
+                     && !names(codex, "code"),
+                     "a prefix or another word is not plainly the agent")
+        suite.expect(CommandBarSearch.launcherOrdered([0, 1, 2], id: {
+            ["file./x", claude.rowID, "app./Applications/X.app"][$0] }) == [1, 2, 0],
+                     "agent rows rank with apps and actions, ahead of discovery")
+
         // Terminals.
         suite.expect(Support.terminal(preference: "", installed: [.terminal, .otty, .iterm]) == .otty
                      && Support.terminal(preference: "", installed: [.terminal, .iterm]) == .iterm
@@ -58,7 +76,8 @@ enum CommandBarAgentTests {
                      && Support.typedCommand(directory: "/tmp/a", command: "codex") == "cd -- /tmp/a && codex",
                      "a folder is quoted for the shell it is typed into")
         let otty = Support.ottyAttempts(isRunning: true, directory: "/tmp", command: "claude")
-        suite.expect(otty.first == ["tab", "new", "--cwd", "/tmp", "--command", "claude"] && otty.count == 3
+        suite.expect(otty.first == ["tab", "new", "--cwd", "/tmp", "--command", "claude"] && otty.count == 2
+                     && !otty.contains { $0.first == "open" }
                      && Support.ottyAttempts(isRunning: false, directory: "/tmp", command: "claude")
                         == [["open", "/tmp", "--command", "claude"]],
                      "a running Otty takes a tab; one not running is launched into the folder")

@@ -166,6 +166,20 @@ enum CommandBarAgentsSupport {
         return words
     }
 
+    /// What a row for an agent the query plainly names is worth: above any
+    /// learned habit, below a name the person gave a row themselves.
+    static let namedPriority = 800
+
+    /// Whether what was typed is plainly this agent: its program, its id or
+    /// its full name, alone or followed by more words. "claude" is Claude
+    /// Code, not the app whose name merely starts the same way.
+    static func queryNames(_ agent: CommandBarAgent, command: String, normalizedQuery query: String) -> Bool {
+        let program = executableName(of: command).map { ($0 as NSString).lastPathComponent }
+        let names = [program, agent.id, agent.name].compactMap { $0 }
+            .map(CommandBarSearch.normalized).filter { !$0.isEmpty }
+        return names.contains { query == $0 || query.hasPrefix($0 + " ") }
+    }
+
     static func disabledAgents(from raw: String) -> Set<String> {
         Set(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty })
     }
@@ -205,14 +219,13 @@ enum CommandBarAgentsSupport {
 
     /// The `otty` invocations to try in order. A running Otty takes a tab in
     /// its front window, falling back to a window of its own; one that is not
-    /// running is launched straight into the folder.
+    /// running is launched straight into the folder. `open` is never a fallback
+    /// for a running Otty: it answers success there without opening anything.
     static func ottyAttempts(isRunning: Bool, directory: String, command: String) -> [[String]] {
-        let launch = ["open", directory, "--command", command]
-        guard isRunning else { return [launch] }
+        guard isRunning else { return [["open", directory, "--command", command]] }
         return [
             ["tab", "new", "--cwd", directory, "--command", command],
             ["window", "new", "--cwd", directory, "--command", command],
-            launch,
         ]
     }
 
