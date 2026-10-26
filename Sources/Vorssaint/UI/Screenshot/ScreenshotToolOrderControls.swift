@@ -10,7 +10,8 @@ struct ScreenshotToolOrderControls: View {
     @Binding var orderRaw: String
     @Binding var shortcutsEnabled: Bool
     var showsTitle = true
-    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
+    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw =
+        ScreenshotSupport.Tool.defaultBindingsStorage
     @State private var recordingTool: ScreenshotSupport.Tool?
     @State private var errorText: String?
     @StateObject private var keyboard = ScreenshotShortcutContext()
@@ -61,10 +62,11 @@ struct ScreenshotToolOrderControls: View {
                 Spacer()
                 Button(l10n.s.shortcutReset) {
                     orderRaw = ScreenshotSupport.Tool.defaultOrderStorage
-                    bindingsRaw = ""
+                    bindingsRaw = ScreenshotSupport.Tool.defaultBindingsStorage
                     errorText = nil
                 }
-                .disabled(orderRaw == ScreenshotSupport.Tool.defaultOrderStorage && bindingsRaw.isEmpty)
+                .disabled(orderRaw == ScreenshotSupport.Tool.defaultOrderStorage
+                    && bindingsRaw == ScreenshotSupport.Tool.defaultBindingsStorage)
             }
         }
         .onChange(of: l10n.language) { _, _ in errorText = nil }

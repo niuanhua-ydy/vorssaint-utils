@@ -1557,10 +1557,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             model.deleteSelected()
             return true
         case kVK_Return, kVK_ANSI_KeypadEnter:
+            // Return only confirms a crop. Copying and closing on a stray
+            // Return lost work in progress; Command-C is the way out.
             if model.tool == .crop, model.cropDraft != nil {
                 model.applyCrop()
-            } else {
-                copyToClipboard()
             }
             return true
         case kVK_Escape:

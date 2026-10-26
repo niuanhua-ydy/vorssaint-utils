@@ -255,7 +255,8 @@ enum ScreenshotSupport {
     }
 
     static let confirmationPreviewDurations = [1, 2, 3, 5, 10, 0]
-    static let defaultConfirmationPreviewDuration = 3
+    /// Until dismissed, as CleanShot's overlay waits to be dealt with.
+    static let defaultConfirmationPreviewDuration = 0
     static let recoveryPreviewDismissInterval: TimeInterval = 12
 
     struct ConfirmationPreviewPresentationPolicy: Equatable {
@@ -324,10 +325,11 @@ enum ScreenshotSupport {
         case shown(dismissInterval: TimeInterval?)
     }
 
-    /// The whole decision `route` makes, read from the person's settings: a
-    /// successful action shows the confirmation for its chosen duration or
-    /// nothing at all, while a failed or partial action, or no action, gets
-    /// the recovery preview with its longer timer.
+    /// The whole decision `route` makes, read from the person's settings.
+    /// Every shown preview stays for the chosen duration, until dismissed by
+    /// default as CleanShot's overlay does. A failed or partial action, or no
+    /// action, still needs the preview to act on, so a timed duration never
+    /// takes it away sooner than the recovery timer.
     static func quickPreviewPresentation(defaultAction: ScreenshotDefaultAction,
                                          saved: Bool,
                                          copied: Bool,
@@ -336,14 +338,15 @@ enum ScreenshotSupport {
             defaultAction: defaultAction, saved: saved, copied: copied,
             confirmationEnabled: defaults.bool(forKey: DefaultsKey.screenshotPreviewEnabled))
         else { return .hidden }
-        guard automaticActionSucceeded(defaultAction, saved: saved, copied: copied) else {
-            return .shown(dismissInterval: recoveryPreviewDismissInterval)
-        }
         // A stored value that is not a number reads as the default duration,
         // not as 0, which would keep every confirmation until dismissed.
         let duration = (defaults.object(forKey: DefaultsKey.screenshotPreviewDuration) as? NSNumber)?
             .intValue ?? defaultConfirmationPreviewDuration
-        return .shown(dismissInterval: confirmationPreviewDismissInterval(duration))
+        let interval = confirmationPreviewDismissInterval(duration)
+        guard automaticActionSucceeded(defaultAction, saved: saved, copied: copied) else {
+            return .shown(dismissInterval: interval.map { max($0, recoveryPreviewDismissInterval) })
+        }
+        return .shown(dismissInterval: interval)
     }
 
     /// Captures go to the shelf on their own only while the shelf is
@@ -1086,6 +1089,45 @@ enum ScreenshotSupport {
     /// Return that applied a crop, or chose Edit in the preview, would copy
     /// the capture and close the editor a moment later. A held ⌘V would
     /// stack copies of the same image exactly under the pasted one.
+    /// What a key does to the floating capture preview. One table serves the
+    /// preview's own key window and the hover tap, so a key acts the same
+    /// whether the preview was clicked or only pointed at.
+    enum QuickPreviewKeyAction: Equatable {
+        case edit, copy, save, pin, discard, close
+    }
+
+    static func quickPreviewKeyAction(keyCode key: Int,
+                                      modifiers flags: GlobalShortcutModifiers,
+                                      charactersIgnoringModifiers: String?) -> QuickPreviewKeyAction? {
+        if flags == .command {
+            // Command-W follows the letter the layout types, as menus do.
+            let text = charactersIgnoringModifiers?.folding(
+                options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+            let letter = text?.count == 1 ? text?.first : nil
+            let isLatinLetter = letter.map { $0.isASCII && $0.isLetter } ?? false
+            if isLatinLetter ? letter == "w" : key == kVK_ANSI_W { return .close }
+        }
+        if flags.contains(.command) {
+            switch key {
+            case kVK_ANSI_E: return .edit
+            case kVK_ANSI_C: return .copy
+            case kVK_ANSI_S: return .save
+            case kVK_ANSI_P: return .pin
+            case kVK_Delete, kVK_ForwardDelete: return .discard
+            default: return nil
+            }
+        }
+        guard flags.isDisjoint(with: [.command, .control, .option]) else { return nil }
+        switch key {
+        case kVK_Return, kVK_ANSI_KeypadEnter, kVK_ANSI_E: return .edit
+        case kVK_Delete, kVK_ForwardDelete: return .discard
+        // Escape only dismisses: a discard can delete a file the HUD just
+        // announced as saved, and "make this go away" must never do that.
+        case kVK_Escape: return .close
+        default: return nil
+        }
+    }
+
     static func editorIgnoresRepeatedOutputKey(keyCode: Int, command: Bool, isRepeat: Bool) -> Bool {
         isRepeat && (keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter
             || (command && (keyCode == kVK_ANSI_C || keyCode == kVK_ANSI_V)))
@@ -1444,6 +1486,24 @@ enum ScreenshotSupport {
 
         static var defaultOrderStorage: String {
             editorTools.map(\.rawValue).joined(separator: ",")
+        }
+
+        /// Single letters after CleanShot X's annotate keys, so a tool is
+        /// reached by its name instead of its rail position. Every tool in
+        /// the first nine is bound, which leaves the rail digits idle.
+        static let defaultBindings: [Tool: GlobalShortcut] = {
+            let keys: [Tool: Int] = [
+                .select: kVK_ANSI_V, .arrow: kVK_ANSI_A, .pixelate: kVK_ANSI_B,
+                .crop: kVK_ANSI_K, .text: kVK_ANSI_T, .sticker: kVK_ANSI_S,
+                .rect: kVK_ANSI_R, .highlight: kVK_ANSI_M, .freehand: kVK_ANSI_D,
+                .line: kVK_ANSI_L, .ellipse: kVK_ANSI_E, .counter: kVK_ANSI_C,
+                .redact: kVK_ANSI_P, .spotlight: kVK_ANSI_H,
+            ]
+            return keys.mapValues { GlobalShortcut(keyCode: Int64($0), modifiers: []) }
+        }()
+
+        static var defaultBindingsStorage: String {
+            bindingsStorage(defaultBindings)
         }
 
         /// Tools that create an annotation by dragging a rectangle.

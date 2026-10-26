@@ -1551,7 +1551,16 @@ def main():
           + "}\n"
           + declaration(selection, "private final class PassThroughHostingView<")
               .replace("private final class", "final class", 1))
-    write("NotchCaptureKeyboard.swift", "import Foundation\nimport Carbon.HIToolbox\n\nextension NotchCaptureKeyboardContract {\n"
+    write("NotchCaptureKeyboard.swift", "import Foundation\nimport Carbon.HIToolbox\n\n"
+          # The preview reads modifiers through GlobalShortcutModifiers, so
+          # the double's flags convert the way AppKit's do.
+          + "extension GlobalShortcutModifiers {\n"
+          + "init(eventFlags: NotchCaptureKeyboardContract.NSEvent.ModifierFlags) {\n"
+          + "self = []\nif eventFlags.contains(.control) { insert(.control) }\n"
+          + "if eventFlags.contains(.option) { insert(.option) }\n"
+          + "if eventFlags.contains(.shift) { insert(.shift) }\n"
+          + "if eventFlags.contains(.command) { insert(.command) }\n}\n}\n"
+          + "extension NotchCaptureKeyboardContract {\n"
           + "final class NotchService {\nstatic var shared = NotchService()\n"
           + "var presentationWindow: NSPanel? = NSPanel()\nvar acceptsSystemFeedback = true\n"
           + "var expanded = true\nvar selected = NotchModule.captures\nvar showingAppPanel = false\n"
@@ -1561,9 +1570,11 @@ def main():
           + "}\nfinal class Preview {\n"
           + declaration(preview, "    enum Action {")
           + "var keyMonitor: Any?\nvar closed = false\nvar shownInNotch = true\nlet presentationID = UUID()\n"
+          + "var systemSharing = false\n"
           + "var actions: [Action] = []\nfunc perform(_ action: Action) { actions.append(action) }\n"
           + "func close() { closed = true }\nfunc attach(_ panel: NSPanel) { installKeyMonitor(for: panel) }\n"
           + declaration(preview, "    private func installKeyMonitor(for panel:")
+          + declaration(preview, "    private func handleKeyAction(").replace("private func", "func", 1)
           + "}\nfinal class Selection {\n"
           + "final class Options { var controlsInNotch = true; var hasFocusedControl = false }\n"
           + "enum Outcome { case cancelled }\nvar screenCaptureOptions: Options? = Options()\n"

@@ -20,9 +20,30 @@ enum ScreenshotPreviewHoverTests {
         var dismissWork: DispatchWorkItem?
         var autoDismissDuration: TimeInterval? = 12
         var closed = false
+        let presentationID = UUID()
         let model = Model()
         var action: (Action) -> Set<Action> = { [$0] }
+        var keyActions: [ScreenshotSupport.QuickPreviewKeyAction] = []
         func close() { closed = true }
+        func handleKeyAction(_ action: ScreenshotSupport.QuickPreviewKeyAction) { keyActions.append(action) }
+    }
+
+    /// Records what hovering asks of the key tap; no tap is installed.
+    enum ScreenshotPreviewHoverKeys {
+        static var owner: UUID?
+        static var handler: ((ScreenshotSupport.QuickPreviewKeyAction) -> Void)?
+        @discardableResult
+        static func begin(owner newOwner: UUID,
+                          _ newHandler: @escaping (ScreenshotSupport.QuickPreviewKeyAction) -> Void) -> Bool {
+            owner = newOwner
+            handler = newHandler
+            return true
+        }
+        static func end(owner endingOwner: UUID) {
+            guard owner == endingOwner else { return }
+            owner = nil
+            handler = nil
+        }
     }
 
     static func run(_ suite: TestSuite) {
@@ -108,6 +129,22 @@ enum ScreenshotPreviewHoverTests {
             DispatchQueue.main.advance(duration)
             suite.expect(sharingController.closed, "a cancelled share sheet resumes the dismissal delay")
         }
+
+        let pointed = Controller()
+        pointed.hoverChanged(true)
+        ScreenshotPreviewHoverKeys.handler?(.edit)
+        suite.expect(ScreenshotPreviewHoverKeys.owner == pointed.presentationID && pointed.keyActions == [.edit],
+                     "pointing at the preview arms its keys for that preview")
+        let successor = Controller()
+        successor.hoverChanged(true)
+        pointed.hoverChanged(false)
+        suite.expect(ScreenshotPreviewHoverKeys.owner == successor.presentationID,
+                     "a preview that loses the pointer leaves a successor's keys armed")
+        successor.hoverChanged(false)
+        suite.expect(ScreenshotPreviewHoverKeys.owner == nil, "leaving the preview disarms its keys")
+        successor.closed = true
+        successor.hoverChanged(true)
+        suite.expect(ScreenshotPreviewHoverKeys.owner == nil, "a closed preview never arms keys")
 
         DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
         let persistentController = Controller()

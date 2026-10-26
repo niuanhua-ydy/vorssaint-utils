@@ -75,6 +75,7 @@ enum NotchCaptureKeyboardTests {
             (kVK_ANSI_E, [], .edit), (kVK_Return, [], .edit), (kVK_Delete, [], .discard),
             (kVK_ForwardDelete, [], .discard), (kVK_ANSI_C, .command, .copy),
             (kVK_ANSI_S, .command, .save), (kVK_Delete, .command, .discard),
+            (kVK_ANSI_E, .command, .edit), (kVK_ANSI_P, .command, .pin),
         ]
         func check(_ label: String, accepts: Bool) {
             for (key, flags, action) in commands {
