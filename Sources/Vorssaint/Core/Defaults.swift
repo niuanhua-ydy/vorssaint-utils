@@ -583,6 +583,7 @@ enum DefaultsKey {
     static let translatorSecondLanguage = "translatorSecondLanguage" // TranslatorLanguage.rawValue
     static let translatorDisabledEngines = "translatorDisabledEngines" // comma-joined TranslatorEngine raw values
     static let translatorPinned = "translatorPinned"
+    static let translatorWindowTopLeft = "translatorWindowTopLeft" // "x,y" where it was last dragged to
     static let translatorSelectionShortcutEnabled = "translatorSelectionShortcutEnabled"
     static let translatorSelectionShortcut = "translatorSelectionShortcut"
     static let translatorInputShortcutEnabled = "translatorInputShortcutEnabled"
@@ -1787,6 +1788,7 @@ enum Defaults {
         DefaultsKey.translatorSecondLanguage: "en",
         DefaultsKey.translatorDisabledEngines: "",
         DefaultsKey.translatorPinned: false,
+        DefaultsKey.translatorWindowTopLeft: "",
         DefaultsKey.translatorSelectionShortcutEnabled: true,
         DefaultsKey.translatorSelectionShortcut: GlobalShortcut.translatorSelectionDefault.storageValue,
         DefaultsKey.translatorInputShortcutEnabled: true,

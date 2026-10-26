@@ -26,6 +26,16 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
     private var clickMonitor: Any?
     /// The top edge the window grows down from, as results come in.
     private var anchoredTop: CGFloat?
+    /// Set while the window is moved by code, so only a drag is remembered.
+    private var isPlacing = false
+
+    /// Where the window opens. A selection is read where the eye already is,
+    /// so its window comes up beside the pointer, as Bob's does. Typed text
+    /// and a screenshot open where the window was last dragged to, or high
+    /// in the middle of the screen until it has been.
+    enum Placement {
+        case pointer, remembered
+    }
     private let speech = AVSpeechSynthesizer()
     private var selectionRead = 0
 
@@ -72,10 +82,11 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
             DispatchQueue.main.async {
                 guard let self, self.selectionRead == read else { return }
                 if selection.isEmpty {
-                    self.show(text: "", notice: trusted ? self.text.noSelection : self.text.needsAccessibility)
+                    self.show(text: "", notice: trusted ? self.text.noSelection : self.text.needsAccessibility,
+                              placement: .pointer)
                     if !trusted { Permissions.shared.requestAccessibility() }
                 } else {
-                    self.show(text: selection)
+                    self.show(text: selection, placement: .pointer)
                 }
             }
         }
@@ -97,13 +108,13 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
         if !isPinned { close() }
     }
 
-    func show(text value: String, notice: String? = nil) {
+    func show(text value: String, notice: String? = nil, placement: Placement = .remembered) {
         guard AppFeature.translator.isAvailable else { return }
         let wasVisible = isVisible
         let panel = ensurePanel()
         model.open(text: value, notice: notice)
         if !wasVisible {
-            place(panel)
+            place(panel, placement)
             panel.alphaValue = 0
             panel.orderFrontRegardless()
             NSAnimationContext.runAnimationGroup { $0.duration = 0.12; panel.animator().alphaValue = 1 }
@@ -155,13 +166,14 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
 
     private func ensurePanel() -> TranslatorPanel {
         if let panel { return panel }
-        let panel = TranslatorPanel(contentRect: NSRect(x: 0, y: 0, width: 460, height: 220),
+        let panel = TranslatorPanel(contentRect: NSRect(x: 0, y: 0, width: TranslatorView.width, height: 260),
                                     styleMask: [.borderless, .nonactivatingPanel],
                                     backing: .buffered,
                                     defer: false)
         panel.title = text.title
         panel.isReleasedWhenClosed = false
-        panel.isMovableByWindowBackground = true
+        // The view's empty areas drag it; SwiftUI keeps the background from doing so.
+        panel.isMovableByWindowBackground = false
         panel.hidesOnDeactivate = false
         panel.level = .floating
         panel.backgroundColor = .clear
@@ -176,19 +188,40 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
         return panel
     }
 
-    /// Below and to the right of the pointer, where the eye already is,
-    /// kept fully on the screen the pointer is on.
-    private func place(_ panel: NSPanel) {
+    /// Places the window by its top-left corner, kept fully on one screen.
+    private func place(_ panel: NSPanel, _ placement: Placement) {
         panel.contentViewController?.view.layoutSubtreeIfNeeded()
         let size = panel.contentViewController?.view.fittingSize ?? panel.frame.size
-        let visible = NSScreen.pointerVisibleFrame
-        let pointer = NSEvent.mouseLocation
-        let top = min(max(pointer.y - 16, visible.minY + 240), visible.maxY - 8)
-        var origin = CGPoint(x: pointer.x + 12, y: top - size.height)
+        var visible = NSScreen.pointerVisibleFrame
+        let topLeft: CGPoint
+        switch placement {
+        case .pointer:
+            let pointer = NSEvent.mouseLocation
+            topLeft = CGPoint(x: pointer.x + 12, y: pointer.y - 16)
+        case .remembered:
+            if let saved = Self.savedTopLeft(),
+               let screen = NSScreen.screens.first(where: { $0.visibleFrame.insetBy(dx: -1, dy: -1).contains(saved) }) {
+                visible = screen.visibleFrame
+                topLeft = saved
+            } else {
+                topLeft = CGPoint(x: visible.midX - size.width / 2, y: visible.maxY - visible.height * 0.15)
+            }
+        }
+        let top = min(max(topLeft.y, visible.minY + 240), visible.maxY - 8)
+        var origin = CGPoint(x: topLeft.x, y: top - size.height)
         origin.x = min(max(origin.x, visible.minX + 8), visible.maxX - size.width - 8)
         origin.y = max(origin.y, visible.minY + 8)
         anchoredTop = top
+        isPlacing = true
         panel.setFrame(CGRect(origin: origin, size: size), display: true)
+        isPlacing = false
+    }
+
+    private static func savedTopLeft() -> CGPoint? {
+        let parts = (UserDefaults.standard.string(forKey: DefaultsKey.translatorWindowTopLeft) ?? "")
+            .split(separator: ",").compactMap { Double($0) }
+        guard parts.count == 2, parts.allSatisfy(\.isFinite) else { return nil }
+        return CGPoint(x: parts[0], y: parts[1])
     }
 
     func windowDidResize(_ notification: Notification) {
@@ -196,12 +229,19 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
         // The window grows downward from a fixed top edge, and never off screen.
         let visible = panel.screen?.visibleFrame ?? NSScreen.pointerVisibleFrame
         let y = max(top - panel.frame.height, visible.minY + 8)
-        if abs(panel.frame.origin.y - y) > 0.5 { panel.setFrameOrigin(CGPoint(x: panel.frame.minX, y: y)) }
+        guard abs(panel.frame.origin.y - y) > 0.5 else { return }
+        isPlacing = true
+        panel.setFrameOrigin(CGPoint(x: panel.frame.minX, y: y))
+        isPlacing = false
     }
 
     func windowDidMove(_ notification: Notification) {
         guard let panel else { return }
         anchoredTop = panel.frame.maxY
+        // Only a drag says where the person wants the window from now on.
+        guard !isPlacing, panel.isVisible else { return }
+        UserDefaults.standard.set("\(Int(panel.frame.minX)),\(Int(panel.frame.maxY))",
+                                  forKey: DefaultsKey.translatorWindowTopLeft)
     }
 
     private func focusInput() {

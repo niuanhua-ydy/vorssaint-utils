@@ -8,6 +8,8 @@ import Translation
 /// The translation window's content: the text on top, its languages under
 /// it, then one card per service, each copyable and readable aloud.
 struct TranslatorView: View {
+    static let width: CGFloat = 640
+
     @ObservedObject var model: TranslatorModel
     @ObservedObject var service: TranslatorService
     @ObservedObject private var l10n = L10n.shared
@@ -24,8 +26,16 @@ struct TranslatorView: View {
             inputBox
             languageBar
             if let notice = model.notice {
-                Text(notice).font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(text.noticeTitle, systemImage: "lightbulb")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Text(notice).font(.system(size: 14))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             if !model.visibleEngines.isEmpty {
                 ScrollView {
@@ -47,9 +57,11 @@ struct TranslatorView: View {
             }
             Text(text.keysHint).font(.caption2).foregroundStyle(.tertiary)
         }
-        .padding(14)
-        .frame(width: 460)
+        .padding(16)
+        .frame(width: Self.width)
         .buttonStyle(.borderless)
+        // Everything not a control moves the window, like a title bar.
+        .background(TranslatorWindowDragArea())
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous)
             .strokeBorder(Color.primary.opacity(0.1), lineWidth: 1))
@@ -62,49 +74,52 @@ struct TranslatorView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
-            Label(text.title, systemImage: "character.bubble").font(.headline)
-            Spacer()
+        HStack(spacing: 12) {
             Button { service.togglePin() } label: {
                 Image(systemName: service.isPinned ? "pin.fill" : "pin")
                     .foregroundStyle(service.isPinned ? Color.accentColor : .secondary)
             }
             .help((service.isPinned ? text.unpin : text.pin) + " · ⌘P")
+            Spacer()
+            Text(text.title).font(.callout.weight(.medium)).foregroundStyle(.tertiary)
+            Spacer()
             Button { service.openSettings() } label: { Image(systemName: "gearshape") }
                 .help(text.settings + " · ⌘,")
             Button { service.close() } label: { Image(systemName: "xmark") }
                 .help(text.close + " · Esc")
         }
+        .font(.system(size: 14))
         .foregroundStyle(.secondary)
     }
 
     private var inputBox: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             TextField(text.placeholder, text: $model.input, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14))
-                .lineLimit(2...8)
+                .font(.system(size: 15))
+                .lineLimit(4...12)
                 .accessibilityLabel(text.placeholder)
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
+                Button { service.speak(model.input, language: model.effectiveSource) } label: {
+                    Image(systemName: "speaker.wave.2")
+                }
+                .help(text.speak)
+                Button { service.copy(model.input) } label: { Image(systemName: "doc.on.doc") }
+                    .help(text.copy)
+                Spacer()
                 if let detected = model.detected, model.source == .auto {
                     Text(String(format: text.detectedFormat, detected.title(in: locale)))
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Spacer()
                 if model.hasText {
-                    Button { service.speak(model.input, language: model.effectiveSource) } label: {
-                        Image(systemName: "speaker.wave.2")
-                    }
-                    .help(text.speak)
-                    Button { service.copy(model.input) } label: { Image(systemName: "doc.on.doc") }
-                        .help(text.copy)
                     Button { model.input = "" } label: { Image(systemName: "xmark.circle.fill") }
-                        .help(text.close)
+                        .help(text.clear)
                 }
             }
+            .disabled(!model.hasText)
             .foregroundStyle(.secondary)
         }
-        .padding(10)
+        .padding(12)
         .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
@@ -130,6 +145,9 @@ struct TranslatorView: View {
             .labelsHidden()
             .frame(maxWidth: .infinity)
         }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 10)
+        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 
     private func card(_ engine: TranslatorEngine, _ result: TranslatorResult) -> some View {
@@ -168,7 +186,7 @@ struct TranslatorView: View {
                     Text(text.pending).font(.callout).foregroundStyle(.secondary)
                 } else if !result.text.isEmpty {
                     Text(result.text)
-                        .font(.system(size: engine == .dictionary ? 13 : 14))
+                        .font(.system(size: engine == .dictionary ? 13 : 15))
                         .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .fixedSize(horizontal: false, vertical: true)
@@ -179,7 +197,7 @@ struct TranslatorView: View {
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
@@ -199,6 +217,18 @@ struct TranslatorView: View {
         case .dictionary: return "book.closed"
         }
     }
+}
+
+/// A strip of the window that drags it. The panel is borderless and SwiftUI
+/// claims its background, so moving by the background never starts on its own.
+private struct TranslatorWindowDragArea: NSViewRepresentable {
+    final class DragView: NSView {
+        override var mouseDownCanMoveWindow: Bool { true }
+        override func mouseDown(with event: NSEvent) { window?.performDrag(with: event) }
+    }
+
+    func makeNSView(context: Context) -> NSView { DragView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 }
 
 /// Apple's session belongs to a visible view so macOS can ask permission to

@@ -20,6 +20,8 @@ struct TranslatorStrings {
     let swap: String
     let settings: String
     let close: String
+    let clear: String
+    let noticeTitle: String
     let noSelection: String
     let needsAccessibility: String
     let noText: String
@@ -65,6 +67,8 @@ struct TranslatorStrings {
             swap: "交换语言",
             settings: "翻译设置",
             close: "关闭",
+            clear: "清空",
+            noticeTitle: "提示",
             noSelection: "没有读取到选中的文字，可以直接输入或粘贴。",
             needsAccessibility: "读取选中的文字需要辅助功能权限。",
             noText: "没有识别到文字。",
@@ -107,6 +111,8 @@ struct TranslatorStrings {
             swap: "言語を入れ替え",
             settings: "翻訳の設定",
             close: "閉じる",
+            clear: "消去",
+            noticeTitle: "ヒント",
             noSelection: "選択されたテキストを読み取れませんでした。入力またはペーストしてください。",
             needsAccessibility: "選択テキストの読み取りにはアクセシビリティの許可が必要です。",
             noText: "テキストが見つかりませんでした。",
@@ -149,6 +155,8 @@ struct TranslatorStrings {
             swap: "언어 바꾸기",
             settings: "번역 설정",
             close: "닫기",
+            clear: "지우기",
+            noticeTitle: "알림",
             noSelection: "선택한 텍스트를 읽지 못했습니다. 직접 입력하거나 붙여넣으세요.",
             needsAccessibility: "선택한 텍스트를 읽으려면 손쉬운 사용 권한이 필요합니다.",
             noText: "텍스트를 찾지 못했습니다.",
@@ -191,6 +199,8 @@ struct TranslatorStrings {
             swap: "Swap languages",
             settings: "Translation settings",
             close: "Close",
+            clear: "Clear",
+            noticeTitle: "Tip",
             noSelection: "No selected text could be read. Type or paste it here.",
             needsAccessibility: "Reading selected text needs Accessibility permission.",
             noText: "No text was found.",
