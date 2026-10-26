@@ -5,27 +5,6 @@ import AppKit
 import Darwin
 import Foundation
 
-/// One row of the live process list: either a single process, or - when
-/// grouping is on - a responsible app with every helper process it owns
-/// folded into it (`groupedCount > 1`).
-struct KillProcessEntry: Identifiable, Equatable {
-    let pid: pid_t
-    let ppid: pid_t
-    let name: String
-    let path: String
-    let cpuPercent: Double
-    let memoryBytes: Double
-    let isRegularApp: Bool
-    let bundleURL: URL?
-    let groupedCount: Int
-    let isProtected: Bool
-    /// Kernel start time in microseconds. A PID alone is reusable and is not a
-    /// safe identity for a destructive action confirmed from an old row.
-    let startedAt: UInt64?
-
-    var id: pid_t { pid }
-}
-
 /// Lists every running process (via `ps`, the same source
 /// `ProcessUsageService` uses for the resource breakdown) and kills,
 /// force-kills, restarts, or tears down whole process trees. Backs both the
@@ -53,6 +32,10 @@ final class KillProcessService: ObservableObject {
     }
 
     @Published private(set) var entries: [KillProcessEntry] = []
+    /// Every individual process from the latest `ps` snapshot, ungrouped so
+    /// PID lookups still find helper and child processes when `groupRelated`
+    /// folds them into their responsible app.
+    @Published private(set) var allEntries: [KillProcessEntry] = []
     @Published var query: String = ""
     @Published private(set) var sortBy: SortBy
     @Published private(set) var sortAscending: Bool
@@ -102,11 +85,71 @@ final class KillProcessService: ObservableObject {
         }
     }
 
+    /// Every process row available for PID lookup: the active sorted list
+    /// first, followed by any helper processes that grouping folded into
+    /// their responsible app.
+    var pidSearchEntries: [KillProcessEntry] {
+        let primary = sortedEntries
+        guard !allEntries.isEmpty else { return primary }
+        let seen = Set(primary.map(\.pid))
+        let ascending = sortAscending
+        let extras = allEntries.filter { !seen.contains($0.pid) }.sorted { lhs, rhs in
+            switch sortBy {
+            case .cpu:
+                return KillProcessSupport.numberComesBefore(lhs.cpuPercent, rhs.cpuPercent,
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
+            case .memory:
+                return KillProcessSupport.numberComesBefore(lhs.memoryBytes, rhs.memoryBytes,
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
+            case .name:
+                return KillProcessSupport.nameComesBefore(lhs.name, rhs.name,
+                                                          lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                          ascending: ascending)
+            case .pid:
+                return KillProcessSupport.numberComesBefore(Double(lhs.pid), Double(rhs.pid),
+                                                            lhsPID: lhs.pid, rhsPID: rhs.pid,
+                                                            ascending: ascending)
+            }
+        }
+        return primary + extras
+    }
+
+    /// Finds every process whose PID matches `pidQuery` (exact PID first, then
+    /// prefix matches), falling back to a direct kernel lookup when an exact
+    /// PID was spawned after the last `ps` snapshot.
+    func pidEntries(matching pidQuery: String) -> [KillProcessEntry] {
+        var matched = KillProcessSupport.matchingPIDEntries(in: pidSearchEntries, pidQuery: pidQuery)
+        if !matched.contains(where: { String($0.pid) == pidQuery }),
+           let exactPID = pid_t(pidQuery), exactPID > 0,
+           let live = Self.liveEntry(forPID: exactPID) {
+            matched.insert(live, at: 0)
+        }
+        return matched
+    }
+
+    func entry(forPID pid: pid_t) -> KillProcessEntry? {
+        entries.first { $0.pid == pid }
+            ?? allEntries.first { $0.pid == pid }
+            ?? Self.liveEntry(forPID: pid)
+    }
+
     var filteredEntries: [KillProcessEntry] {
         let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
         guard !needle.isEmpty else { return sortedEntries }
+        if let pid = KillProcessSupport.pidQuery(from: needle,
+                                                 allowBareDigits: true,
+                                                 language: L10n.shared.language) {
+            let pidMatches = pidEntries(matching: pid)
+            let seen = Set(pidMatches.map(\.pid))
+            let nameMatches = sortedEntries.filter {
+                !seen.contains($0.pid) && $0.name.lowercased().contains(needle)
+            }
+            return pidMatches + nameMatches
+        }
         return sortedEntries.filter {
-            $0.name.lowercased().contains(needle) || String($0.pid) == needle
+            $0.name.lowercased().contains(needle)
         }
     }
 
@@ -155,7 +198,7 @@ final class KillProcessService: ObservableObject {
         isRefreshing = true
         let grouped = groupRelated
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let rows = Self.snapshot(grouped: grouped)
+            let snap = Self.snapshot(grouped: grouped)
             DispatchQueue.main.async {
                 guard let self else {
                     completion?()
@@ -164,8 +207,9 @@ final class KillProcessService: ObservableObject {
                 // A failed or empty `ps` call (transient - a timeout under
                 // load, a hiccup) must never wipe a list that was already
                 // showing good data; only a genuine snapshot replaces it.
-                if let rows {
-                    self.entries = rows
+                if let snap {
+                    self.allEntries = snap.all
+                    self.entries = snap.displayed
                     self.hasLoadedOnce = true
                 }
                 self.isRefreshing = false
@@ -207,7 +251,9 @@ final class KillProcessService: ObservableObject {
 
     /// Kills every currently listed process sharing this exact name.
     func killAll(named name: String, force: Bool) {
-        let targets = entries.filter { $0.name == name && !$0.isProtected }
+        var seen = Set<pid_t>()
+        let targets = (entries + allEntries)
+            .filter { $0.name == name && !$0.isProtected && seen.insert($0.pid).inserted }
             .compactMap(Self.target(for:))
         guard !targets.isEmpty else { return }
         DispatchQueue.global(qos: .userInitiated).async {
@@ -297,6 +343,7 @@ final class KillProcessService: ObservableObject {
         DispatchQueue.main.async {
             if !removed.isEmpty {
                 self.entries.removeAll { removed.contains($0.pid) }
+                self.allEntries.removeAll { removed.contains($0.pid) }
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -436,12 +483,55 @@ final class KillProcessService: ObservableObject {
     /// Nil on a failed or clearly-wrong snapshot (a timed-out or non-zero
     /// `ps`, or zero rows parsed - never legitimately true on a running Mac),
     /// so a transient hiccup can be told apart from an actually-empty list.
-    private static func snapshot(grouped: Bool) -> [KillProcessEntry]? {
+    private static func snapshot(grouped: Bool) -> (displayed: [KillProcessEntry], all: [KillProcessEntry])? {
         let result = Shell.run("/bin/ps", ["-eo", "pid,ppid,pcpu,rss,comm"])
         guard result.status == 0 else { return nil }
         let rows = parsePS(result.output)
         guard !rows.isEmpty else { return nil }
-        return (grouped ? groupedByApp(rows) : rows).sorted { $0.cpuPercent > $1.cpuPercent }
+        let all = rows.sorted { $0.cpuPercent > $1.cpuPercent }
+        let displayed = grouped ? groupedByApp(rows).sorted { $0.cpuPercent > $1.cpuPercent } : all
+        return (displayed, all)
+    }
+
+    /// Resolves a single live PID directly from the kernel (`proc_pidinfo`),
+    /// so a process spawned after the last `ps` snapshot can still be found
+    /// and terminated by PID immediately.
+    private static func liveEntry(forPID pid: pid_t) -> KillProcessEntry? {
+        guard pid > 0 else { return nil }
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size,
+              info.pbi_status != SZOMB else { return nil }
+        let ppid = pid_t(info.pbi_ppid)
+        let startedAt = info.pbi_start_tvsec &* 1_000_000 &+ info.pbi_start_tvusec
+        var pathBuffer = [CChar](repeating: 0, count: Int(MAXPATHLEN) * 4)
+        let commandPath: String
+        if proc_pidpath(pid, &pathBuffer, UInt32(pathBuffer.count)) > 0 {
+            commandPath = String(cString: pathBuffer)
+        } else {
+            commandPath = withUnsafePointer(to: info.pbi_comm) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(MAXCOMLEN)) {
+                    String(cString: $0)
+                }
+            }
+        }
+        let shortName = commandPath.contains("/")
+            ? (commandPath as NSString).lastPathComponent : commandPath
+        guard !commandPath.isEmpty else { return nil }
+        let running = NSRunningApplication(processIdentifier: pid)
+        let isProt = isProtected(pid: pid, name: shortName, path: commandPath)
+        return KillProcessEntry(
+            pid: pid,
+            ppid: ppid,
+            name: ResponsibleProcess.displayName(pid: pid, fallback: shortName),
+            path: commandPath,
+            cpuPercent: 0,
+            memoryBytes: 0,
+            isRegularApp: running?.activationPolicy == .regular,
+            bundleURL: running?.bundleURL,
+            groupedCount: 1,
+            isProtected: isProt,
+            startedAt: startedAt)
     }
 
     /// Lines look like "  437     1  12.5  20480 /System/Library/.../WindowServer".

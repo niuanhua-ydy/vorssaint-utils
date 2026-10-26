@@ -223,6 +223,7 @@ final class NotchService: ObservableObject {
     private var fileInteractionActive = false
     private var keepsWorkingSurface: Bool {
         pinned || trackingMenu || NSApp.modalWindow != nil || panel?.attachedSheet != nil
+            || (showingCommandBar && !CommandBarService.shared.mode.dismissesOnFocusLoss)
             || NotchLyricsService.shared.isImporting
             // Like the lyrics chooser, these panels stand beside the island
             // instead of hanging from it; a click in them is not a click away.

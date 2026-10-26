@@ -1941,6 +1941,18 @@ enum CommandBarFeatureTests {
             .components(separatedBy: "private func installMonitors(for panel: NSPanel)")
             .last ?? "").components(separatedBy: "\n    private func ")
         let monitor = monitorParts.first ?? ""
+        for route in ["localClickMonitor =", "outsideClickMonitor =", "activationObserver ="] {
+            let handler = monitor.components(separatedBy: route).dropFirst().first?
+                .components(separatedBy: "self.hide()").first ?? ""
+            suite.expect(handler.contains("self.mode.dismissesOnFocusLoss"),
+                         "\(route) only auto-dismisses the search mode")
+        }
+        let notchSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
+                                       encoding: .utf8)) ?? ""
+        let workingSurface = notchSource.components(separatedBy: "private var keepsWorkingSurface: Bool {")
+            .dropFirst().first?.components(separatedBy: "\n    }").first ?? ""
+        suite.expect(workingSurface.contains("showingCommandBar && !CommandBarService.shared.mode.dismissesOnFocusLoss"),
+                     "the island also preserves an entered Command Bar workflow")
         suite.expect(monitorParts.count > 1
                 && monitor.contains("? event.charactersIgnoringModifiers")
                 && monitor.contains(": event.characters)?.lowercased()")
@@ -2477,10 +2489,11 @@ enum CommandBarFeatureTests {
 
         func tabStep(title: String = "Row", query: String = "ro", takesArgument: Bool = false,
                      keepsBarOpen: Bool = false, asksForNumber: Bool = false,
-                     confirms: Bool = false, hasTrouble: Bool = false) -> CommandBarTabStep {
+                     confirms: Bool = false, hasTrouble: Bool = false,
+                     isCompleted: Bool = false) -> CommandBarTabStep {
             CommandBarTabStep.step(title: title, query: query, takesArgument: takesArgument,
                                    keepsBarOpen: keepsBarOpen, asksForNumber: asksForNumber,
-                                   confirms: confirms, hasTrouble: hasTrouble)
+                                   confirms: confirms, hasTrouble: hasTrouble, isCompleted: isCompleted)
         }
         suite.expect(tabStep(keepsBarOpen: true) == .enter,
                "Tab steps into a category browse the way Return does")
@@ -2494,11 +2507,24 @@ enum CommandBarFeatureTests {
                "Tab leaves the words already typed after a saved search alone")
         suite.expect(tabStep(keepsBarOpen: true, confirms: true) == .complete
                 && tabStep(asksForNumber: true, confirms: true) == .complete,
-               "Tab never steps into a row that asks for confirmation")
+               "the first Tab only completes a row that asks for confirmation")
         suite.expect(tabStep(keepsBarOpen: true, hasTrouble: true) == .complete,
-               "Tab never sends the person off to Settings or a permission prompt")
+               "the first Tab only completes a row that needs setup")
         suite.expect(tabStep() == .complete,
                "Tab still completes the field on a row that just runs")
+
+        suite.expect(tabStep(isCompleted: true) == .enter,
+               "another Tab on the unchanged completion runs the row")
+        suite.expect(tabStep(confirms: true, isCompleted: true) == .enter,
+               "another Tab on a destructive row enters its normal confirmation flow")
+        suite.expect(tabStep(hasTrouble: true, isCompleted: true) == .enter,
+               "another Tab uses the normal permission and setup routing")
+        let tabDecision = commandBarCode.components(separatedBy: "private func tabStep(for entry:")
+            .dropFirst().first?.components(separatedBy: "\n    }").first ?? ""
+        suite.expect(tabDecision.contains("isCompleted: completedQuery == query && completedEntryID == entry.id"),
+               "Tab only runs the same completed row while its completed query remains unchanged")
+        suite.expect(monitor.contains("if !event.isARepeat { self.tabSelected() }"),
+               "holding Tab cannot turn completion into execution")
 
         let learningDefaultsName = "com.vorssaint.tests.command-bar-learning"
         let learningDefaults = UserDefaults(suiteName: learningDefaultsName)!
@@ -2598,6 +2624,65 @@ enum CommandBarFeatureTests {
             let guarded = offset("guard changed else { return }")
             suite.expect(stored >= 0 && guarded > stored,
                    "\(pass) stores the whole sample before it decides whether the rows changed")
+        }
+
+        // MARK: Kill Process by PID
+        func processEntry(_ pid: pid_t, name: String = "node", path: String = "", cpu: Double = 10) -> KillProcessEntry {
+            KillProcessEntry(pid: pid, ppid: 1, name: name, path: path, cpuPercent: cpu,
+                             memoryBytes: 64_000_000, isRegularApp: false, bundleURL: nil,
+                             groupedCount: 1, isProtected: false, startedAt: nil)
+        }
+        let sampleProcess = processEntry(4242, name: "node", path: "/opt/homebrew/bin/node", cpu: 12.5)
+        let killKeywords = KillProcessSupport.commandBarKeywords(for: sampleProcess)
+        suite.expect(killKeywords.split(separator: " ").contains("4242")
+                     && killKeywords.contains("pid 4242")
+                     && killKeywords.contains("kill 4242")
+                     && killKeywords.contains("/opt/homebrew/bin/node"),
+                     "a process row in the Command Bar answers to its PID, pid <PID>, kill <PID>, and executable path")
+        for (query, allowBare, lang, expected) in [
+            ("kill 4242", false, AppLanguage.enUS, "4242"),
+            ("kill -9 4242", false, .enUS, "4242"),
+            ("kill -KILL 4242", false, .enUS, "4242"),
+            ("pid 4242", false, .enUS, "4242"),
+            ("pid:4242", false, .enUS, "4242"),
+            ("pid=4242", false, .enUS, "4242"),
+            ("pkill 4242", false, .enUS, "4242"),
+            ("force kill 4242", false, .enUS, "4242"),
+            ("结束 4242", false, .zhHans, "4242"),
+            ("结束4242", false, .zhHans, "4242"),
+            ("杀进程 4242", false, .zhHans, "4242"),
+            ("杀 4242", false, .zhHans, "4242"),
+            ("强制结束 4242", false, .zhHans, "4242"),
+            ("4242", true, .enUS, "4242"),
+            ("#4242", true, .enUS, "4242"),
+        ] as [(String, Bool, AppLanguage, String?)] {
+            suite.expect(KillProcessSupport.pidQuery(from: query, allowBareDigits: allowBare, language: lang) == expected,
+                         "\(query) reads as a PID query (\(expected ?? "nil"))")
+        }
+        for query in ["4242", "0", "kill", "kill node", "pid", "kill 0", "kill 12345678", "12+34"] {
+            suite.expect(KillProcessSupport.pidQuery(from: query, allowBareDigits: false, language: .enUS) == nil,
+                         "\(query) does not read as a root-level PID query")
+        }
+        suite.expect(KillProcessSupport.isForceKillQuery("kill -9 4242", language: .enUS)
+                     && KillProcessSupport.isForceKillQuery("kill -sigkill 4242", language: .enUS)
+                     && KillProcessSupport.isForceKillQuery("force kill 4242", language: .enUS)
+                     && KillProcessSupport.isForceKillQuery("强制结束 4242", language: .zhHans)
+                     && !KillProcessSupport.isForceKillQuery("kill 4242", language: .enUS),
+                     "force-kill flags and verbs are recognized on PID queries")
+        let pidPool = [
+            processEntry(42420, name: "worker", cpu: 50),
+            sampleProcess,
+            processEntry(42421, name: "helper", cpu: 10),
+            processEntry(999, name: "other", cpu: 80),
+        ]
+        suite.expect(KillProcessSupport.matchingPIDEntries(in: pidPool, pidQuery: "4242").map(\.pid)
+                     == [4242, 42420, 42421],
+                     "matchingPIDEntries places the exact PID first, followed by prefix matches in pool order")
+        for query in ["kill", "pid", "杀进程", "结束进程"] {
+            let keywords = KillProcessSupport.browseKeywords(.zhHans)
+            let title = FeatureStrings.hub(.zhHans).killProcessTitle
+            suite.expect(CommandBarSearch.matches(title: title, keywords: keywords, query: query),
+                         "\(query) finds the Kill Process browser row")
         }
 
     }

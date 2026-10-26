@@ -141,7 +141,7 @@ struct CommandBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            searchBar
+            if service.mode != .translation { searchBar }
             if let warning = service.uninstallWarning {
                 Label(warning, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -151,6 +151,8 @@ struct CommandBarView: View {
                     .padding(.bottom, 12)
             }
             switch service.mode {
+            case .translation:
+                if isShown { CommandBarTranslationView(model: service.translator) }
             case .search:
                 if showsCategoryChips {
                     Divider()
@@ -202,7 +204,7 @@ struct CommandBarView: View {
             }
             // A footer under a bare field reads as a second row of chrome on
             // something meant to be one strip.
-            if !service.isCompactHome {
+            if !service.isCompactHome && service.mode != .translation {
                 Divider()
                 footer
             }
@@ -235,7 +237,7 @@ struct CommandBarView: View {
     private var isWide: Bool { shownAs != .island }
 
     private func focusSearch() {
-        DispatchQueue.main.async { if isShown { searchFocused = true } }
+        DispatchQueue.main.async { if isShown && service.mode != .translation { searchFocused = true } }
     }
 
     // MARK: - Field

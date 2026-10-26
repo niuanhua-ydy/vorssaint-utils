@@ -1014,11 +1014,10 @@ enum CommandBarLearning {
 
 /// What Tab does with the selected row. Tab steps into a row that leads
 /// somewhere, the way Return would: a category to browse, a number to type,
-/// a saved search waiting for its words. It never runs a row that acts on its
-/// own, asks for confirmation or sends the person off to Settings; there it
-/// completes the field, as it always did.
+/// a saved search waiting for its words. Other rows complete first; another
+/// Tab on that unchanged completion runs through the normal confirmation flow.
 enum CommandBarTabStep: Equatable {
-    /// Run the row: all it does is put something into the bar.
+    /// Run the row through its normal guards and confirmation.
     case enter
     /// Ask for the row's number.
     case askForNumber
@@ -1029,7 +1028,9 @@ enum CommandBarTabStep: Equatable {
     case complete
 
     static func step(title: String, query: String, takesArgument: Bool, keepsBarOpen: Bool,
-                     asksForNumber: Bool, confirms: Bool, hasTrouble: Bool) -> CommandBarTabStep {
+                     asksForNumber: Bool, confirms: Bool, hasTrouble: Bool,
+                     isCompleted: Bool = false) -> CommandBarTabStep {
+        if isCompleted { return .enter }
         guard !confirms, !hasTrouble else { return .complete }
         if takesArgument {
             return CommandBarLinks.trailingArgument(query: query, name: title) == nil

@@ -45,6 +45,7 @@ struct CommandBarSettings: View {
 
     var body: some View {
         Form {
+            CommandBarDeveloperToolsSettings()
             Section {
                 // One choice, open it or recenter it, so one row. Neither
                 // carries an icon: a ⌘ glyph in front of "Open the bar now"
@@ -151,6 +152,8 @@ struct CommandBarSettings: View {
             } header: {
                 Text(text.pageTitle)
             }
+
+            CommandBarTranslationSettingsSection()
 
             Section {
                 Button {

@@ -109,6 +109,8 @@ struct MetricsTests {
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
             }),
+            ("developer-tools", { CommandBarDeveloperToolsTests.run(suite) }),
+            ("translation", { CommandBarTranslationTests.run(suite) }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)

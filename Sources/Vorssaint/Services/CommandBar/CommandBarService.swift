@@ -18,6 +18,7 @@ final class CommandBarService: ObservableObject {
     /// number of a command like "brilho"; confirm guards a destructive one.
     enum Mode: Equatable {
         case search
+        case translation
         case argument(entryID: String)
         case confirm(entryID: String)
         /// The full leftover-files checklist for one app, in place of a
@@ -38,6 +39,9 @@ final class CommandBarService: ObservableObject {
         /// Waiting for the person to press the combination they want for one
         /// row. Every other key is theirs while this lasts.
         case capturingShortcut(entryID: String)
+
+        /// Only browsing is transient; an entered workflow survives focus changes.
+        var dismissesOnFocusLoss: Bool { self == .search }
 
         var isUninstallFlow: Bool {
             switch self {
@@ -168,6 +172,7 @@ final class CommandBarService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     private var catalog: [CommandBarEntry] = [] { didSet { foldedSections[.catalog] = nil } }
+    let translator = CommandBarTranslationModel()
     let scriptRunner = CommandBarScriptRunner()
     let fileSearch = CommandBarFileSearch()
     /// Which row answered which few letters, for as long as the app runs. Not
@@ -253,6 +258,7 @@ final class CommandBarService: ObservableObject {
     /// title is what app-choice learning should remember.
     private var queryBeforeCompletion: String?
     private var completedQuery: String?
+    private var completedEntryID: String?
     /// The last thing typed, kept only in memory so reopening can offer it.
     private var lastQuery = ""
     private var panelScreen: NSRect?
@@ -410,6 +416,7 @@ final class CommandBarService: ObservableObject {
         savedQuery = ""
         queryBeforeCompletion = nil
         completedQuery = nil
+        completedEntryID = nil
         queryWhenRun = ""
         selectionWhenRun = ""
         selectedID = nil
@@ -586,7 +593,22 @@ final class CommandBarService: ObservableObject {
         hide()
     }
 
+    func openTranslation() {
+        guard AppFeature.commandBar.isAvailable else { return }
+        savedQuery = query
+        translator.open()
+        mode = .translation
+        refreshResults()
+    }
+
+    func openTranslationSettings() {
+        hide()
+        SettingsRouter.shared.page = .commandBar
+        appDelegate()?.openSettingsWindow()
+    }
+
     func hide() {
+        translator.reset()
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
         presentation = .window
@@ -1141,6 +1163,20 @@ final class CommandBarService: ObservableObject {
         }
         return CommandBarSearch.rankedIndexes(candidates: candidates, matching: trimmed)
             .map { pool[$0] }
+    }
+
+    /// Running processes that match a PID query ("kill 1234", "pid 1234", or
+    /// bare digits inside the Kill Process category), including child and
+    /// helper processes that are folded when grouping is on.
+    private func killProcessPIDRows(matching pid: String, force: Bool) -> [CommandBarEntry] {
+        guard AppFeature.killProcess.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled),
+              isEnabled(.killProcess) else { return [] }
+        let hidden = hiddenCache
+        let killStrings = FeatureStrings.killProcess(L10n.shared.language)
+        let matched = KillProcessService.shared.pidEntries(matching: pid)
+        return CommandBarCatalog.killProcessEntries(matched, killStrings: killStrings, force: force)
+            .filter { !hidden.contains($0.stableKey) }
     }
 
     // MARK: - Command table
@@ -1715,7 +1751,7 @@ final class CommandBarService: ObservableObject {
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
         case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .cleanReview, .actions,
-             .naming, .capturingShortcut:
+             .naming, .capturingShortcut, .translation:
             setCompactHome(false)
         }
         let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
@@ -1849,7 +1885,7 @@ final class CommandBarService: ObservableObject {
     private static let kindLimits: [(prefix: String, limit: Int)] = [
         ("app.", 5), ("window.", 4), ("quit.", 3), ("menu.", 5), ("emoji.", 6),
         ("settings.", 4), ("macsettings.", 4), ("clipboard.", 4), ("snippet.", 4),
-        ("file.", 4), ("port.", 5),
+        ("file.", 4), ("port.", 5), ("kill.", 5),
         // Every switch answers to the same verb, so searching that verb would
         // otherwise fill the list with twenty rows that all read alike.
         ("toggle.", 5),
@@ -1913,7 +1949,20 @@ final class CommandBarService: ObservableObject {
                                            priority: habitBoost)
             }
             let ranked = CommandBarSearch.rankedIndexes(candidates: candidates, matching: trimmed)
-            return ranked.prefix(40).map { pool[$0] }
+            let rankedRows = ranked.prefix(40).map { pool[$0] }
+            if category == .killProcess,
+               let pid = KillProcessSupport.pidQuery(from: trimmed,
+                                                     allowBareDigits: true,
+                                                     language: L10n.shared.language) {
+                let force = KillProcessSupport.isForceKillQuery(trimmed, language: L10n.shared.language)
+                let pidRows = killProcessPIDRows(matching: pid, force: force)
+                if !pidRows.isEmpty {
+                    var seen = Set(pidRows.map(\.id))
+                    let remainder = rankedRows.filter { seen.insert($0.id).inserted }
+                    return Array((pidRows + remainder).prefix(40))
+                }
+            }
+            return rankedRows
         }
 
         // Emoji are a catalog of more than a thousand rows, so they only join
@@ -2132,6 +2181,14 @@ final class CommandBarService: ObservableObject {
         if let answer, colorPreview == nil { result.append(answer) }
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
+        if let pid = KillProcessSupport.pidQuery(from: trimmed,
+                                                 allowBareDigits: false,
+                                                 language: L10n.shared.language) {
+            let force = KillProcessSupport.isForceKillQuery(trimmed, language: L10n.shared.language)
+            let pidRows = killProcessPIDRows(matching: pid, force: force).prefix(5)
+            result.append(contentsOf: pidRows)
+            counts["kill."] = pidRows.count
+        }
         for index in ranked {
             let entry = pool[index]
             if entry.id.hasPrefix("answer."),
@@ -2165,7 +2222,7 @@ final class CommandBarService: ObservableObject {
     }
 
     /// Tab steps into the selected row when it leads somewhere (see
-    /// `CommandBarTabStep`), and otherwise completes the field.
+    /// `CommandBarTabStep`), otherwise completes it, then runs it on the next Tab.
     func tabSelected() {
         guard case .search = mode, let entry = selectedEntry else { return }
         switch tabStep(for: entry) {
@@ -2190,7 +2247,8 @@ final class CommandBarService: ObservableObject {
         CommandBarTabStep.step(
             title: entry.title, query: query, takesArgument: entry.takesArgument,
             keepsBarOpen: entry.keepsBarOpen, asksForNumber: entry.numericRange != nil,
-            confirms: entry.confirmationPrompt != nil, hasTrouble: entry.trouble != nil)
+            confirms: entry.confirmationPrompt != nil, hasTrouble: entry.trouble != nil,
+            isCompleted: completedQuery == query && completedEntryID == entry.id)
     }
 
     /// Tab reuses a calculator answer or completes the selected search result.
@@ -2210,6 +2268,7 @@ final class CommandBarService: ObservableObject {
         let completion = CommandBarCompletion.completedQuery(
             current: query, title: entry.title, matchTitle: entry.matchTitle)
         completedQuery = completion
+        completedEntryID = entry.id
         query = completion
     }
 
@@ -2237,11 +2296,12 @@ final class CommandBarService: ObservableObject {
         rows.indices.contains(selectedIndex) ? rows[selectedIndex] : nil
     }
 
-    /// A row by its id, from the catalog first and from what is on screen
-    /// otherwise: the clipboard and the calculator build rows that never enter
-    /// the index, and ⌘K on one of those used to open an empty list.
+    /// A row by its id, from what is on screen first and from the catalog
+    /// otherwise: the clipboard, the calculator, and PID-matched processes
+    /// build rows on the fly, and ⌘K or confirmation on one of those must use
+    /// the live row on screen.
     func entry(withID id: String) -> CommandBarEntry? {
-        entriesByID[id] ?? rows.first { $0.id == id }
+        rows.first { $0.id == id } ?? entriesByID[id]
     }
 
     /// Which letters of a row's title the query literally matched. Empty while
@@ -2272,7 +2332,7 @@ final class CommandBarService: ObservableObject {
     /// offering the panel at all instead of opening an empty one.
     var canOpenActions: Bool {
         guard case .search = mode, let entry = selectedEntry, !entry.isAnswer,
-              entriesByID[entry.id] != nil else { return false }
+              entriesByID[entry.id] != nil || entry.id.hasPrefix("kill.") else { return false }
         return !actions(for: entry).isEmpty
     }
 
@@ -2338,32 +2398,46 @@ final class CommandBarService: ObservableObject {
                 self?.copyPath(path)
             })
         }
-        if let process = killProcessEntry(for: entry), !process.isProtected {
+        if let process = killProcessEntry(for: entry) {
             let killStrings = FeatureStrings.killProcess(L10n.shared.language)
-            actions.append(RowAction(id: "forceKillProcess",
-                                     title: killStrings.forceKillButton,
-                                     symbolName: "exclamationmark.octagon",
-                                     isDestructive: true) { [weak self] in
-                self?.confirmForceKillProcess(process)
+            if !process.isProtected {
+                actions.append(RowAction(id: "forceKillProcess",
+                                         title: killStrings.forceKillButton,
+                                         symbolName: "exclamationmark.octagon",
+                                         isDestructive: true) { [weak self] in
+                    self?.confirmForceKillProcess(process)
+                })
+                actions.append(RowAction(id: "killAllProcess",
+                                         title: String(format: killStrings.killAllFormat, process.name),
+                                         symbolName: "xmark.octagon",
+                                         isDestructive: true) { [weak self] in
+                    self?.confirmKillAllProcesses(process)
+                })
+                actions.append(RowAction(id: "killProcessTree",
+                                         title: killStrings.killTreeButton,
+                                         symbolName: "xmark.octagon",
+                                         isDestructive: true) { [weak self] in
+                    self?.confirmKillProcessTree(process)
+                })
+                if KillProcessService.shared.canRestart(process) {
+                    actions.append(RowAction(id: "restartProcess",
+                                             title: killStrings.restartButton,
+                                             symbolName: "arrow.clockwise") { [weak self] in
+                        self?.hide()
+                        KillProcessService.shared.restart(process)
+                    })
+                }
+            }
+            actions.append(RowAction(id: "copyProcessPID",
+                                     title: killStrings.copyPID,
+                                     symbolName: "number") { [weak self] in
+                self?.copyPath(String(process.pid))
             })
-            actions.append(RowAction(id: "killAllProcess",
-                                     title: String(format: killStrings.killAllFormat, process.name),
-                                     symbolName: "xmark.octagon",
-                                     isDestructive: true) { [weak self] in
-                self?.confirmKillAllProcesses(process)
-            })
-            actions.append(RowAction(id: "killProcessTree",
-                                     title: killStrings.killTreeButton,
-                                     symbolName: "xmark.octagon",
-                                     isDestructive: true) { [weak self] in
-                self?.confirmKillProcessTree(process)
-            })
-            if KillProcessService.shared.canRestart(process) {
-                actions.append(RowAction(id: "restartProcess",
-                                         title: killStrings.restartButton,
-                                         symbolName: "arrow.clockwise") { [weak self] in
-                    self?.hide()
-                    KillProcessService.shared.restart(process)
+            if entry.revealPath == nil, !process.path.isEmpty {
+                actions.append(RowAction(id: "copyProcessPath",
+                                         title: killStrings.copyPath,
+                                         symbolName: "doc.on.clipboard") { [weak self] in
+                    self?.copyPath(process.path)
                 })
             }
         }
@@ -2597,7 +2671,7 @@ final class CommandBarService: ObservableObject {
 
     private func killProcessEntry(for entry: CommandBarEntry) -> KillProcessEntry? {
         guard entry.id.hasPrefix("kill."), let pid = pid_t(entry.id.dropFirst("kill.".count)) else { return nil }
-        return KillProcessService.shared.entries.first { $0.pid == pid }
+        return KillProcessService.shared.entry(forPID: pid)
     }
 
     private func runningApplication(for app: InstalledApps.InstalledApp) -> NSRunningApplication? {
@@ -3096,6 +3170,8 @@ final class CommandBarService: ObservableObject {
 
     func runSelected() {
         switch mode {
+        case .translation:
+            translator.start()
         case .actions:
             runSelectedAction()
             return
@@ -3198,6 +3274,11 @@ final class CommandBarService: ObservableObject {
     /// plain search it closes the bar.
     func stepBack() {
         switch mode {
+        case .translation:
+            translator.reset()
+            mode = .search
+            query = savedQuery
+            refreshResults()
         case .actions:
             leaveActions()
         case .naming(let entryID):
@@ -3989,6 +4070,33 @@ final class CommandBarService: ObservableObject {
 
             let navigationModifiers = event.modifierFlags
                 .intersection([.command, .option, .shift, .control])
+            if self.mode == .translation {
+                if Int(event.keyCode) == kVK_Escape {
+                    self.stepBack()
+                    return nil
+                }
+                let key = event.charactersIgnoringModifiers?.lowercased()
+                if navigationModifiers == [.command] {
+                    switch key {
+                    case ",": self.openTranslationSettings(); return nil
+                    case "w": self.hide(); return nil
+                    case "q", "m", "h": return nil
+                    case "a": return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: panel) ? nil : event
+                    case "c": return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: panel) ? nil : event
+                    case "x": return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: panel) ? nil : event
+                    case "v": return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: panel) ? nil : event
+                    default: break
+                    }
+                }
+                if (Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter),
+                   navigationModifiers.isEmpty || navigationModifiers == [.command],
+                   panel.firstResponder is NSTextView || navigationModifiers == [.command] {
+                    if !event.isARepeat { self.translator.start() }
+                    return nil
+                }
+                // Native editors and pickers own arrows, selection, Tab and Shift-Return.
+                return event
+            }
             if event.modifierFlags.contains(.command) {
                 // `characters` is the Command-aware key macOS resolves: it
                 // follows remapped Latin layouts and supplies the positional
@@ -4079,7 +4187,7 @@ final class CommandBarService: ObservableObject {
             case kVK_RightArrow:
                 return self.moveCategory(1) ? nil : event
             case kVK_Tab:
-                self.tabSelected()
+                if !event.isARepeat { self.tabSelected() }
                 return nil
             default:
                 // ⌘1…⌘9 run by position; plain digits belong to the field.
@@ -4142,14 +4250,14 @@ final class CommandBarService: ObservableObject {
         let mouseEvents: NSEvent.EventTypeMask = [.leftMouseDown, .rightMouseDown, .otherMouseDown]
         localClickMonitor = NSEvent.addLocalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return event }
-            if event.window !== panel, !Self.mouseIsInside(panel) {
+            if event.window !== panel, !Self.mouseIsInside(panel), self.mode.dismissesOnFocusLoss {
                 self.hide()
             }
             return event
         }
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(matching: mouseEvents) { [weak self, weak panel] event in
             guard let self, let panel, panel.isVisible else { return }
-            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel),
+            if event.windowNumber != panel.windowNumber, !Self.mouseIsInside(panel), self.mode.dismissesOnFocusLoss,
                // Every key on the Accessibility Keyboard is a click outside this
                // panel. Dismissing on those makes the panel impossible to type into.
                !AssistiveKeyboard.ownsCocoaPoint(NSEvent.mouseLocation) {
@@ -4164,7 +4272,8 @@ final class CommandBarService: ObservableObject {
             guard let self,
                   let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
                   app.bundleIdentifier != Bundle.main.bundleIdentifier,
-                  app.bundleIdentifier != AssistiveKeyboard.bundleID
+                  app.bundleIdentifier != AssistiveKeyboard.bundleID,
+                  self.mode.dismissesOnFocusLoss
             else { return }
             self.hide()
         }

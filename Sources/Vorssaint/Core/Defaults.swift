@@ -578,6 +578,12 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
+    // Translation is an on-demand Command Bar tool; credentials live only in Keychain.
+    static let translationEngine = "translationEngine"
+    static let translationTarget = "translationTarget"
+    static let translationAIProvider = "translationAIProvider"
+    static let translationAIBaseURL = "translationAIBaseURL"
+    static let translationAIModel = "translationAIModel"
     static let commandBarShortcutEnabled = "commandBarShortcutEnabled"
     static let commandBarShortcut = "commandBarShortcut"
     /// Compact mode: an empty field shows nothing but itself. Off by default
@@ -587,6 +593,7 @@ enum DefaultsKey {
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → selected row ids
     static let commandBarQueryHabitKey = "commandBarQueryHabitKey" // local key for stable digests
+    static let commandBarDisabledDeveloperTools = "commandBarDisabledDeveloperTools"
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
     static let commandBarPins = "commandBarPins"             // row keys kept at the top, in order
@@ -1759,6 +1766,11 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
+        DefaultsKey.translationEngine: "system",
+        DefaultsKey.translationTarget: "zh-Hans",
+        DefaultsKey.translationAIProvider: "openAIChat",
+        DefaultsKey.translationAIBaseURL: "",
+        DefaultsKey.translationAIModel: "",
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,

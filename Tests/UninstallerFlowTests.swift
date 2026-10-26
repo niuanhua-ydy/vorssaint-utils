@@ -137,6 +137,7 @@ enum UninstallerFlowTests {
         static let finderBundleID = "com.apple.finder"
     }
     class ServiceState {
+        let translator = CommandBarTranslationModel()
         typealias AppUninstaller = Uninstaller
         typealias AppFeature = Feature
         typealias UserDefaults = Preferences

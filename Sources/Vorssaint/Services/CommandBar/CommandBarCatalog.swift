@@ -311,6 +311,27 @@ enum CommandBarCatalog {
             Permissions.shared.accessibility ? nil : .needsPermission
         }
 
+        if AppFeature.commandBar.isAvailable {
+            let disabled = UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledDeveloperTools) ?? ""
+            for tool in CommandBarDeveloperTools.enabled(disabledRaw: disabled) {
+                entries.append(CommandBarEntry(
+                    id: tool.rowID,
+                    title: language.rawValue.hasPrefix("zh") ? tool.chineseName : tool.name,
+                    subtitle: language.rawValue.hasPrefix("zh") ? "开发工具" : "Developer tools",
+                    keywords: tool.keywords,
+                    icon: .symbol(tool.symbol),
+                    run: { _ in afterBeat { CommandBarDeveloperToolsWindows.shared.show(tool) } }))
+            }
+            entries.append(CommandBarEntry(
+                id: "action.translate",
+                title: CommandBarTranslationStrings.strings(language).title,
+                subtitle: bar.pageTitle,
+                keywords: "translate translation 翻译 翻譯 fanyi fy AI Apple",
+                icon: .symbol("character.bubble"),
+                keepsBarOpen: true,
+                run: { _ in CommandBarService.shared.openTranslation() }))
+        }
+
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
             let screenshot = FeatureStrings.screenshot(language)
@@ -794,6 +815,7 @@ enum CommandBarCatalog {
                 id: CommandBarPreferences.killProcessBrowserRowID,
                 title: killStrings.pageTitle,
                 subtitle: killStrings.browseSubtitle,
+                keywords: KillProcessSupport.browseKeywords(language),
                 icon: .symbol("xmark.octagon"),
                 keepsBarOpen: true,
                 run: { _ in
@@ -1116,22 +1138,25 @@ enum CommandBarCatalog {
         }
     }
 
-    /// One row per running process, so typing its name finds and can kill it
-    /// directly. Force Kill, Kill All and Kill Process Tree live in the row's
-    /// Actions panel, the same place Force Quit and Restart live for apps.
+    /// One row per running process, so typing its name or PID finds and can
+    /// kill it directly. Force Kill, Kill All and Kill Process Tree live in the
+    /// row's Actions panel, the same place Force Quit and Restart live for apps.
     static func killProcessEntries(_ processes: [KillProcessEntry],
-                                   killStrings: KillProcessFeatureStrings) -> [CommandBarEntry] {
+                                   killStrings: KillProcessFeatureStrings,
+                                   force: Bool = false) -> [CommandBarEntry] {
         processes.filter { !$0.isProtected }.map { process in
             CommandBarEntry(
                 id: "kill.\(process.pid)",
                 title: process.name,
                 subtitle: String(format: killStrings.pidLabelFormat, process.pid),
-                keywords: process.path,
+                keywords: KillProcessSupport.commandBarKeywords(for: process),
                 icon: process.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("xmark.octagon"),
-                confirmationPrompt: String(format: killStrings.confirmKillFormat, process.name),
+                confirmationPrompt: String(
+                    format: force ? killStrings.confirmForceKillFormat : killStrings.confirmKillFormat,
+                    process.name),
                 countsUsage: false,
                 run: { _ in
-                    KillProcessService.shared.kill(process, force: false)
+                    KillProcessService.shared.kill(process, force: force)
                 })
         }
     }

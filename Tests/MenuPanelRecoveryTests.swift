@@ -239,6 +239,8 @@ enum MenuPanelRecoveryTests {
         var popoverPositioningPanel: NSPanel?
         var popoverDriftObservers: [NSObjectProtocol] = []
         var monitors = false
+        var pointerIsOverStatusItem = false
+        func isOverStatusItem(_ point: NSPoint) -> Bool { pointerIsOverStatusItem }
         func removePopoverDismissMonitor() { monitors = false }
         func installPopoverDismissMonitor() { monitors = true }
         var popoverCloseReason: PanelCloseReason?
@@ -530,6 +532,40 @@ enum MenuPanelRecoveryTests {
             let unrelatedEvent = event(window: 99)!
             expect(!host.shouldDismissPopover(forLocalEvent: unrelatedEvent),
                    "interaction with unrelated window does not dismiss the popover")
+        }
+        do {
+            let host = setup()
+            let notification = Notification(name: Notification.Name("resignActive"))
+            PanelInteractionState.shared.viewKeepsPopoverOpen = true
+            host.applicationDidResignActive(notification)
+            expect(!host.popoverIsClosing, "cross-app utility survives deactivation")
+            PanelInteractionState.shared.viewKeepsPopoverOpen = false
+            PanelInteractionState.shared.isPresentingPopoverModal = true
+            host.applicationDidResignActive(notification)
+            expect(!host.popoverIsClosing, "modal presentation survives deactivation")
+            PanelInteractionState.shared.isPresentingPopoverModal = false
+            host.applicationDidResignActive(notification)
+            expect(host.popoverIsClosing && host.popoverCloseReason == .outsideClick,
+                   "deactivation dismisses an ordinary panel without a mouse event")
+            NSAnimationContext.finish()
+            expect(!host.popover.isShown, "deactivation closes rather than recovering the panel")
+            host.applicationDidResignActive(notification)
+            expect(!host.popover.isShown, "deactivation with no panel is a no-op")
+        }
+        for finishEarlyClose in [false, true] {
+            let host = setup()
+            notifyCloses(host)
+            host.pointerIsOverStatusItem = true
+            host.applicationDidResignActive(Notification(name: Notification.Name("resignActive")))
+            expect(!host.popoverIsClosing, "status item mouse-down leaves dismissal to the button action")
+            if finishEarlyClose { NSAnimationContext.finish() }
+            host.togglePopover()
+            NSAnimationContext.finish()
+            expect(!host.popover.isShown && host.popover.attempts == 1,
+                   "status item mouse-up closes without reopening, with early fade completion \(finishEarlyClose)")
+            host.togglePopover()
+            expect(host.popover.isShown && host.popover.attempts == 2,
+                   "the next deliberate status item click opens the panel again")
         }
         for reason in [PanelCloseReason.escape, .statusItem, .outsideClick, .action] {
             let (host, source) = trackingSetup()

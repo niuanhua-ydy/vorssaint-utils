@@ -1161,6 +1161,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         return responder === fieldEditor
     }
 
+    func applicationDidResignActive(_ notification: Notification) {
+        // applicationDefined popovers need a fallback when an outside click
+        // changes activation without reaching the mouse event monitor.
+        guard popover.isShown,
+              !PanelInteractionState.shared.preventsPopoverDismissal else { return }
+        // The status button toggles on mouse-up; closing on deactivation first
+        // would make that same click reopen the panel instead.
+        guard !isOverStatusItem(NSEvent.mouseLocation) else { return }
+        closePopover(reason: .outsideClick)
+    }
+
     @objc private func appBecameActive() {
         // (Menu bar icon recovery happens on a deliberate reopen, not here: this
         // fires on every activation, so rebuilding here would cause churn/flicker.)
