@@ -151,8 +151,6 @@ struct CommandBarView: View {
                     .padding(.bottom, 12)
             }
             switch service.mode {
-            case .translation:
-                if isShown { CommandBarTranslationView(model: service.translator) }
             case .developerTool:
                 if isShown { CommandBarDeveloperToolView(model: service.developerTool) }
             case .search:

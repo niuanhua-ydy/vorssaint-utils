@@ -61,7 +61,6 @@ enum CommandBarCleanFlowTests {
         static func beep() { beeps += 1 }
     }
     class ServiceState {
-        let translator = CommandBarTranslationModel()
         let developerTool = CommandBarDeveloperToolModel()
         typealias JunkCleaner = Cleaner
         typealias AppUninstaller = Uninstaller
@@ -91,7 +90,7 @@ enum CommandBarCleanFlowTests {
 
     static func run(_ suite: TestSuite) {
         suite.expect(Mode.search.dismissesOnFocusLoss, "search still closes on focus loss")
-        let workflows: [Mode] = [.translation, .argument(entryID: "test"), .confirm(entryID: "test"),
+        let workflows: [Mode] = [.developerTool, .argument(entryID: "test"), .confirm(entryID: "test"),
             .uninstallReview(entryID: "test"), .uninstallHomebrewConfirm(entryID: "test"),
             .cleanReview(entryID: "test"), .actions(entryID: "test"), .naming(entryID: "test"),
             .capturingShortcut(entryID: "test")]

@@ -60,6 +60,8 @@ final class ScreenCaptureService: ObservableObject {
     private var selection: ScreenshotSelectionController?
     private var options: ScreenCaptureSelectionOptions?
     private var countdown: DispatchWorkItem?
+    /// Where text recognized in this selection goes; back to the clipboard once it ends.
+    private var textDestination: ScreenTextService.Destination = .clipboard
     private var countdownTools: [ScreenCaptureTool]?
     private var countdownRemaining = 0
 
@@ -114,7 +116,8 @@ final class ScreenCaptureService: ObservableObject {
     /// Opens the same chooser from every feature surface. A feature-specific
     /// button merely picks the initial mode; the person can switch before
     /// selecting anything.
-    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false) {
+    func capture(initial preferred: ScreenCaptureTool? = nil, fromShortcut: Bool = false,
+                 textDestination: ScreenTextService.Destination = .clipboard) {
         let recorder = ScreenRecorderService.shared
         if preferred == .recording, AppFeature.screenRecorder.isAvailable,
            recorder.stopOrCancelActiveCapture() {
@@ -137,7 +140,10 @@ final class ScreenCaptureService: ObservableObject {
         if duringRecording, selected != preferred { return }
         // The digit keys switch tools even with the menu hidden, so a
         // selection that runs over a recording offers only its own tool.
-        let tools = duringRecording ? [selected] : available
+        // Text picked for translation stays text: no other tool to switch to.
+        let forTranslation = textDestination == .translator
+        if forTranslation, selected != .text { return }
+        let tools = duringRecording || forTranslation ? [selected] : available
 
         guard Permissions.shared.screenRecording else {
             // Color sampling itself needs no capture permission, so its
@@ -154,7 +160,8 @@ final class ScreenCaptureService: ObservableObject {
             return
         }
 
-        let showsCaptureMenu = selected.showsCaptureMenu(fromShortcut: fromShortcut)
+        let showsCaptureMenu = !forTranslation && selected.showsCaptureMenu(fromShortcut: fromShortcut)
+        self.textDestination = textDestination
         let delay = selected == .screenshot
             ? ScreenshotSupport.sanitizedDelay(
                 UserDefaults.standard.integer(forKey: DefaultsKey.screenshotDelay))
@@ -248,8 +255,11 @@ final class ScreenCaptureService: ObservableObject {
             options.onCaptureControlsSurfaceChange = nil
             self.selection = nil
             self.options = nil
+            let destination = self.textDestination
+            self.textDestination = .clipboard
             self.route(outcome, selected: options.selectedTool,
-                       recorderAudio: options.recorderAudio)
+                       recorderAudio: options.recorderAudio,
+                       textDestination: destination)
         }
     }
 
@@ -266,7 +276,8 @@ final class ScreenCaptureService: ObservableObject {
 
     private func route(_ outcome: ScreenshotSelectionController.Outcome,
                        selected: ScreenCaptureTool,
-                       recorderAudio: RecorderSelectionAudioOptions) {
+                       recorderAudio: RecorderSelectionAudioOptions,
+                       textDestination: ScreenTextService.Destination) {
         guard ScreenshotSupport.captureRouteIsAuthorized(selected: selected) else { return }
         switch outcome {
         case .captured(let capture):
@@ -274,7 +285,11 @@ final class ScreenCaptureService: ObservableObject {
             case .screenshot:
                 ScreenshotService.shared.receiveUnifiedCapture(capture)
             case .text:
-                ScreenTextService.shared.receiveUnifiedCapture(capture)
+                if textDestination == .translator {
+                    ScreenTextService.shared.receiveTranslationCapture(capture)
+                } else {
+                    ScreenTextService.shared.receiveUnifiedCapture(capture)
+                }
             case .recording, .color:
                 showFailure(for: selected)
             }
@@ -325,5 +340,6 @@ final class ScreenCaptureService: ObservableObject {
         selection?.cancel()
         selection = nil
         options = nil
+        textDestination = .clipboard
     }
 }

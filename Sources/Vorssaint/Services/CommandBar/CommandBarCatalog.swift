@@ -327,7 +327,7 @@ enum CommandBarCatalog {
             }
             entries.append(CommandBarEntry(
                 id: "action.translate",
-                title: CommandBarTranslationStrings.strings(language).title,
+                title: TranslatorStrings.strings(language).title,
                 subtitle: bar.pageTitle,
                 keywords: "translate translation 翻译 翻譯 fanyi fy AI Apple",
                 icon: .symbol("character.bubble"),
@@ -1703,6 +1703,7 @@ enum CommandBarCatalog {
                                  exactly selected: String? = nil,
                                  typesOver: Bool = true,
                                  bar: CommandBarFeatureStrings,
+                                 translate: (title: String, run: (String) -> Void)? = nil,
                                  useInSearch: @escaping (String) -> Void) -> [CommandBarEntry] {
         guard !text.isEmpty else { return [] }
         let kind = bar.kindSelection
@@ -1714,6 +1715,17 @@ enum CommandBarCatalog {
             subtitle: kind,
             icon: .symbol("doc.on.doc"),
             run: { _ in copyAnswer(text) }))
+
+        if let translate {
+            entries.append(CommandBarEntry(
+                id: "selection.translate",
+                title: translate.title,
+                subtitle: kind,
+                keywords: "translate translation 翻译 fanyi fy",
+                icon: .symbol("character.bubble"),
+                keepsBarOpen: true,
+                run: { _ in translate.run(text) }))
+        }
 
         entries.append(CommandBarEntry(
             id: "selection.search",

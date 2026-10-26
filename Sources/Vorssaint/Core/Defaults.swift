@@ -578,9 +578,17 @@ enum DefaultsKey {
     static let wallpaperExcludedOwnPaths = "wallpaperExcludedOwnPaths"
     static let scratchpadShortcutEnabled = "scratchpadShortcutEnabled"
     static let scratchpadShortcut = "scratchpadShortcut"
-    // Translation is an on-demand Command Bar tool; credentials live only in Keychain.
-    static let translationEngine = "translationEngine"
-    static let translationTarget = "translationTarget"
+    // The translation window; credentials live only in Keychain.
+    static let translatorFirstLanguage = "translatorFirstLanguage"   // TranslatorLanguage.rawValue
+    static let translatorSecondLanguage = "translatorSecondLanguage" // TranslatorLanguage.rawValue
+    static let translatorDisabledEngines = "translatorDisabledEngines" // comma-joined TranslatorEngine raw values
+    static let translatorPinned = "translatorPinned"
+    static let translatorSelectionShortcutEnabled = "translatorSelectionShortcutEnabled"
+    static let translatorSelectionShortcut = "translatorSelectionShortcut"
+    static let translatorInputShortcutEnabled = "translatorInputShortcutEnabled"
+    static let translatorInputShortcut = "translatorInputShortcut"
+    static let translatorScreenshotShortcutEnabled = "translatorScreenshotShortcutEnabled"
+    static let translatorScreenshotShortcut = "translatorScreenshotShortcut"
     static let translationAIProvider = "translationAIProvider"
     static let translationAIBaseURL = "translationAIBaseURL"
     static let translationAIModel = "translationAIModel"
@@ -1774,8 +1782,16 @@ enum Defaults {
         DefaultsKey.wallpaperFilter: "all",
         DefaultsKey.scratchpadShortcutEnabled: false,
         DefaultsKey.scratchpadShortcut: GlobalShortcut.scratchpadDefault.storageValue,
-        DefaultsKey.translationEngine: "system",
-        DefaultsKey.translationTarget: "zh-Hans",
+        DefaultsKey.translatorFirstLanguage: "zh-Hans",
+        DefaultsKey.translatorSecondLanguage: "en",
+        DefaultsKey.translatorDisabledEngines: "",
+        DefaultsKey.translatorPinned: false,
+        DefaultsKey.translatorSelectionShortcutEnabled: true,
+        DefaultsKey.translatorSelectionShortcut: GlobalShortcut.translatorSelectionDefault.storageValue,
+        DefaultsKey.translatorInputShortcutEnabled: true,
+        DefaultsKey.translatorInputShortcut: GlobalShortcut.translatorInputDefault.storageValue,
+        DefaultsKey.translatorScreenshotShortcutEnabled: true,
+        DefaultsKey.translatorScreenshotShortcut: GlobalShortcut.translatorScreenshotDefault.storageValue,
         DefaultsKey.translationAIProvider: "openAIChat",
         DefaultsKey.translationAIBaseURL: "",
         DefaultsKey.translationAIModel: "",

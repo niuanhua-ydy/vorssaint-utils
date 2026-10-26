@@ -75,8 +75,12 @@ enum CommandBarSelectionTests {
         defer { Catalog.typed = []; Catalog.copied = [] }
         var searched: [String] = []
         let selected = " \tHello world\n"
+        var translated: [String] = []
         let rows = Catalog.selectionEntries("Hello world", exactly: selected, bar: strings,
+                                             translate: ("translate", { translated.append($0) }),
                                              useInSearch: { searched.append($0) })
+        rows.first { $0.id == "selection.translate" }?.run(nil)
+        suite.expect(translated == ["Hello world"], "translate opens the window on the trimmed selection")
         rows.first { $0.id == "selection.upper" }?.run(nil)
         suite.expect(Catalog.typed == [selected.localizedUppercase],
                      "case changes preserve surrounding spaces and the selected line break")

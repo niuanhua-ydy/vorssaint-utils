@@ -110,7 +110,7 @@ struct MetricsTests {
                 RecorderExportRenderingTests.run(suite)
             }),
             ("developer-tools", { CommandBarDeveloperToolsTests.run(suite) }),
-            ("translation", { CommandBarTranslationTests.run(suite) }),
+            ("translation", { TranslatorTests.run(suite) }),
             ("agent-cli", { CommandBarAgentTests.run(suite) }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)

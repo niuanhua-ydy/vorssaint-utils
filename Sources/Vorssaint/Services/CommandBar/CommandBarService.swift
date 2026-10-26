@@ -18,7 +18,6 @@ final class CommandBarService: ObservableObject {
     /// number of a command like "brilho"; confirm guards a destructive one.
     enum Mode: Equatable {
         case search
-        case translation
         /// A text tool's page (JSON, Base64…) in place of the list.
         case developerTool
         case argument(entryID: String)
@@ -46,7 +45,7 @@ final class CommandBarService: ObservableObject {
         var dismissesOnFocusLoss: Bool { self == .search }
 
         /// A page that draws its own header and keys in place of the field and footer.
-        var ownsPanel: Bool { self == .translation || self == .developerTool }
+        var ownsPanel: Bool { self == .developerTool }
 
         var isUninstallFlow: Bool {
             switch self {
@@ -177,7 +176,6 @@ final class CommandBarService: ObservableObject {
     private var activationObserver: NSObjectProtocol?
 
     private var catalog: [CommandBarEntry] = [] { didSet { foldedSections[.catalog] = nil } }
-    let translator = CommandBarTranslationModel()
     let developerTool = CommandBarDeveloperToolModel()
     /// What each recognized-text row was made from, for Tab and the detail
     /// pane. Typed text is rebuilt with every search; the selection and the
@@ -329,6 +327,7 @@ final class CommandBarService: ObservableObject {
                                                   storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
+        TranslatorService.shared.syncWithPreferences()
         // An agent row's own shortcut must find its row before the bar has
         // ever been opened, so the agents are looked for from the start.
         if available, isEnabled(.agents) { CommandBarAgents.refresh() }
@@ -379,6 +378,7 @@ final class CommandBarService: ObservableObject {
 
     func suspend() {
         pendingAppShortcut.cancel()
+        TranslatorService.shared.suspend()
         hotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
@@ -626,12 +626,11 @@ final class CommandBarService: ObservableObject {
         hide()
     }
 
-    func openTranslation() {
+    /// Puts the bar away for the translation window, on `text` when given.
+    func openTranslation(_ text: String = "") {
         guard AppFeature.commandBar.isAvailable else { return }
-        savedQuery = query
-        translator.open()
-        mode = .translation
-        refreshResults()
+        hide()
+        TranslatorService.shared.show(text: text)
     }
 
     /// Opens one tool's page. With no text given it starts from the selection
@@ -677,14 +676,7 @@ final class CommandBarService: ObservableObject {
         queryToolMatches[entry.id] ?? contextToolMatches[entry.id]
     }
 
-    func openTranslationSettings() {
-        hide()
-        SettingsRouter.shared.page = .commandBar
-        appDelegate()?.openSettingsWindow()
-    }
-
     func hide() {
-        translator.reset()
         developerTool.reset()
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
@@ -1845,7 +1837,7 @@ final class CommandBarService: ObservableObject {
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
         case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .cleanReview, .actions,
-             .naming, .capturingShortcut, .translation, .developerTool:
+             .naming, .capturingShortcut, .developerTool:
             setCompactHome(false)
         }
         let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
@@ -3377,8 +3369,6 @@ final class CommandBarService: ObservableObject {
 
     func runSelected() {
         switch mode {
-        case .translation:
-            translator.start()
         case .developerTool:
             copyDeveloperToolResult()
         case .actions:
@@ -3483,11 +3473,6 @@ final class CommandBarService: ObservableObject {
     /// plain search it closes the bar.
     func stepBack() {
         switch mode {
-        case .translation:
-            translator.reset()
-            mode = .search
-            query = savedQuery
-            refreshResults()
         case .developerTool:
             developerTool.reset()
             mode = .search
@@ -3900,8 +3885,11 @@ final class CommandBarService: ObservableObject {
                 let toolRows = CommandBarCatalog.developerToolEntries(matches, idPrefix: "selection.devtool.",
                                                                       language: L10n.shared.language)
                 self.contextToolMatches.merge(zip(toolRows.map(\.id), matches).map { ($0, $1) }) { $1 }
+                let translate = (title: TranslatorStrings.strings(L10n.shared.language).translateSelection,
+                                 run: { (text: String) in CommandBarService.shared.openTranslation(text) })
                 self.selectionEntries = toolRows + CommandBarCatalog.selectionEntries(text, exactly: exact,
-                                                                                      typesOver: typesOver, bar: bar) {
+                                                                                      typesOver: typesOver, bar: bar,
+                                                                                      translate: translate) {
                     [weak self] selected in
                     // The bar stays open: the point is to convert, add up or
                     // look up what was selected without retyping it.
@@ -4321,33 +4309,6 @@ final class CommandBarService: ObservableObject {
 
             let navigationModifiers = event.modifierFlags
                 .intersection([.command, .option, .shift, .control])
-            if self.mode == .translation {
-                if Int(event.keyCode) == kVK_Escape {
-                    self.stepBack()
-                    return nil
-                }
-                let key = event.charactersIgnoringModifiers?.lowercased()
-                if navigationModifiers == [.command] {
-                    switch key {
-                    case ",": self.openTranslationSettings(); return nil
-                    case "w": self.hide(); return nil
-                    case "q", "m", "h": return nil
-                    case "a": return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: panel) ? nil : event
-                    case "c": return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: panel) ? nil : event
-                    case "x": return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: panel) ? nil : event
-                    case "v": return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: panel) ? nil : event
-                    default: break
-                    }
-                }
-                if (Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter),
-                   navigationModifiers.isEmpty || navigationModifiers == [.command],
-                   panel.firstResponder is NSTextView || navigationModifiers == [.command] {
-                    if !event.isARepeat { self.translator.start() }
-                    return nil
-                }
-                // Native editors and pickers own arrows, selection, Tab and Shift-Return.
-                return event
-            }
             if self.mode == .developerTool {
                 let code = Int(event.keyCode)
                 if code == kVK_Escape {

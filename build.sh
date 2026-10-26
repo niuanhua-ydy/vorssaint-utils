@@ -496,8 +496,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SwitcherAppRulesStrings.swift
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDeveloperTools.swift
-        Sources/Vorssaint/Services/CommandBar/CommandBarTranslation.swift
-        Sources/Vorssaint/Core/CommandBarTranslationStrings.swift
+        Sources/Vorssaint/Services/Translator/Translator.swift
+        Sources/Vorssaint/Core/TranslatorStrings.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarAgentsSupport.swift

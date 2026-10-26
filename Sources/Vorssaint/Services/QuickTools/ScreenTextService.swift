@@ -39,10 +39,45 @@ final class ScreenTextService: ObservableObject {
         ScreenCaptureService.shared.capture(initial: .text)
     }
 
+    /// Where recognized text goes: the clipboard, or the translation window.
+    enum Destination {
+        case clipboard, translator
+    }
+
+    /// Picks an area whose text goes to the translation window, not the clipboard.
+    func captureForTranslation() {
+        ScreenCaptureService.shared.capture(initial: .text, textDestination: .translator)
+    }
+
     func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
         recognize(capture.image,
                   detectQRCodes: UserDefaults.standard.bool(
                     forKey: DefaultsKey.screenOCRDetectQRCodes))
+    }
+
+    /// Recognizes an area picked for translation and opens the window on its text.
+    func receiveTranslationCapture(_ capture: ScreenshotSelectionController.Capture) {
+        guard AppFeature.screenOCR.isAvailable else { return }
+        let image = capture.image
+        recognitionGeneration += 1
+        let generation = recognitionGeneration
+        let fallbackLanguages = MediaSupport.recognitionLanguages(for: L10n.shared.language.rawValue)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            // Lines are joined: a translation reads sentences, not the layout's line breaks.
+            let outcome = ScreenTextService.outcome(for: ScreenTextService.recognitionImage(image),
+                                                    detectQRCodes: false,
+                                                    removeLineBreaks: true,
+                                                    fallbackLanguages: fallbackLanguages)
+            DispatchQueue.main.async { [weak self] in
+                guard self?.recognitionGeneration == generation, AppFeature.screenOCR.isAvailable else { return }
+                if case .text(let text) = outcome {
+                    TranslatorService.shared.show(text: text)
+                } else {
+                    QuickToolHUD.show(icon: "text.viewfinder",
+                                      message: TranslatorStrings.strings(L10n.shared.language).noText)
+                }
+            }
+        }
     }
 
     /// Copies text from an image that has already been captured. Screenshot
