@@ -189,7 +189,7 @@ enum TranslatorTests {
 
         let roles: [GlobalShortcutRole] = [.translatorSelection, .translatorInput, .translatorScreenshot]
         for role in roles {
-            suite.expect(role.feature == .commandBar, "\(role) belongs to the Command Bar feature")
+            suite.expect(role.feature == .translator, "\(role) belongs to the translator feature")
             let clash = GlobalShortcutRole.allCases.first { $0 != role && $0.defaultShortcut == role.defaultShortcut }
             suite.expect(clash == nil, "\(role) default shortcut is not another role's default")
         }

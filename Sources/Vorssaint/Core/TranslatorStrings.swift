@@ -3,6 +3,7 @@
 
 struct TranslatorStrings {
     let title: String
+    let hubDescription: String
     let apple: String
     let ai: String
     let dictionary: String
@@ -22,7 +23,6 @@ struct TranslatorStrings {
     let noSelection: String
     let needsAccessibility: String
     let noText: String
-    let ocrUnavailable: String
     let aiMissing: String
     let systemRequirement: String
     let unsupported: String
@@ -34,6 +34,7 @@ struct TranslatorStrings {
     let selectionShortcut: String
     let inputShortcut: String
     let screenshotShortcut: String
+    let screenshotCaption: String
     let translateSelection: String
     let firstLanguage: String
     let secondLanguage: String
@@ -47,6 +48,7 @@ struct TranslatorStrings {
         switch language {
         case .zhHans, .zhTW, .zhHK: return Self(
             title: "翻译",
+            hubDescription: "参考 Bob 的翻译浮窗：划词、输入或截图翻译，Apple 翻译、系统词典和 AI 并列显示。",
             apple: "Apple 翻译",
             ai: "AI 翻译",
             dictionary: "系统词典",
@@ -66,7 +68,6 @@ struct TranslatorStrings {
             noSelection: "没有读取到选中的文字，可以直接输入或粘贴。",
             needsAccessibility: "读取选中的文字需要辅助功能权限。",
             noText: "没有识别到文字。",
-            ocrUnavailable: "截图翻译需要先启用屏幕文字识别。",
             aiMissing: "AI 翻译还没有配置",
             systemRequirement: "Apple 翻译需要 macOS 15 或更高版本。",
             unsupported: "不支持这个语言组合，请换一种语言或服务。",
@@ -78,6 +79,7 @@ struct TranslatorStrings {
             selectionShortcut: "划词翻译",
             inputShortcut: "输入翻译",
             screenshotShortcut: "截图翻译",
+            screenshotCaption: "框选屏幕上的一块区域，识别其中的文字并在翻译窗口中翻译。",
             translateSelection: "翻译所选文字",
             firstLanguage: "首选语言",
             secondLanguage: "第二语言",
@@ -88,6 +90,7 @@ struct TranslatorStrings {
             keysHint: "↩ 翻译 · ⇧↩ 换行 · ⌘↩ 复制译文 · ⌘S 交换 · ⌘P 钉住 · Esc 关闭")
         case .ja: return Self(
             title: "翻訳",
+            hubDescription: "Bob のような翻訳ウインドウ。選択テキスト、入力、スクリーンショットを翻訳し、Apple 翻訳・システム辞書・AI を並べて表示します。",
             apple: "Apple 翻訳",
             ai: "AI 翻訳",
             dictionary: "システム辞書",
@@ -107,7 +110,6 @@ struct TranslatorStrings {
             noSelection: "選択されたテキストを読み取れませんでした。入力またはペーストしてください。",
             needsAccessibility: "選択テキストの読み取りにはアクセシビリティの許可が必要です。",
             noText: "テキストが見つかりませんでした。",
-            ocrUnavailable: "スクリーンショット翻訳には画面テキスト認識を有効にしてください。",
             aiMissing: "AI 翻訳が未設定です",
             systemRequirement: "Apple 翻訳には macOS 15 以降が必要です。",
             unsupported: "この言語の組み合わせには対応していません。別の言語かサービスを選んでください。",
@@ -119,6 +121,7 @@ struct TranslatorStrings {
             selectionShortcut: "選択テキストを翻訳",
             inputShortcut: "入力して翻訳",
             screenshotShortcut: "スクリーンショット翻訳",
+            screenshotCaption: "画面の範囲を選ぶと、その中のテキストを認識して翻訳ウインドウで翻訳します。",
             translateSelection: "選択テキストを翻訳",
             firstLanguage: "第一言語",
             secondLanguage: "第二言語",
@@ -129,6 +132,7 @@ struct TranslatorStrings {
             keysHint: "↩ 翻訳 · ⇧↩ 改行 · ⌘↩ 訳文をコピー · ⌘S 入れ替え · ⌘P 固定 · Esc 閉じる")
         case .ko: return Self(
             title: "번역",
+            hubDescription: "Bob 같은 번역 창. 선택 텍스트, 입력, 스크린샷을 번역하고 Apple 번역, 시스템 사전, AI 결과를 나란히 보여 줍니다.",
             apple: "Apple 번역",
             ai: "AI 번역",
             dictionary: "시스템 사전",
@@ -148,7 +152,6 @@ struct TranslatorStrings {
             noSelection: "선택한 텍스트를 읽지 못했습니다. 직접 입력하거나 붙여넣으세요.",
             needsAccessibility: "선택한 텍스트를 읽으려면 손쉬운 사용 권한이 필요합니다.",
             noText: "텍스트를 찾지 못했습니다.",
-            ocrUnavailable: "스크린샷 번역을 사용하려면 화면 텍스트 인식을 켜세요.",
             aiMissing: "AI 번역이 설정되지 않았습니다",
             systemRequirement: "Apple 번역은 macOS 15 이상이 필요합니다.",
             unsupported: "이 언어 조합은 지원되지 않습니다. 다른 언어나 서비스를 선택하세요.",
@@ -160,6 +163,7 @@ struct TranslatorStrings {
             selectionShortcut: "선택 텍스트 번역",
             inputShortcut: "입력 번역",
             screenshotShortcut: "스크린샷 번역",
+            screenshotCaption: "화면 영역을 선택하면 그 안의 텍스트를 인식해 번역 창에서 번역합니다.",
             translateSelection: "선택한 텍스트 번역",
             firstLanguage: "첫 번째 언어",
             secondLanguage: "두 번째 언어",
@@ -170,6 +174,7 @@ struct TranslatorStrings {
             keysHint: "↩ 번역 · ⇧↩ 줄바꿈 · ⌘↩ 번역 복사 · ⌘S 바꾸기 · ⌘P 고정 · Esc 닫기")
         default: return Self(
             title: "Translate",
+            hubDescription: "A Bob-style translation window: translate the selection, typed text or a screenshot, with Apple Translation, the system dictionary and AI side by side.",
             apple: "Apple Translation",
             ai: "AI Translation",
             dictionary: "System Dictionary",
@@ -189,7 +194,6 @@ struct TranslatorStrings {
             noSelection: "No selected text could be read. Type or paste it here.",
             needsAccessibility: "Reading selected text needs Accessibility permission.",
             noText: "No text was found.",
-            ocrUnavailable: "Screenshot translation needs Screen Text Recognition turned on.",
             aiMissing: "AI translation is not set up",
             systemRequirement: "Apple Translation requires macOS 15 or later.",
             unsupported: "This language pair is not supported. Try another language or service.",
@@ -201,6 +205,7 @@ struct TranslatorStrings {
             selectionShortcut: "Translate selection",
             inputShortcut: "Translate input",
             screenshotShortcut: "Translate screenshot",
+            screenshotCaption: "Pick an area of the screen; its text is recognized and translated in the translation window.",
             translateSelection: "Translate selection",
             firstLanguage: "First language",
             secondLanguage: "Second language",

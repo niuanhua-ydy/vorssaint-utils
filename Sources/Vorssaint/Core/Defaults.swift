@@ -589,6 +589,7 @@ enum DefaultsKey {
     static let translatorInputShortcut = "translatorInputShortcut"
     static let translatorScreenshotShortcutEnabled = "translatorScreenshotShortcutEnabled"
     static let translatorScreenshotShortcut = "translatorScreenshotShortcut"
+    static let translatorScreenshotShowCaptureMenuOnShortcut = "translatorScreenshotShowCaptureMenuOnShortcut"
     static let translationAIProvider = "translationAIProvider"
     static let translationAIBaseURL = "translationAIBaseURL"
     static let translationAIModel = "translationAIModel"
@@ -1792,6 +1793,8 @@ enum Defaults {
         DefaultsKey.translatorInputShortcut: GlobalShortcut.translatorInputDefault.storageValue,
         DefaultsKey.translatorScreenshotShortcutEnabled: true,
         DefaultsKey.translatorScreenshotShortcut: GlobalShortcut.translatorScreenshotDefault.storageValue,
+        // Like Bob, the key goes straight to picking an area.
+        DefaultsKey.translatorScreenshotShowCaptureMenuOnShortcut: false,
         DefaultsKey.translationAIProvider: "openAIChat",
         DefaultsKey.translationAIBaseURL: "",
         DefaultsKey.translationAIModel: "",

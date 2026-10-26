@@ -327,7 +327,6 @@ final class CommandBarService: ObservableObject {
                                                   storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
-        TranslatorService.shared.syncWithPreferences()
         // An agent row's own shortcut must find its row before the bar has
         // ever been opened, so the agents are looked for from the start.
         if available, isEnabled(.agents) { CommandBarAgents.refresh() }
@@ -378,7 +377,6 @@ final class CommandBarService: ObservableObject {
 
     func suspend() {
         pendingAppShortcut.cancel()
-        TranslatorService.shared.suspend()
         hotkey.unregister()
         for hotkey in rowHotkeys { hotkey.unregister() }
         rowHotkeys = []
@@ -628,7 +626,7 @@ final class CommandBarService: ObservableObject {
 
     /// Puts the bar away for the translation window, on `text` when given.
     func openTranslation(_ text: String = "") {
-        guard AppFeature.commandBar.isAvailable else { return }
+        guard AppFeature.translator.isAvailable else { return }
         hide()
         TranslatorService.shared.show(text: text)
     }
@@ -3885,8 +3883,10 @@ final class CommandBarService: ObservableObject {
                 let toolRows = CommandBarCatalog.developerToolEntries(matches, idPrefix: "selection.devtool.",
                                                                       language: L10n.shared.language)
                 self.contextToolMatches.merge(zip(toolRows.map(\.id), matches).map { ($0, $1) }) { $1 }
-                let translate = (title: TranslatorStrings.strings(L10n.shared.language).translateSelection,
-                                 run: { (text: String) in CommandBarService.shared.openTranslation(text) })
+                let translate = AppFeature.translator.isAvailable
+                    ? (title: TranslatorStrings.strings(L10n.shared.language).translateSelection,
+                       run: { (text: String) in CommandBarService.shared.openTranslation(text) })
+                    : nil
                 self.selectionEntries = toolRows + CommandBarCatalog.selectionEntries(text, exactly: exact,
                                                                                       typesOver: typesOver, bar: bar,
                                                                                       translate: translate) {

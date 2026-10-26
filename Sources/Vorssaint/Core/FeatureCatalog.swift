@@ -28,7 +28,7 @@ enum AppFeature: String, CaseIterable {
     // Tools
     case quickLauncher, quickToggles, colorPicker, screenOCR, cleaningMode, mediaTools,
          cleaner, uninstaller, homebrew, appUpdates, screenshot, cameraPreview, radialMenu, scratchpad,
-         commandBar, screenRecorder, wallpaper, killProcess, portManager
+         commandBar, screenRecorder, wallpaper, killProcess, portManager, translator
     // Dynamic Island, then its extensions
     case notch, notchCalendar, notchNotifications, notchGestures, notchTimer, notchAccessories, notchLyrics,
          notchQueue, notchLiveEqualizer, notchDownloads, notchAgents, notchWatch, notchMascot
@@ -115,7 +115,7 @@ extension AppFeature {
             return .energyDisplay
         case .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .radialMenu,
-             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager:
+             .scratchpad, .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .translator:
             return .tools
         case .notch, .notchCalendar, .notchNotifications, .notchGestures, .notchTimer, .notchAccessories,
              .notchLyrics, .notchQueue, .notchLiveEqualizer, .notchDownloads, .notchAgents, .notchWatch,
@@ -202,6 +202,7 @@ extension AppFeature {
         case .commandBar: return "command"
         case .killProcess: return "xmark.octagon"
         case .portManager: return "network"
+        case .translator: return "character.bubble"
         case .monitorCPU: return "cpu"
         case .monitorGPU: return "rectangle.connected.to.line.below"
         case .monitorMemory: return "memorychip"
@@ -289,7 +290,7 @@ extension AppFeature {
         case .windowLayout, .diskImageInstaller, .mixer, .micMute, .keepAwake,
              .quickLauncher, .quickToggles, .colorPicker, .screenOCR, .cleaningMode, .mediaTools,
              .cleaner, .uninstaller, .homebrew, .appUpdates, .screenshot, .cameraPreview, .scratchpad,
-             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager,
+             .commandBar, .screenRecorder, .wallpaper, .killProcess, .portManager, .translator,
              .monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork, .monitorDisk, .monitorPower,
              .connectedDevices:
             return []
@@ -366,6 +367,9 @@ extension AppFeature {
         case .switcher: return [.accessibility, .screenRecording]
         case .dockPreview: return [.accessibility, .screenRecording]
         case .screenOCR: return [.screenRecording]
+        // The selection is read through Accessibility; a picked area of the
+        // screen is captured like the text tool's.
+        case .translator: return [.accessibility, .screenRecording]
         case .screenshot: return [.screenRecording]
         // The sound of the Mac is read through an audio grant of its own.
         // Microphone access stays contextual, and Accessibility only keeps
@@ -485,7 +489,7 @@ extension AppFeature {
              .connectedDevices:
             return true
         case .focusFollowsMouse, .scrollHorizontal, .linearScroll, .diskImageInstaller, .audioPriority,
-             .wallpaper, .killProcess, .portManager, .notchMascot, .spacesOrder, .clipNote:
+             .wallpaper, .killProcess, .portManager, .notchMascot, .spacesOrder, .clipNote, .translator:
             return false
         }
     }

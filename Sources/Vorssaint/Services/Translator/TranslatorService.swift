@@ -7,7 +7,8 @@ import Carbon.HIToolbox
 import SwiftUI
 
 /// The translation window, modeled on Bob: one floating panel opened on the
-/// selection, on typed text or on a picked area of the screen. It never
+/// selection, on typed text or on a picked area of the screen (the capture
+/// chooser's translate tool). It never
 /// takes the app in front away from the person, so the selection stays
 /// readable and Return goes back to where they were. Unpinned, a click
 /// anywhere else puts it away; pinned, it stays beside what is being read.
@@ -20,7 +21,6 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
 
     private let selectionHotkey = QuickToolHotkey(id: 95)
     private let inputHotkey = QuickToolHotkey(id: 96)
-    private let screenshotHotkey = QuickToolHotkey(id: 97)
     private var panel: TranslatorPanel?
     private var keyMonitor: Any?
     private var clickMonitor: Any?
@@ -35,16 +35,15 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
         super.init()
         selectionHotkey.onPress = { [weak self] in self?.translateSelection() }
         inputHotkey.onPress = { [weak self] in self?.translateInput() }
-        screenshotHotkey.onPress = { [weak self] in self?.translateScreenshot() }
     }
 
     var isVisible: Bool { panel?.isVisible == true }
 
     func syncWithPreferences() {
-        let available = AppFeature.commandBar.isAvailable
+        let available = AppFeature.translator.isAvailable
         var refused: Set<String> = []
         for (hotkey, role) in [(selectionHotkey, GlobalShortcutRole.translatorSelection),
-                               (inputHotkey, .translatorInput), (screenshotHotkey, .translatorScreenshot)] {
+                               (inputHotkey, .translatorInput)] {
             let enabled = available && role.requiredEnableKeys.allSatisfy { UserDefaults.standard.bool(forKey: $0) }
             if !hotkey.sync(enabled: enabled, shortcut: role.savedShortcut, storageKey: role.storageKey) {
                 refused.insert(role.storageKey)
@@ -57,7 +56,6 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
     func suspend() {
         selectionHotkey.unregister()
         inputHotkey.unregister()
-        screenshotHotkey.unregister()
         close()
     }
 
@@ -65,7 +63,7 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
 
     /// Reads what is selected in the app in front and translates it.
     func translateSelection() {
-        guard AppFeature.commandBar.isAvailable else { return }
+        guard AppFeature.translator.isAvailable else { return }
         selectionRead += 1
         let read = selectionRead
         let trusted = AXIsProcessTrusted()
@@ -84,23 +82,23 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
     }
 
     func translateInput() {
-        guard AppFeature.commandBar.isAvailable else { return }
+        guard AppFeature.translator.isAvailable else { return }
         show(text: "")
     }
 
+    /// The capture tool's own path, as its shortcut takes it.
     func translateScreenshot() {
-        guard AppFeature.commandBar.isAvailable else { return }
-        guard AppFeature.screenOCR.isAvailable else {
-            QuickToolHUD.show(icon: "text.viewfinder", message: text.ocrUnavailable)
-            return
-        }
-        // The window would otherwise sit in the area being picked.
+        guard AppFeature.translator.isAvailable else { return }
+        ScreenCaptureService.shared.capture(initial: .translate, fromShortcut: true)
+    }
+
+    /// An unpinned window would otherwise sit in the area being picked.
+    func closeUnlessPinned() {
         if !isPinned { close() }
-        ScreenTextService.shared.captureForTranslation()
     }
 
     func show(text value: String, notice: String? = nil) {
-        guard AppFeature.commandBar.isAvailable else { return }
+        guard AppFeature.translator.isAvailable else { return }
         let wasVisible = isVisible
         let panel = ensurePanel()
         model.open(text: value, notice: notice)
@@ -129,7 +127,7 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
 
     func openSettings() {
         if !isPinned { close() }
-        SettingsRouter.shared.page = .commandBar
+        SettingsRouter.shared.page = .translator
         appDelegate()?.openSettingsWindow()
     }
 

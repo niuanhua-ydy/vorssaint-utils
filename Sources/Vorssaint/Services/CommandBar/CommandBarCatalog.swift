@@ -325,11 +325,13 @@ enum CommandBarCatalog {
                         run: { _ in CommandBarService.shared.openDeveloperTool(tool.id) }))
                 }
             }
+        }
+        if AppFeature.translator.isAvailable {
             entries.append(CommandBarEntry(
                 id: "action.translate",
                 title: TranslatorStrings.strings(language).title,
-                subtitle: bar.pageTitle,
-                keywords: "translate translation 翻译 翻譯 fanyi fy AI Apple",
+                subtitle: area(.translator),
+                keywords: "translate translation 翻译 翻譯 fanyi fy AI Apple Bob",
                 icon: .symbol("character.bubble"),
                 keepsBarOpen: true,
                 run: { _ in CommandBarService.shared.openTranslation() }))

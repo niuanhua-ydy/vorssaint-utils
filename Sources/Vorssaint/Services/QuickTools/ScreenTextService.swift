@@ -39,25 +39,17 @@ final class ScreenTextService: ObservableObject {
         ScreenCaptureService.shared.capture(initial: .text)
     }
 
-    /// Where recognized text goes: the clipboard, or the translation window.
-    enum Destination {
-        case clipboard, translator
-    }
-
-    /// Picks an area whose text goes to the translation window, not the clipboard.
-    func captureForTranslation() {
-        ScreenCaptureService.shared.capture(initial: .text, textDestination: .translator)
-    }
-
     func receiveUnifiedCapture(_ capture: ScreenshotSelectionController.Capture) {
         recognize(capture.image,
                   detectQRCodes: UserDefaults.standard.bool(
                     forKey: DefaultsKey.screenOCRDetectQRCodes))
     }
 
-    /// Recognizes an area picked for translation and opens the window on its text.
+    /// Recognizes an area picked with the translate tool and opens the
+    /// translation window on its text. Belongs to the translator, so the
+    /// text tool need not be installed.
     func receiveTranslationCapture(_ capture: ScreenshotSelectionController.Capture) {
-        guard AppFeature.screenOCR.isAvailable else { return }
+        guard AppFeature.translator.isAvailable else { return }
         let image = capture.image
         recognitionGeneration += 1
         let generation = recognitionGeneration
@@ -69,7 +61,7 @@ final class ScreenTextService: ObservableObject {
                                                     removeLineBreaks: true,
                                                     fallbackLanguages: fallbackLanguages)
             DispatchQueue.main.async { [weak self] in
-                guard self?.recognitionGeneration == generation, AppFeature.screenOCR.isAvailable else { return }
+                guard self?.recognitionGeneration == generation, AppFeature.translator.isAvailable else { return }
                 if case .text(let text) = outcome {
                     TranslatorService.shared.show(text: text)
                 } else {

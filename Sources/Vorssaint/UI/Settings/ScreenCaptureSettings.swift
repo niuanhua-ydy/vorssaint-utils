@@ -79,6 +79,8 @@ struct ScreenCaptureSettings: View {
                 ScreenTextCaptureSettings()
             case .color:
                 ColorCaptureSettings()
+            case .translate:
+                TranslateCaptureSettings()
             }
         }
     }
@@ -205,6 +207,36 @@ private struct ScreenTextCaptureSettings: View {
             Text(l10n.s.ocrName)
         }
         .settingsFormSectionAnchor(.screenOCR)
+    }
+}
+
+/// The translate tool's options live with the translator; this only says
+/// what the tool does and leads there.
+private struct TranslateCaptureSettings: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var permissions = Permissions.shared
+
+    var body: some View {
+        let text = TranslatorStrings.strings(l10n.language)
+        Section {
+            Button {
+                TranslatorService.shared.translateScreenshot()
+            } label: {
+                Label(text.screenshotShortcut, systemImage: ScreenCaptureTool.translate.systemImageName)
+            }
+            Text(text.screenshotCaption)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Button(text.settings) {
+                SettingsRouter.shared.request(AppFeature.translator.settingsDestination,
+                                              sidebarFeature: .translator)
+            }
+            if !permissions.screenRecording {
+                PermissionRow(kind: .screenRecording)
+            }
+        } header: {
+            Text(text.screenshotShortcut)
+        }
     }
 }
 

@@ -933,12 +933,18 @@ enum ScreenshotFeatureTests {
         let captureMenuSuite = "com.vorssaint.tests.capture-menu.\(UUID().uuidString)"
         let captureMenuDefaults = UserDefaults(suiteName: captureMenuSuite)!
         defer { captureMenuDefaults.removePersistentDomain(forName: captureMenuSuite) }
-        for tool in ScreenCaptureTool.allCases {
+        // Translate is the one tool whose key goes straight to picking an
+        // area, the way Bob's screenshot translation does.
+        let menuFreeByDefault: Set<ScreenCaptureTool> = [.translate]
+        for tool in ScreenCaptureTool.allCases where !menuFreeByDefault.contains(tool) {
             suite.expect(tool.showsCaptureMenu(fromShortcut: true, defaults: captureMenuDefaults),
                    "an existing install keeps the capture menu for \(tool)")
-            suite.expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool == true
+        }
+        for tool in ScreenCaptureTool.allCases {
+            suite.expect(Defaults.registeredDefaults[tool.showCaptureMenuOnShortcutKey] as? Bool
+                    == !menuFreeByDefault.contains(tool)
                     && SettingsBackupSupport.exportKeys().contains(tool.showCaptureMenuOnShortcutKey),
-                   "capture menu preferences default on and travel with settings backups")
+                   "capture menu preferences default as decided and travel with settings backups")
         }
         captureMenuDefaults.register(defaults: Defaults.registeredDefaults)
         for hiddenTool in ScreenCaptureTool.allCases {
@@ -946,14 +952,14 @@ enum ScreenshotFeatureTests {
             let reopenedDefaults = UserDefaults(suiteName: captureMenuSuite)!
             for tool in ScreenCaptureTool.allCases {
                 suite.expect(tool.showsCaptureMenu(fromShortcut: true, defaults: reopenedDefaults)
-                        == (tool != hiddenTool),
+                        == (tool != hiddenTool && !menuFreeByDefault.contains(tool)),
                        "hiding the menu for \(hiddenTool) persists without changing \(tool)'s preference")
                 suite.expect(tool.showsCaptureMenu(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons still open the capture menu even when a shortcut hides it")
             }
             for tool in ScreenCaptureTool.allCases {
                 suite.expect(tool.opensDuringRecording(fromShortcut: true, defaults: reopenedDefaults)
-                        == (tool == hiddenTool && tool != .recording),
+                        == ((tool == hiddenTool || menuFreeByDefault.contains(tool)) && tool != .recording),
                        "only \(hiddenTool)'s menu-free shortcut may run over a recording, checked for \(tool)")
                 suite.expect(!tool.opensDuringRecording(fromShortcut: false, defaults: reopenedDefaults),
                        "buttons open the capture menu, so they never run over a recording")
@@ -1017,12 +1023,13 @@ enum ScreenshotFeatureTests {
                     selected: .screenshot,
                     isAvailable: { _ in false }),
                "a capture result is routed only while its selected feature remains installed")
-        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4"]
+        suite.expect(ScreenCaptureTool.allCases.map(\.shortcutKey) == ["1", "2", "3", "4", "5"]
+                && ScreenCaptureTool.matchingShortcut("5") == .translate
                 && ScreenCaptureTool.matchingShortcut("1") == .screenshot
                 && ScreenCaptureTool.matchingShortcut("2") == .recording
                 && ScreenCaptureTool.matchingShortcut("3") == .text
                 && ScreenCaptureTool.matchingShortcut("4") == .color
-                && ScreenCaptureTool.matchingShortcut("5") == nil,
+                && ScreenCaptureTool.matchingShortcut("6") == nil,
                "number keys select the same capture mode shown in the chooser")
         let liveScreenshotPolicy = ScreenshotSupport.unifiedCapturePolicy(
             for: .screenshot,
@@ -4021,7 +4028,7 @@ enum ScreenshotFeatureTests {
                     == DefaultsKey.screenshotShortcutEnabled,
                "the screenshot tool keeps the old general shortcut's keys as its own")
         suite.expect(ScreenCaptureTool.allCases.map { $0.dedicatedShortcut.role }
-                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker],
+                == [.screenshot, .screenRecorder, .screenOCR, .colorPicker, .translatorScreenshot],
                "every capture tool owns a shortcut role, in tool order")
         // The keys a tool registers have to be the ones its settings row writes.
         // Three roles once had a row and no registrar, so the key was recorded

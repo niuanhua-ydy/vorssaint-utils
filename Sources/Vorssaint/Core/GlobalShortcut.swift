@@ -964,7 +964,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .radialMenu: return .radialMenu
         case .scratchpad: return .scratchpad
         case .snippetLibrary: return .textSnippets
-        case .commandBar, .translatorSelection, .translatorInput, .translatorScreenshot: return .commandBar
+        case .commandBar: return .commandBar
+        case .translatorSelection, .translatorInput, .translatorScreenshot: return .translator
         case .screenRecorder: return .screenRecorder
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness

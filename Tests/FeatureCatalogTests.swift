@@ -386,7 +386,7 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 77, "feature catalog has 77 features")
+        suite.expect(AppFeature.allCases.count == 78, "feature catalog has 78 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
@@ -399,7 +399,7 @@ enum FeatureCatalogTests {
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
             "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
-            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
+            "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "translator", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
             "connectedDevices",
         ], "feature ids are stable (they persist inside availability keys)")
@@ -982,7 +982,7 @@ enum FeatureCatalogTests {
                "Window Layout does not poll permissions when every snap zone is off")
 
         suite.expect(activeSet(.accessibility)
-                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder],
+                == [.windowLayout, .cleaningMode, .commandBar, .screenRecorder, .translator],
                "with nothing enabled only on-demand features use accessibility")
         func radialMenuUsesAccessibility(_ profile: RadialMenuProfile, legacyItems: [RadialMenuItem]) -> Bool {
             let stored = [DefaultsKey.radialMenuProfiles: RadialMenuSupport.encodeProfiles([profile]),
@@ -1060,11 +1060,11 @@ enum FeatureCatalogTests {
                "mixer without precise volume roller does not use accessibility")
 
         suite.expect(activeSet(.screenRecording, on: [DefaultsKey.switcherEnabled])
-                == [.switcher, .screenOCR, .screenshot, .screenRecorder],
+                == [.switcher, .screenOCR, .screenshot, .screenRecorder, .translator],
                "switcher with previews uses screen recording; OCR, screenshots and recordings are on demand")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherEnabled, DefaultsKey.switcherSimpleMode])
-                == [.screenOCR, .screenshot, .screenRecorder],
+                == [.screenOCR, .screenshot, .screenRecorder, .translator],
                "simple-mode switcher stops using screen recording")
         suite.expect(activeSet(.screenRecording,
                          on: [DefaultsKey.switcherSimpleMode, DefaultsKey.dockPreviewEnabled])

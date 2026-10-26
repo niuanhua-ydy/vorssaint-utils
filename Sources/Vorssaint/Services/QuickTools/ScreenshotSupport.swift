@@ -14,6 +14,8 @@ enum ScreenCaptureTool: String, CaseIterable {
     case recording
     case text
     case color
+    /// Text read from the area goes to the translation window.
+    case translate
 
     var shortcutKey: String {
         switch self {
@@ -21,6 +23,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "2"
         case .text: return "3"
         case .color: return "4"
+        case .translate: return "5"
         }
     }
 
@@ -35,6 +38,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return .screenRecorder
         case .text: return .screenOCR
         case .color: return .colorPicker
+        case .translate: return .translator
         }
     }
 
@@ -66,6 +70,9 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .color:
             return DedicatedShortcut(role: .colorPicker,
                                      enabledKey: DefaultsKey.colorPickerShortcutEnabled)
+        case .translate:
+            return DedicatedShortcut(role: .translatorScreenshot,
+                                     enabledKey: DefaultsKey.translatorScreenshotShortcutEnabled)
         }
     }
 
@@ -75,6 +82,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return DefaultsKey.recorderShowCaptureMenuOnShortcut
         case .text: return DefaultsKey.screenOCRShowCaptureMenuOnShortcut
         case .color: return DefaultsKey.colorPickerShowCaptureMenuOnShortcut
+        case .translate: return DefaultsKey.translatorScreenshotShowCaptureMenuOnShortcut
         }
     }
 
@@ -95,6 +103,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return "record.circle"
         case .text: return "text.viewfinder"
         case .color: return "eyedropper"
+        case .translate: return "character.bubble"
         }
     }
 
@@ -109,6 +118,7 @@ enum ScreenCaptureTool: String, CaseIterable {
         case .recording: return FeatureStrings.recorder(language).pageTitle
         case .text: return strings.ocrName
         case .color: return strings.colorPickerName
+        case .translate: return TranslatorStrings.strings(language).screenshotShortcut
         }
     }
 

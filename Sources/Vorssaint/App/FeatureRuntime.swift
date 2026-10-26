@@ -381,6 +381,10 @@ final class FeatureRuntime: ObservableObject {
         },
         .scratchpad: { ScratchpadService.shared.syncWithPreferences() },
         .commandBar: { CommandBarService.shared.syncWithPreferences() },
+        .translator: {
+            TranslatorService.shared.syncWithPreferences()
+            ScreenCaptureService.shared.syncWithPreferences()
+        },
         .cleaner: {
             CleanerScheduler.shared.syncWithPreferences()
             WhatsAppDownloadScheduler.shared.syncWithPreferences()

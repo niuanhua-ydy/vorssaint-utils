@@ -4,9 +4,17 @@
 import SwiftUI
 import ClipNoteCore
 
+struct TranslatorSettingsPage: View {
+    var body: some View {
+        Form { TranslatorSettingsSection() }
+            .formStyle(.grouped)
+    }
+}
+
 struct TranslatorSettingsSection: View {
     @ObservedObject private var l10n = L10n.shared
     @ObservedObject private var translator = TranslatorService.shared
+    @ObservedObject private var capture = ScreenCaptureService.shared
     @AppStorage(DefaultsKey.translatorSelectionShortcutEnabled) private var selectionShortcut = true
     @AppStorage(DefaultsKey.translatorInputShortcutEnabled) private var inputShortcut = true
     @AppStorage(DefaultsKey.translatorScreenshotShortcutEnabled) private var screenshotShortcut = true
@@ -28,9 +36,17 @@ struct TranslatorSettingsSection: View {
     var body: some View {
         Section {
             Text(text.privacy).font(.caption).foregroundStyle(.secondary)
-            shortcut(.translatorSelection, isOn: $selectionShortcut)
-            shortcut(.translatorInput, isOn: $inputShortcut)
-            shortcut(.translatorScreenshot, isOn: $screenshotShortcut)
+            shortcut(.translatorSelection, isOn: $selectionShortcut,
+                     refused: translator.refusedShortcuts.contains(GlobalShortcutRole.translatorSelection.storageKey),
+                     sync: TranslatorService.shared.syncWithPreferences)
+            shortcut(.translatorInput, isOn: $inputShortcut,
+                     refused: translator.refusedShortcuts.contains(GlobalShortcutRole.translatorInput.storageKey),
+                     sync: TranslatorService.shared.syncWithPreferences)
+            // The translate tool of the capture chooser owns this key.
+            shortcut(.translatorScreenshot, isOn: $screenshotShortcut,
+                     refused: capture.toolShortcutRegistrationFailures.contains(.translate),
+                     sync: ScreenCaptureService.shared.syncWithPreferences)
+            Text(text.screenshotCaption).font(.caption).foregroundStyle(.secondary)
             languagePicker(text.firstLanguage, selection: $firstLanguage)
             languagePicker(text.secondLanguage, selection: $secondLanguage)
             Text(text.directionCaption).font(.caption).foregroundStyle(.secondary)
@@ -82,13 +98,12 @@ struct TranslatorSettingsSection: View {
     }
 
     @ViewBuilder
-    private func shortcut(_ role: GlobalShortcutRole, isOn: Binding<Bool>) -> some View {
+    private func shortcut(_ role: GlobalShortcutRole, isOn: Binding<Bool>, refused: Bool,
+                          sync: @escaping () -> Void) -> some View {
         Toggle(role.title(l10n.s), isOn: isOn)
-            .onChange(of: isOn.wrappedValue) { _, _ in TranslatorService.shared.syncWithPreferences() }
-        ShortcutPreferenceRow(role: role, isEnabled: isOn.wrappedValue) {
-            TranslatorService.shared.syncWithPreferences()
-        }
-        if isOn.wrappedValue, translator.refusedShortcuts.contains(role.storageKey) {
+            .onChange(of: isOn.wrappedValue) { _, _ in sync() }
+        ShortcutPreferenceRow(role: role, isEnabled: isOn.wrappedValue, onChange: sync)
+        if isOn.wrappedValue, refused {
             Text(l10n.s.shortcutUnavailable).font(.caption).foregroundStyle(.orange)
         }
     }

@@ -153,7 +153,6 @@ struct CommandBarSettings: View {
             }
 
             CommandBarAgentSettingsSection()
-            TranslatorSettingsSection()
             CommandBarDeveloperToolsSettings()
 
             Section {
