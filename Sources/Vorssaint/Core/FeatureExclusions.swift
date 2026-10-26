@@ -19,14 +19,15 @@ extension AppFeature {
         .scrollInverter, .scrollHorizontal, .focusFollowsMouse, .smoothScroll, .linearScroll,
         .mouseAcceleration, .mouseNavigation, .mouseButtonShortcuts, .middleClick,
         .mouseClickDebounce, .keyboardDebounce, .textSnippets, .quitWindowProtection,
-        // Clipboard and files: plain paste stays; ClipNote is the history now
-        .clipboardHistory, .finderCutPaste, .finderRename, .shelf, .urlCleaner, .diskImageInstaller,
-        // Sound
-        .mixer, .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock,
+        // Clipboard and files: plain paste and the shelf stay; ClipNote is the history now
+        .clipboardHistory, .finderCutPaste, .finderRename, .urlCleaner, .diskImageInstaller,
+        // Sound: the mixer stays
+        .soundOutputSwitcher, .audioPriority, .micMute, .musicBlock,
         // Energy and display
         .keepAwake, .brightness, .extraBrightness, .bluetoothSleep,
-        // Tools: the Command Bar is the launcher, so the quick panel goes
-        .quickLauncher, .cleaningMode, .mediaTools, .cameraPreview, .radialMenu, .scratchpad, .wallpaper,
+        // Tools: the Command Bar is the launcher, so the quick panel goes;
+        // media tools and the scratchpad stay for the island
+        .quickLauncher, .cleaningMode, .cameraPreview, .radialMenu, .wallpaper,
     ]
 
     var isExcludedFromBuild: Bool { Self.excludedFromBuild.contains(self) }

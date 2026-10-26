@@ -2028,9 +2028,10 @@ enum NotchSupport {
             return AppFeature.brightness.isAvailable(in: defaults)
                 && defaults.bool(forKey: DefaultsKey.brightnessControlEnabled)
         case .battery: return AppFeature.monitorPower.isAvailable(in: defaults)
+        // Copies are recorded by ClipNote, which has no island page of its own.
         case .clipboard:
-            return modules(in: defaults).contains(.clipboard)
-                && defaults.bool(forKey: DefaultsKey.clipboardHistoryEnabled)
+            return AppFeature.clipNote.isAvailable(in: defaults)
+                && defaults.bool(forKey: DefaultsKey.clipNoteEnabled)
         case .capture:
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)

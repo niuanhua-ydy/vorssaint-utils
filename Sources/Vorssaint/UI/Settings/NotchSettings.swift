@@ -99,7 +99,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchKeepAwakeActivity) private var keepAwakeActivity = false
     @AppStorage(DefaultsKey.notchScratchpad) private var scratchpad = true
     @AppStorage(DefaultsKey.brightnessControlEnabled) private var brightnessControlEnabled = false
-    @AppStorage(DefaultsKey.clipboardHistoryEnabled) private var clipboardHistoryEnabled = false
+    @AppStorage(DefaultsKey.clipNoteEnabled) private var clipNoteEnabled = false
     @AppStorage(DefaultsKey.notchHoverExpands) private var hoverExpand = true
     @AppStorage(DefaultsKey.notchQuickAccessLayout) private var accessData = Data()
     @State private var tab = NotchSettingsTab.layout
@@ -568,8 +568,7 @@ struct NotchSettings: View {
                 let hasBattery = PowerSampler.hasInternalBattery
                 let batteryAvailable = AppFeature.monitorPower.isAvailable
                 let accessoriesAvailable = AppFeature.notchAccessories.isAvailable && AppFeature.monitorPower.isAvailable
-                let clipboardAvailable = AppFeature.clipboardHistory.isAvailable && clipboardHistoryEnabled
-                    && NotchSupport.modules().contains(.clipboard)
+                let clipboardAvailable = AppFeature.clipNote.isAvailable && clipNoteEnabled
                 let capturesAvailable = AppFeature.screenshot.isAvailable && NotchSupport.modules().contains(.captures)
                 let musicAvailable = NotchSupport.modules().contains(.music)
                 let reserves = ![volumeAvailable, brightnessAvailable, keyboardLightAvailable, microphoneAvailable,
@@ -880,17 +879,15 @@ struct NotchSettings: View {
         }
     }
 
+    /// Copies are recorded by ClipNote, so its notice waits on ClipNote alone.
     private var clipboardFeedbackReason: String {
-        let title = FeatureStrings.clipboard(l10n.language).title
-        if !AppFeature.clipboardHistory.isAvailable { return AppFeature.clipboardHistory.enableReason(l10n) }
-        if !clipboardHistoryEnabled { return editor.enableSetting(FeatureStrings.clipboard(l10n.language).enable) }
-        return editor.showPage(title)
+        if !AppFeature.clipNote.isAvailable { return AppFeature.clipNote.enableReason(l10n) }
+        return editor.enableSetting(FeatureStrings.clipNoteSettings(l10n.language).enable)
     }
 
     private func openClipboardFeedbackSetup() {
-        if !AppFeature.clipboardHistory.isAvailable { AppFeature.clipboardHistory.showInFeatures() }
-        else if !clipboardHistoryEnabled { router.request(AppFeature.clipboardHistory.settingsDestination) }
-        else { showModule(.clipboard) }
+        if !AppFeature.clipNote.isAvailable { AppFeature.clipNote.showInFeatures() }
+        else { router.request(AppFeature.clipNote.settingsDestination) }
     }
 
     private func toggleCard(_ title: String, symbol: String, value: Binding<Bool>, available: Bool, reason: String? = nil,

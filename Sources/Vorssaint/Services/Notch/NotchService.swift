@@ -4000,8 +4000,7 @@ final class NotchService: ObservableObject {
             }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.clipboard) {
-            let history = ClipboardHistoryService.shared
-            history.capturedEntry.receive(on: DispatchQueue.main).sink { [weak self] _ in
+            ClipNoteService.shared.captured.receive(on: DispatchQueue.main).sink { [weak self] in
                 guard let self else { return }
                 let text = FeatureStrings.clipboard(L10n.shared.language)
                 self.show(NotchNotice(event: .clipboard, title: text.copied,

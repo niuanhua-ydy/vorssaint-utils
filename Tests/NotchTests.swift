@@ -2408,10 +2408,17 @@ enum NotchTests {
             suite.expect(tool.capturesAudio == (tool == .recording),
                    "only screen recording shows microphone and system-audio controls: \(tool.rawValue)")
         }
-        suite.expect(!NotchSupport.routes(.clipboard, in: defaults) && NotchSupport.routes(.capture, in: defaults),
-               "clipboard activity still needs history capture while installed captures start enabled")
         defaults.set(true, forKey: DefaultsKey.clipboardHistoryEnabled)
-        suite.expect(NotchSupport.routes(.clipboard, in: defaults), "installed clipboard activity starts once history capture is enabled")
+        suite.expect(!NotchSupport.routes(.clipboard, in: defaults) && NotchSupport.routes(.capture, in: defaults),
+               "the copy notice waits on ClipNote, not the old history, while installed captures start enabled")
+        defaults.set(true, forKey: DefaultsKey.clipNoteEnabled)
+        defaults.set(false, forKey: AppFeature.clipNote.availabilityKey)
+        suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "the copy notice needs ClipNote installed")
+        defaults.set(true, forKey: AppFeature.clipNote.availabilityKey)
+        suite.expect(NotchSupport.routes(.clipboard, in: defaults), "the copy notice starts once ClipNote records copies")
+        defaults.set(false, forKey: DefaultsKey.notchClipboard)
+        suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "the copy notice has its own switch")
+        defaults.set(true, forKey: DefaultsKey.notchClipboard)
         suite.expect(NotchSupport.routesScratchpad(in: defaults), "Scratchpad defaults to its visible island page")
         defaults.set(false, forKey: DefaultsKey.notchScratchpad)
         suite.expect(!NotchSupport.routesScratchpad(in: defaults), "Scratchpad can use its separate window without hiding its page")
@@ -2428,7 +2435,7 @@ enum NotchTests {
         defaults.set(true, forKey: DefaultsKey.notchClipboardWindow)
         defaults.set("clipboard,unknown", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(!NotchSupport.routesClipboardWindow(in: defaults), "hidden clipboard keeps the ordinary history available")
-        suite.expect(!NotchSupport.routes(.clipboard, in: defaults), "hidden module cannot leak an activity")
+        suite.expect(NotchSupport.routes(.clipboard, in: defaults), "the copy notice does not hang on the old clipboard page")
         defaults.set("system,music,music,unknown", forKey: DefaultsKey.notchModuleOrder)
         defaults.set(true, forKey: DefaultsKey.notchAgentsEnabled)
         suite.expect(NotchSupport.modules(in: defaults) == [.system, .music, .controls, .mixer, .captures, .files, .tools, .calendar, .notifications, .timer, .camera, .downloads, .scratchpad, .agents, .watch],

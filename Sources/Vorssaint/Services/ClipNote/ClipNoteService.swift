@@ -20,6 +20,9 @@ final class ClipNoteService: ObservableObject {
     @Published private(set) var stackShortcutFailed = false
     /// The tab Settings opens on; the panel's settings actions set it.
     @Published var settingsTab: ClipNoteSettingsTab = .general
+    /// Each copy the history records, new or already known, for the island's
+    /// copy notice. It outlives a restart, so a subscriber keeps hearing.
+    let captured = PassthroughSubject<Void, Never>()
 
     private(set) var store: ClipStore?
     private var runtime: ClipNoteRuntime?
@@ -198,7 +201,10 @@ final class ClipNoteRuntime {
         panel = ClipNotePanelController(store: store, preferences: preferences, monitor: monitor)
         stack = ClipNoteStackController(store: store, preferences: preferences, monitor: monitor)
 
-        monitor.onCapture = { [weak self] id in self?.stack.captured(itemID: id) }
+        monitor.onCapture = { [weak self, weak service] id in
+            self?.stack.captured(itemID: id)
+            service?.captured.send()
+        }
         monitor.start()
         backup.startAutoBackup()
         ocrBackfill.activate()
