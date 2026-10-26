@@ -27,6 +27,8 @@ struct ClipNoteSettingsStrings {
     let stackCaption: String
     let autoPasteCaption: String
     let accessibilityCaption: String
+    let deleteNeedsCommand: String
+    let deleteNeedsCommandCaption: String
     let panelKeysHeader: String
     let keyMove: String
     let keyPaste: String
@@ -209,14 +211,14 @@ extension ClipNoteSettingsStrings {
         }
     }
 
-    var panelKeys: [ClipNoteKeyRow] {
+    func panelKeys(deleteNeedsCommand: Bool) -> [ClipNoteKeyRow] {
         [
             ClipNoteKeyRow(keys: "← →", action: keyMove),
             ClipNoteKeyRow(keys: "↩ / ⇧↩", action: keyPaste),
             ClipNoteKeyRow(keys: keyHoldCommand, action: keyNumbers),
             ClipNoteKeyRow(keys: keySpace, action: keyPreview),
             ClipNoteKeyRow(keys: "⇥ / ⇧⇥", action: keyTab),
-            ClipNoteKeyRow(keys: "⌘C / ⌘⌫", action: keyCopyDelete),
+            ClipNoteKeyRow(keys: deleteNeedsCommand ? "⌘C / ⌘⌫" : "⌘C / ⌫", action: keyCopyDelete),
             ClipNoteKeyRow(keys: "⌘R", action: keySync),
             ClipNoteKeyRow(keys: "Esc", action: keyEscape),
         ]
@@ -242,6 +244,8 @@ extension ClipNoteSettingsStrings {
         stackCaption: "While Paste Stack is open, each copy joins its list and ⌘V pastes them in turn.",
         autoPasteCaption: "Pastes the chosen item into the app in front; off only copies it.",
         accessibilityCaption: "Pasting for you and Paste Stack need Accessibility to press ⌘V.",
+        deleteNeedsCommand: "Hold ⌘ to delete",
+        deleteNeedsCommandCaption: "Delete alone removes the chosen item while the search is empty; on, only ⌘Delete does.",
         panelKeysHeader: "Panel keys",
         keyMove: "Move between items",
         keyPaste: "Paste / paste as plain text",
@@ -374,6 +378,8 @@ extension ClipNoteSettingsStrings {
         stackCaption: "Paste Stack 打开期间，连续复制的内容会依次进入列表，再用 ⌘V 依次粘贴。",
         autoPasteCaption: "选中条目后直接粘贴到当前应用；关闭则只复制到剪贴板。",
         accessibilityCaption: "自动粘贴和 Paste Stack 需要辅助功能权限来模拟 ⌘V。",
+        deleteNeedsCommand: "删除条目需按住 ⌘",
+        deleteNeedsCommandCaption: "关闭时，搜索框为空时直接按 ⌫ 即可删除选中条目；打开后只有 ⌘⌫ 才会删除。",
         panelKeysHeader: "面板快捷键",
         keyMove: "切换条目",
         keyPaste: "粘贴 / 粘贴为纯文本",
@@ -506,6 +512,8 @@ extension ClipNoteSettingsStrings {
         stackCaption: "Paste Stack を開いている間、コピーした内容が順にリストに入り、⌘V で順番にペーストできます。",
         autoPasteCaption: "選んだ項目を前面のアプリにペーストします。オフにするとコピーだけします。",
         accessibilityCaption: "自動ペーストと Paste Stack は ⌘V を送るためにアクセシビリティの許可が必要です。",
+        deleteNeedsCommand: "削除に ⌘ を必要にする",
+        deleteNeedsCommandCaption: "オフのときは、検索が空なら Delete キーだけで選んだ項目を削除します。オンにすると ⌘Delete でのみ削除します。",
         panelKeysHeader: "パネルのキー操作",
         keyMove: "項目を移動",
         keyPaste: "ペースト / プレーンテキストとしてペースト",
@@ -638,6 +646,8 @@ extension ClipNoteSettingsStrings {
         stackCaption: "Paste Stack이 열려 있는 동안 복사한 내용이 차례로 목록에 쌓이고 ⌘V로 순서대로 붙여넣습니다.",
         autoPasteCaption: "선택한 항목을 앞에 있는 앱에 붙여넣습니다. 끄면 복사만 합니다.",
         accessibilityCaption: "자동 붙여넣기와 Paste Stack은 ⌘V를 보내기 위해 손쉬운 사용 권한이 필요합니다.",
+        deleteNeedsCommand: "삭제할 때 ⌘ 필요",
+        deleteNeedsCommandCaption: "끄면 검색어가 비어 있을 때 Delete 키만으로 선택한 항목을 삭제합니다. 켜면 ⌘Delete로만 삭제합니다.",
         panelKeysHeader: "패널 키",
         keyMove: "항목 이동",
         keyPaste: "붙여넣기 / 일반 텍스트로 붙여넣기",

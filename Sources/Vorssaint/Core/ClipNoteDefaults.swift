@@ -17,6 +17,8 @@ extension DefaultsKey {
     static let clipNotePaused = "clipNotePaused"
     /// Paste into the app in front after picking an item; off only copies.
     static let clipNoteAutoPaste = "clipNoteAutoPaste"
+    /// Delete removes the chosen item only with ⌘ held; off, Delete alone does.
+    static let clipNoteDeleteNeedsCommand = "clipNoteDeleteNeedsCommand"
     /// Skip content password managers mark as concealed or transient.
     static let clipNoteSkipConcealed = "clipNoteSkipConcealed"
     static let clipNoteOCR = "clipNoteOCR"
@@ -58,6 +60,20 @@ extension GlobalShortcut {
     static let clipNoteStackDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_C), modifiers: [.shift, .command])
 }
 
+/// Which keys in the panel remove the chosen item.
+enum ClipNotePanelKeys {
+    /// ⌘Delete always does. Delete alone does, as in Paste, unless ⌘ is
+    /// required, the search is being typed or the key is repeating: holding
+    /// Delete to clear the search must stop at an empty field, not go on
+    /// through the items.
+    static func deletesItem(keyCode: Int, command: Bool, otherModifiers: Bool, isRepeat: Bool,
+                            queryIsEmpty: Bool, needsCommand: Bool) -> Bool {
+        guard keyCode == kVK_Delete || keyCode == kVK_ForwardDelete, !otherModifiers else { return false }
+        if command { return true }
+        return !needsCommand && queryIsEmpty && !isRepeat
+    }
+}
+
 /// What ClipNote's preferences start as, and the one-time move of the
 /// standalone app's choices. Apart from `ClipNotePreferences` so launch can
 /// run both before anything of ClipNote exists.
@@ -72,6 +88,7 @@ enum ClipNoteDefaults {
             DefaultsKey.clipNoteStackShortcutEnabled: true,
             DefaultsKey.clipNotePaused: false,
             DefaultsKey.clipNoteAutoPaste: true,
+            DefaultsKey.clipNoteDeleteNeedsCommand: false,
             DefaultsKey.clipNoteSkipConcealed: true,
             DefaultsKey.clipNoteOCR: false,
             DefaultsKey.clipNoteOCRBackfill: false,

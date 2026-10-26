@@ -154,7 +154,10 @@ struct ClipNoteSettings: View {
         }
 
         Section(text.panelKeysHeader) {
-            ForEach(text.panelKeys, id: \.keys) { row in
+            Toggle(isOn: $preferences.deleteNeedsCommand) {
+                ClipNoteRowLabel(text.deleteNeedsCommand, text.deleteNeedsCommandCaption)
+            }
+            ForEach(text.panelKeys(deleteNeedsCommand: preferences.deleteNeedsCommand), id: \.keys) { row in
                 LabeledContent(row.action) {
                     Text(row.keys).font(.system(.body, design: .rounded)).foregroundStyle(.secondary)
                 }

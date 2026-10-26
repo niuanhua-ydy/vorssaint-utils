@@ -49,6 +49,9 @@ final class ClipNotePreferences: ObservableObject {
 
     @Published var isPaused: Bool { didSet { defaults.set(isPaused, forKey: DefaultsKey.clipNotePaused) } }
     @Published var autoPaste: Bool { didSet { defaults.set(autoPaste, forKey: DefaultsKey.clipNoteAutoPaste) } }
+    @Published var deleteNeedsCommand: Bool {
+        didSet { defaults.set(deleteNeedsCommand, forKey: DefaultsKey.clipNoteDeleteNeedsCommand) }
+    }
     @Published var skipConcealed: Bool {
         didSet { defaults.set(skipConcealed, forKey: DefaultsKey.clipNoteSkipConcealed) }
     }
@@ -102,6 +105,7 @@ final class ClipNotePreferences: ObservableObject {
     private init() {
         isPaused = defaults.bool(forKey: DefaultsKey.clipNotePaused)
         autoPaste = defaults.bool(forKey: DefaultsKey.clipNoteAutoPaste)
+        deleteNeedsCommand = defaults.bool(forKey: DefaultsKey.clipNoteDeleteNeedsCommand)
         skipConcealed = defaults.bool(forKey: DefaultsKey.clipNoteSkipConcealed)
         ocrEnabled = defaults.bool(forKey: DefaultsKey.clipNoteOCR)
         ocrBackfillEnabled = defaults.bool(forKey: DefaultsKey.clipNoteOCRBackfill)

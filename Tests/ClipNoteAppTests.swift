@@ -14,6 +14,7 @@ enum ClipNoteAppTests {
         migration(suite)
         errors(suite)
         shortcuts(suite)
+        panelDelete(suite)
     }
 
     private static func strings(_ suite: TestSuite) {
@@ -137,5 +138,30 @@ enum ClipNoteAppTests {
         }
         suite.expect(GlobalShortcutRole.clipNoteStack.requiredEnableKeys.contains(DefaultsKey.clipNoteStackShortcutEnabled),
                      "the Paste Stack shortcut follows its own switch")
+    }
+
+    private static func panelDelete(_ suite: TestSuite) {
+        func deletes(_ keyCode: Int = kVK_Delete, command: Bool = false, other: Bool = false, repeating: Bool = false,
+                     queryIsEmpty: Bool = true, needsCommand: Bool = false) -> Bool {
+            ClipNotePanelKeys.deletesItem(keyCode: keyCode, command: command, otherModifiers: other,
+                                          isRepeat: repeating, queryIsEmpty: queryIsEmpty, needsCommand: needsCommand)
+        }
+        suite.expectEqual(ClipNoteDefaults.registered[DefaultsKey.clipNoteDeleteNeedsCommand] as? Bool, false,
+                          "Delete alone removes an item by default, as in Paste")
+        suite.expect(deletes(), "Delete alone removes the item")
+        suite.expect(deletes(kVK_ForwardDelete), "forward Delete removes the item")
+        suite.expect(!deletes(needsCommand: true), "with ⌘ required, Delete alone does nothing")
+        suite.expect(deletes(command: true, needsCommand: true), "⌘Delete removes the item when ⌘ is required")
+        suite.expect(deletes(command: true, queryIsEmpty: false), "⌘Delete removes the item while searching")
+        suite.expect(!deletes(queryIsEmpty: false), "Delete alone edits the search while it has text")
+        suite.expect(!deletes(repeating: true), "holding Delete to clear the search stops at the empty field")
+        suite.expect(deletes(command: true, repeating: true), "a held ⌘Delete keeps removing items")
+        suite.expect(!deletes(other: true), "Delete with ⌥, ⌃ or ⇧ is not the panel's")
+        suite.expect(!deletes(kVK_ANSI_D), "other keys never delete")
+        let keys = ClipNoteSettingsStrings.enUS
+        suite.expect(keys.panelKeys(deleteNeedsCommand: false).contains { $0.keys == "⌘C / ⌫" },
+                     "the panel keys list shows Delete alone")
+        suite.expect(keys.panelKeys(deleteNeedsCommand: true).contains { $0.keys == "⌘C / ⌘⌫" },
+                     "the panel keys list shows ⌘Delete when it is required")
     }
 }

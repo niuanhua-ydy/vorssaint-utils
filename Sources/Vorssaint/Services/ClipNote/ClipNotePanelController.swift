@@ -680,6 +680,14 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             return false
         }
 
+        if ClipNotePanelKeys.deletesItem(keyCode: keyCode, command: flags.contains(.command),
+                                         otherModifiers: !flags.subtracting(.command).isEmpty,
+                                         isRepeat: event.isARepeat, queryIsEmpty: model.query.isEmpty,
+                                         needsCommand: preferences.deleteNeedsCommand) {
+            model.delete()
+            return true
+        }
+
         switch keyCode {
         case kVK_Escape:
             if ai.isVisible {
@@ -733,17 +741,17 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         }
 
         switch keyCode {
-        case kVK_Delete, kVK_ForwardDelete:
-            model.delete()
-            return true
         case kVK_ANSI_C where !searchFieldHasSelection:
             model.copy()
             return true
         case kVK_ANSI_F:
             focusSearch()
             return true
-        case kVK_ANSI_R:
+        case kVK_ANSI_R where flags.contains(.shift):
             model.onSyncNow?()
+            return true
+        case kVK_ANSI_R:
+            if let item = model.selectedItem { model.beginEditingTitle(item) }
             return true
         case kVK_ANSI_W:
             hide()
