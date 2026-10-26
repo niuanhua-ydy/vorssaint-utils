@@ -1874,10 +1874,11 @@ enum UpdateFeatureTests {
                              "/Users/test/Library/Services/Helper.app",
                              "/Users/test/Projects/Sample/build/Debug.app",
                              "/Users/test/Tools/Container.app/Contents/Helper.app",
+                             "/Users/test/Applications (Parallels)/{b10f} Applications.localized/c9ef.app",
                              "/Volumes/Installer/Sample.app"],
             homeDirectory: "/Users/test")
         suite.expect(discoveredPaths == ["/Applications/Editor.app", "/Users/test/Tools/Side App.app"],
-               "shared app discovery keeps installed apps and rejects system, transient, nested and duplicate copies")
+               "shared app discovery keeps installed apps and rejects system, transient, nested, virtual machine and duplicate copies")
         // Xcode keeps the tools people open in its own Contents/Applications
         // folder and Simulator in Contents/Developer/Applications. Those count
         // as apps; helpers elsewhere in a bundle do not.

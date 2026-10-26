@@ -232,8 +232,11 @@ enum InstalledApps {
                 guard normalized.hasPrefix(homePrefix) else { return }
                 let components = normalized.dropFirst(homePrefix.count).split(separator: "/")
                 let folders = components.dropLast()
+                // Parallels keeps a stub app here for every program inside its
+                // virtual machines; they open the VM, not something on this Mac.
                 guard (1...3).contains(components.count),
                       components.first?.lowercased() != "library",
+                      components.first?.lowercased() != "applications (parallels)",
                       !folders.contains(where: { $0.hasPrefix(".") }) else { return }
             }
 
