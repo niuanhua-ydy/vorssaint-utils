@@ -40,6 +40,10 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
     /// and never in the flat search pool, like the uninstall list. Last, for
     /// the same stored-list reason as ports.
     case appUpdates
+    /// Agent CLIs found on this Mac, each opening the folders to start it
+    /// in. The folders are browsed from an agent's row, never searched flat.
+    /// Last, for the same stored-list reason as ports.
+    case agents
 
     var id: String { rawValue }
 
@@ -69,6 +73,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .killProcess: return "xmark.octagon"
         case .ports: return "network"
         case .appUpdates: return "arrow.down.app"
+        case .agents: return "terminal"
         }
     }
 
@@ -95,6 +100,7 @@ enum CommandBarSource: String, CaseIterable, Identifiable {
         case .killProcess: return "kill."
         case .ports: return "port."
         case .appUpdates: return "appupdate."
+        case .agents: return "agent."
         }
     }
 }
@@ -202,7 +208,7 @@ enum CommandBarPreferences {
         case .apps: return 80
         case .actions, .windows, .quitApps, .uninstallApps, .macSettings, .snippets,
              .clipboard, .emoji, .folders, .answers, .calculator, .selection, .links, .killProcess,
-             .ports, .appUpdates:
+             .ports, .appUpdates, .agents:
             return 0
         }
     }
@@ -237,6 +243,9 @@ enum CommandBarPreferences {
         case .actions, .apps, .quitApps, .settingsPages, .macSettings, .snippets, .emoji,
              .folders, .answers, .calculator, .links:
             return true
+        // An agent keeps its id; a folder offered under it comes and goes.
+        case .agents:
+            return rowID.hasPrefix(CommandBarAgentsSupport.agentRowPrefix)
         }
     }
 
@@ -317,6 +326,8 @@ enum CommandBarPreferences {
         case .actions, .apps, .windows, .settingsPages, .macSettings, .snippets, .folders,
              .links, .answers, .calculator:
             return true
+        case .agents:
+            return rowID.hasPrefix(CommandBarAgentsSupport.agentRowPrefix)
         }
     }
 
@@ -374,7 +385,7 @@ enum CommandBarPreferences {
         case .actions, .settingsPages, .snippets: return true
         case .apps, .uninstallApps, .menus, .windows, .quitApps, .macSettings, .clipboard, .emoji,
              .folders, .answers, .calculator, .selection, .links, .files, .killProcess, .ports,
-             .appUpdates:
+             .appUpdates, .agents:
             return false
         }
     }

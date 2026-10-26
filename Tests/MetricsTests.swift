@@ -111,6 +111,7 @@ struct MetricsTests {
             }),
             ("developer-tools", { CommandBarDeveloperToolsTests.run(suite) }),
             ("translation", { CommandBarTranslationTests.run(suite) }),
+            ("agent-cli", { CommandBarAgentTests.run(suite) }),
             ("command-bar", {
                 CommandBarFeatureTests.run(suite)
                 CommandBarSelectionTests.run(suite)

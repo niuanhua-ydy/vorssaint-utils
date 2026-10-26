@@ -350,7 +350,7 @@ enum CommandBarFeatureTests {
         suite.expect(CommandBarSource.allCases.map(\.rawValue) == [
             "actions", "apps", "menus", "windows", "quitApps", "uninstallApps", "settingsPages",
             "macSettings", "snippets", "clipboard", "emoji", "folders", "answers", "calculator",
-            "selection", "links", "files", "killProcess", "ports", "appUpdates",
+            "selection", "links", "files", "killProcess", "ports", "appUpdates", "agents",
         ], "source ids are stable (they persist inside the disabled list)")
         // The five rows that open another category are built as the app's
         // own actions, but they carry that category's prefix, so a filter on

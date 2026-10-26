@@ -609,6 +609,13 @@ enum DefaultsKey {
     // the bar looks for no files at all, which is the setting out of the box.
     static let commandBarFileScopes = "commandBarFileScopes"
     static let commandBarFileIgnores = "commandBarFileIgnores" // names a file search never shows
+    // Agent CLIs started from the bar: the terminal ("" lets the bar pick),
+    // command lines written over the defaults, agents switched off, and the
+    // folders the bar itself started one in.
+    static let commandBarAgentTerminal = "commandBarAgentTerminal"
+    static let commandBarAgentCommands = "commandBarAgentCommands" // {agent id: command line} JSON
+    static let commandBarAgentDisabled = "commandBarAgentDisabled" // agent ids, comma separated
+    static let commandBarAgentRecentFolders = "commandBarAgentRecentFolders" // [{path, time}] JSON
     static let panelUtilityCommandBar = "panelUtilityCommandBar"
     static let scratchpadRetention = "scratchpadRetention"   // never | day | week | month
     static let scratchpadCloseOnClickOutside = "scratchpadCloseOnClickOutside"
@@ -1783,6 +1790,10 @@ enum Defaults {
         DefaultsKey.commandBarHidden: "",
         DefaultsKey.commandBarFileScopes: "",
         DefaultsKey.commandBarFileIgnores: "",
+        DefaultsKey.commandBarAgentTerminal: "",
+        DefaultsKey.commandBarAgentCommands: "",
+        DefaultsKey.commandBarAgentDisabled: "",
+        DefaultsKey.commandBarAgentRecentFolders: "",
         DefaultsKey.commandBarShortcut: GlobalShortcut.commandBarDefault.storageValue,
         DefaultsKey.commandBarPositionOffset: "",
         DefaultsKey.commandBarEmojiSkinTone: "",

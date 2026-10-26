@@ -152,6 +152,7 @@ struct CommandBarSettings: View {
                 Text(text.pageTitle)
             }
 
+            CommandBarAgentSettingsSection()
             CommandBarTranslationSettingsSection()
             CommandBarDeveloperToolsSettings()
 
@@ -516,6 +517,7 @@ struct CommandBarSettings: View {
         case .killProcess: return FeatureStrings.killProcess(l10n.language).pageTitle
         case .ports: return FeatureStrings.portManager(l10n.language).title
         case .appUpdates: return FeatureStrings.appUpdates(l10n.language).pageTitle
+        case .agents: return CommandBarAgentStrings.strings(l10n.language).sourceTitle
         }
     }
 

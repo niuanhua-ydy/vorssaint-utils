@@ -500,6 +500,7 @@ if (( TEST )); then
         Sources/Vorssaint/Core/CommandBarTranslationStrings.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarPreferences.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarAgentsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarConfirmationSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarMath.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarUnits.swift

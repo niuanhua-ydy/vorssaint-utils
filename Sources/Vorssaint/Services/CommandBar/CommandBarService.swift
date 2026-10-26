@@ -251,6 +251,14 @@ final class CommandBarService: ObservableObject {
     /// while the bar is open; the observer lives only as long as the opening.
     private var appUpdateEntries: [CommandBarEntry] = [] { didSet { foldedSections[.appUpdates] = nil } }
     private var appUpdatesObserver: AnyCancellable?
+    /// The agent whose folder is being chosen, set by its row and cleared on
+    /// close, and the folders offered for it: Finder's front window when
+    /// Finder was in front, then the recent ones. Without an agent the rows
+    /// are the preview the pane beside an agent row shows.
+    private(set) var agentTarget: CommandBarAgent?
+    private var agentFinderFolder: String?
+    private var agentRecentFolders: [CommandBarAgentsSupport.Directory] = []
+    private var agentFolderEntries: [CommandBarEntry] = [] { didSet { foldedSections[.agentFolders] = nil } }
     /// One row for whatever single app is selected in Finder's Applications
     /// folder, same lifetime as `selectionEntries`.
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
@@ -321,6 +329,9 @@ final class CommandBarService: ObservableObject {
                                                   storageKey: DefaultsKey.commandBarShortcut)
         reloadPreferenceCaches()
         syncRowHotkeys()
+        // An agent row's own shortcut must find its row before the bar has
+        // ever been opened, so the agents are looked for from the start.
+        if available, isEnabled(.agents) { CommandBarAgents.refresh() }
         if available {
             // Build the one view tree after launch, outside the keystroke that
             // asks to see it for the first time, and lay it out: a window draws
@@ -484,6 +495,7 @@ final class CommandBarService: ObservableObject {
         loadKillProcessEntries(for: id)
         loadPortEntries(for: id)
         observeAppUpdates(for: id)
+        loadAgents(for: id)
         loadUninstallSelectionEntries(for: id)
     }
 
@@ -747,6 +759,12 @@ final class CommandBarService: ObservableObject {
         appUpdatesObserver = nil
         if !appUpdateEntries.isEmpty {
             appUpdateEntries = []
+            indexEntries()
+        }
+        agentTarget = nil
+        agentFinderFolder = nil
+        if !agentFolderEntries.isEmpty {
+            agentFolderEntries = []
             indexEntries()
         }
         if !uninstallSelectionEntries.isEmpty {
@@ -1176,7 +1194,7 @@ final class CommandBarService: ObservableObject {
             return AppFeature.killProcess.isAvailable
         case .ports:
             return AppFeature.portManager.isAvailable
-        case .quitApps, .uninstallApps, .appUpdates, .answers, .calculator, .selection, .files:
+        case .quitApps, .uninstallApps, .appUpdates, .agents, .answers, .calculator, .selection, .files:
             return false
         }
     }
@@ -1210,6 +1228,7 @@ final class CommandBarService: ObservableObject {
         case .killProcess: rows = killProcessEntries
         case .ports: rows = portEntries
         case .appUpdates: rows = appUpdateEntries
+        case .agents: rows = agentFolderEntries
         case .quitApps, .answers, .calculator, .selection, .files:
             rows = []
         }
@@ -1278,6 +1297,7 @@ final class CommandBarService: ObservableObject {
     /// list can show what is in there before the step is taken.
     func enteredCategory(for entry: CommandBarEntry) -> CommandBarSource? {
         guard entry.keepsBarOpen else { return nil }
+        if entry.id.hasPrefix(CommandBarAgentsSupport.agentRowPrefix) { return .agents }
         switch entry.id {
         case "action.uninstaller", "uninstall.browse": return .uninstallApps
         case CommandBarPreferences.emojiBrowserRowID: return .emoji
@@ -1366,6 +1386,9 @@ final class CommandBarService: ObservableObject {
         case .killProcess: return FeatureStrings.killProcess(L10n.shared.language).pageTitle
         case .ports: return FeatureStrings.portManager(L10n.shared.language).title
         case .appUpdates: return FeatureStrings.appUpdates(L10n.shared.language).pageTitle
+        case .agents:
+            let strings = CommandBarAgentStrings.strings(L10n.shared.language)
+            return agentTarget.map { String(format: strings.categoryTitleFormat, $0.name) } ?? strings.sourceTitle
         }
     }
 
@@ -1622,7 +1645,7 @@ final class CommandBarService: ObservableObject {
     /// The lists the pool is made of, in the order it builds them: what
     /// the Mac holds first, what is borrowed after.
     private enum PoolSection: CaseIterable {
-        case selection, killProcess, ports, uninstallSelection, catalog, apps, uninstallApps, appUpdates, macSettings, windows, quit, menus, emoji
+        case selection, killProcess, ports, uninstallSelection, catalog, apps, uninstallApps, appUpdates, agentFolders, macSettings, windows, quit, menus, emoji
     }
 
     private func entries(in section: PoolSection) -> [CommandBarEntry] {
@@ -1633,6 +1656,7 @@ final class CommandBarService: ObservableObject {
         case .killProcess: return killProcessEntries
         case .ports: return portEntries
         case .appUpdates: return appUpdateEntries
+        case .agentFolders: return agentFolderEntries
         case .catalog: return catalog
         case .apps: return appEntries
         case .macSettings: return macSettingsEntries
@@ -1947,6 +1971,7 @@ final class CommandBarService: ObservableObject {
         case .links: return bar.kindLink
         case .snippets: return bar.kindSnippet
         case .folders: return bar.kindFolder
+        case .agents: return CommandBarAgentStrings.strings(L10n.shared.language).sourceTitle
         case .actions, .apps, .menus, .windows, .quitApps, .uninstallApps, .settingsPages,
              .macSettings, .clipboard, .emoji, .calculator, .selection, .files, .killProcess, .ports,
              .appUpdates:
@@ -2538,6 +2563,7 @@ final class CommandBarService: ObservableObject {
             }
         }
         actions.append(contentsOf: appUpdateActions(for: entry))
+        actions.append(contentsOf: agentActions(for: entry))
         if let port = portManagerEntry(for: entry) {
             actions.append(contentsOf: portActions(for: port))
         }
@@ -2673,6 +2699,89 @@ final class CommandBarService: ObservableObject {
         return AppUpdatesSupport.commandBarEmptyTitle(
             isChecking: updates.isChecking, hasChecked: updates.hasCheckedThisSession,
             strings: FeatureStrings.appUpdates(L10n.shared.language))
+    }
+
+    // MARK: - Agent CLIs
+
+    /// Looks for the agents again (at most once a minute) and reads the
+    /// folders to offer, so an agent row's pane can show them before the
+    /// step into them is taken.
+    private func loadAgents(for id: UUID) {
+        guard isEnabled(.agents) else { return }
+        CommandBarAgents.refresh { [weak self] in
+            guard let self, self.presentationLifecycle.acceptsHomeUpdates(id, isVisible: self.isVisible) else { return }
+            self.rebuildCatalog()
+            self.refreshResults()
+            if !CommandBarAgents.available().isEmpty { self.loadAgentFolders(for: id, prompting: false) }
+        }
+        guard !CommandBarAgents.available().isEmpty else { return }
+        loadAgentFolders(for: id, prompting: false)
+    }
+
+    /// Finder's folder needs the Automation permission, which is only asked
+    /// for when `prompting`: once the person is choosing a folder, never
+    /// just for opening the bar.
+    private func loadAgentFolders(for id: UUID, prompting: Bool) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let finder = CommandBarAgents.finderFolder(prompting: prompting)
+            let recent = CommandBarAgents.recentFolders()
+            DispatchQueue.main.async {
+                guard let self, self.presentationLifecycle.acceptsHomeUpdates(id, isVisible: self.isVisible) else { return }
+                if finder != nil || !prompting { self.agentFinderFolder = finder }
+                self.agentRecentFolders = recent
+                self.rebuildAgentFolderEntries()
+            }
+        }
+    }
+
+    private func rebuildAgentFolderEntries() {
+        agentFolderEntries = CommandBarAgents.folderEntries(agent: agentTarget, finder: agentFinderFolder,
+                                                            recent: agentRecentFolders,
+                                                            language: L10n.shared.language)
+        indexEntries()
+        refreshResults()
+    }
+
+    /// An agent's row: step into the folders to start it in.
+    func beginAgentLaunch(_ agent: CommandBarAgent) {
+        agentTarget = agent
+        query = ""
+        rebuildAgentFolderEntries()
+        if activeCategory == .agents {
+            selectedID = nil
+            refreshResults()
+        } else {
+            setCategory(.agents)
+        }
+        // Read again on the way in: the list may not have landed yet, and
+        // Finder's folder may need the permission this is the moment to ask.
+        loadAgentFolders(for: presentationID, prompting: agentFinderFolder == nil
+            && NSWorkspace.shared.frontmostApplication?.bundleIdentifier == "com.apple.finder")
+    }
+
+    /// A folder's other terminals, and the way to an agent's settings.
+    private func agentActions(for entry: CommandBarEntry) -> [RowAction] {
+        if entry.id.hasPrefix(CommandBarAgentsSupport.agentRowPrefix) {
+            return [RowAction(id: "openSettings",
+                              title: FeatureStrings.commandBar(L10n.shared.language).actionOpenSettings,
+                              symbolName: "gearshape") { [weak self] in
+                self?.hide()
+                SettingsRouter.shared.page = .commandBar
+                appDelegate()?.openSettingsWindow()
+            }]
+        }
+        guard entry.id.hasPrefix(CommandBarAgentsSupport.directoryRowPrefix),
+              let agent = agentTarget, let path = entry.revealPath else { return [] }
+        let strings = CommandBarAgentStrings.strings(L10n.shared.language)
+        let preferred = CommandBarAgents.preferredTerminal()
+        return CommandBarAgents.installedTerminals().filter { $0 != preferred }.map { terminal in
+            RowAction(id: "agentOpenIn.\(terminal.rawValue)",
+                      title: String(format: strings.openInFormat, terminal.name),
+                      symbolName: "terminal") { [weak self] in
+                self?.hide()
+                CommandBarAgents.launch(agent, in: path, terminal: terminal)
+            }
+        }
     }
 
     private func appUpdateItem(for entry: CommandBarEntry) -> AppUpdatesSupport.Item? {
