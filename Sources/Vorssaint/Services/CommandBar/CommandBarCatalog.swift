@@ -312,15 +312,17 @@ enum CommandBarCatalog {
         }
 
         if AppFeature.commandBar.isAvailable {
-            let disabled = UserDefaults.standard.string(forKey: DefaultsKey.commandBarDisabledDeveloperTools) ?? ""
-            for tool in CommandBarDeveloperTools.enabled(disabledRaw: disabled) {
-                entries.append(CommandBarEntry(
-                    id: tool.rowID,
-                    title: language.rawValue.hasPrefix("zh") ? tool.chineseName : tool.name,
-                    subtitle: language.rawValue.hasPrefix("zh") ? "开发工具" : "Developer tools",
-                    keywords: tool.keywords,
-                    icon: .symbol(tool.symbol),
-                    run: { _ in afterBeat { CommandBarDeveloperToolsWindows.shared.show(tool) } }))
+            if CommandBarDeveloperTools.isEnabled {
+                for tool in CommandBarDeveloperTools.all {
+                    entries.append(CommandBarEntry(
+                        id: tool.rowID,
+                        title: language.rawValue.hasPrefix("zh") ? tool.chineseName : tool.name,
+                        subtitle: language.rawValue.hasPrefix("zh") ? "开发工具" : "Developer tools",
+                        keywords: tool.keywords,
+                        icon: .symbol(tool.symbol),
+                        keepsBarOpen: true,
+                        run: { _ in CommandBarService.shared.openDeveloperTool(tool.id) }))
+                }
             }
             entries.append(CommandBarEntry(
                 id: "action.translate",
@@ -1474,7 +1476,7 @@ enum CommandBarCatalog {
     /// is on the clipboard, so it appears once it is. The bar itself is never
     /// held up — the lane can be wedged behind an app that promised pasteboard
     /// content and stopped answering (issue #887).
-    private static func copyAnswer(_ value: String) {
+    static func copyAnswer(_ value: String) {
         GeneralPasteboardAccess.shared.async({
             NSPasteboard.general.clearContents()
             NSPasteboard.general.declareVorssaintSource()
@@ -1880,6 +1882,26 @@ enum CommandBarCatalog {
             icon: .symbol("globe"),
             countsUsage: false,
             run: { _ in NSWorkspace.shared.open(url) })
+    }
+
+    // MARK: - Recognized text
+
+    /// Rows for recognized text: the title names what was done, the caption
+    /// shows the result, Return copies it and Tab opens the tool with it.
+    static func developerToolEntries(_ matches: [CommandBarDeveloperTools.Match],
+                                     idPrefix: String,
+                                     language: AppLanguage) -> [CommandBarEntry] {
+        let chinese = language.rawValue.hasPrefix("zh")
+        return matches.map { match in
+            CommandBarEntry(
+                id: idPrefix + match.tool.id + "." + match.operation.id,
+                title: (chinese ? match.tool.chineseShortName : match.tool.shortName) + " · "
+                    + (chinese ? match.operation.chineseName : match.operation.name),
+                subtitle: CommandBarText.preview(match.output, limit: 60),
+                icon: .symbol(match.tool.symbol),
+                countsUsage: false,
+                run: { _ in copyAnswer(match.output) })
+        }
     }
 
     // MARK: - Clipboard history

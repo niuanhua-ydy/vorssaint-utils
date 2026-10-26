@@ -141,7 +141,7 @@ struct CommandBarView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if service.mode != .translation { searchBar }
+            if !service.mode.ownsPanel { searchBar }
             if let warning = service.uninstallWarning {
                 Label(warning, systemImage: "exclamationmark.triangle")
                     .font(.callout)
@@ -153,6 +153,8 @@ struct CommandBarView: View {
             switch service.mode {
             case .translation:
                 if isShown { CommandBarTranslationView(model: service.translator) }
+            case .developerTool:
+                if isShown { CommandBarDeveloperToolView(model: service.developerTool) }
             case .search:
                 if showsCategoryChips {
                     Divider()
@@ -204,7 +206,7 @@ struct CommandBarView: View {
             }
             // A footer under a bare field reads as a second row of chrome on
             // something meant to be one strip.
-            if !service.isCompactHome && service.mode != .translation {
+            if !service.isCompactHome && !service.mode.ownsPanel {
                 Divider()
                 footer
             }
@@ -237,7 +239,7 @@ struct CommandBarView: View {
     private var isWide: Bool { shownAs != .island }
 
     private func focusSearch() {
-        DispatchQueue.main.async { if isShown && service.mode != .translation { searchFocused = true } }
+        DispatchQueue.main.async { if isShown && !service.mode.ownsPanel { searchFocused = true } }
     }
 
     // MARK: - Field

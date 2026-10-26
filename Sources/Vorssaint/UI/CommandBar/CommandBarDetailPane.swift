@@ -36,7 +36,9 @@ struct CommandBarDetailPane: View {
     var body: some View {
         VStack(spacing: 0) {
             if let entry {
-                if let source = service.enteredCategory(for: entry),
+                if let match = service.developerToolMatch(for: entry) {
+                    toolResult(entry, match: match)
+                } else if let source = service.enteredCategory(for: entry),
                    case let rows = service.previewRows(in: source, limit: Self.previewLimit),
                    !rows.isEmpty {
                     preview(source, rows: rows)
@@ -56,6 +58,31 @@ struct CommandBarDetailPane: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .onAppear { loader.show(path: path) }
         .onChange(of: path) { _, path in loader.show(path: path) }
+    }
+
+    // MARK: - Recognized text
+
+    /// The whole result, the way it will be copied, instead of a one-line caption.
+    private func toolResult(_ entry: CommandBarEntry, match: CommandBarDeveloperTools.Match) -> some View {
+        let chinese = l10n.language.rawValue.hasPrefix("zh")
+        let shown = match.output.count > 20_000 ? String(match.output.prefix(20_000)) + "\n…" : match.output
+        return VStack(alignment: .leading, spacing: 8) {
+            Label(entry.title, systemImage: match.tool.symbol)
+                .font(.system(size: 13, weight: .semibold))
+            ScrollView([.vertical, .horizontal]) {
+                Text(shown)
+                    .font(.system(size: 12, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+            }
+            .frame(maxHeight: .infinity)
+            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+            Text(chinese ? "↩ 复制结果 · ⇥ 在工具中编辑" : "↩ Copy result · ⇥ Edit in the tool")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(16)
     }
 
     // MARK: - Hero

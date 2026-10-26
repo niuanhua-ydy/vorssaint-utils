@@ -593,7 +593,8 @@ enum DefaultsKey {
     static let commandBarUsage = "commandBarUsage"           // per-command run counts, never queries
     static let commandBarQueryHabits = "commandBarQueryHabits" // keyed query digests → selected row ids
     static let commandBarQueryHabitKey = "commandBarQueryHabitKey" // local key for stable digests
-    static let commandBarDisabledDeveloperTools = "commandBarDisabledDeveloperTools"
+    /// JSON, Base64, timestamps and the rest: their rows, and recognizing what was typed, selected or copied. On by default
+    static let commandBarDeveloperToolsEnabled = "commandBarDeveloperToolsEnabled"
     static let commandBarDisabledSources = "commandBarDisabledSources" // kinds of result switched off
     static let commandBarAliases = "commandBarAliases"       // {row id: the name the person gave it}
     static let commandBarPins = "commandBarPins"             // row keys kept at the top, in order
@@ -1771,6 +1772,7 @@ enum Defaults {
         DefaultsKey.translationAIProvider: "openAIChat",
         DefaultsKey.translationAIBaseURL: "",
         DefaultsKey.translationAIModel: "",
+        DefaultsKey.commandBarDeveloperToolsEnabled: true,
         DefaultsKey.commandBarShortcutEnabled: false,
         DefaultsKey.commandBarCompactMode: false,
         DefaultsKey.commandBarASCIILayoutEnabled: false,

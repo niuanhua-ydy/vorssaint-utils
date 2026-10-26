@@ -2680,7 +2680,7 @@ enum CommandBarFeatureTests {
                      "matchingPIDEntries places the exact PID first, followed by prefix matches in pool order")
         for query in ["kill", "pid", "杀进程", "结束进程"] {
             let keywords = KillProcessSupport.browseKeywords(.zhHans)
-            let title = FeatureStrings.hub(.zhHans).killProcessTitle
+            let title = FeatureStrings.killProcess(.zhHans).pageTitle
             suite.expect(CommandBarSearch.matches(title: title, keywords: keywords, query: query),
                          "\(query) finds the Kill Process browser row")
         }

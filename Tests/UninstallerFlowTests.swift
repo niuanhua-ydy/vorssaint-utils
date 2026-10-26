@@ -138,6 +138,7 @@ enum UninstallerFlowTests {
     }
     class ServiceState {
         let translator = CommandBarTranslationModel()
+        let developerTool = CommandBarDeveloperToolModel()
         typealias AppUninstaller = Uninstaller
         typealias AppFeature = Feature
         typealias UserDefaults = Preferences

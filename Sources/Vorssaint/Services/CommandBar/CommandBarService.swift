@@ -19,6 +19,8 @@ final class CommandBarService: ObservableObject {
     enum Mode: Equatable {
         case search
         case translation
+        /// A text tool's page (JSON, Base64…) in place of the list.
+        case developerTool
         case argument(entryID: String)
         case confirm(entryID: String)
         /// The full leftover-files checklist for one app, in place of a
@@ -42,6 +44,9 @@ final class CommandBarService: ObservableObject {
 
         /// Only browsing is transient; an entered workflow survives focus changes.
         var dismissesOnFocusLoss: Bool { self == .search }
+
+        /// A page that draws its own header and keys in place of the field and footer.
+        var ownsPanel: Bool { self == .translation || self == .developerTool }
 
         var isUninstallFlow: Bool {
             switch self {
@@ -173,6 +178,17 @@ final class CommandBarService: ObservableObject {
 
     private var catalog: [CommandBarEntry] = [] { didSet { foldedSections[.catalog] = nil } }
     let translator = CommandBarTranslationModel()
+    let developerTool = CommandBarDeveloperToolModel()
+    /// What each recognized-text row was made from, for Tab and the detail
+    /// pane. Typed text is rebuilt with every search; the selection and the
+    /// copied text belong to the presentation that read them.
+    private var queryToolMatches: [String: CommandBarDeveloperTools.Match] = [:]
+    private var contextToolMatches: [String: CommandBarDeveloperTools.Match] = [:]
+    /// Text copied since the bar last opened, when a tool recognizes it.
+    private var copiedTextEntries: [CommandBarEntry] = []
+    private var copiedTextPreview = ""
+    private var copiedText = ""
+    private var lastSeenPasteboardChange: Int?
     let scriptRunner = CommandBarScriptRunner()
     let fileSearch = CommandBarFileSearch()
     /// Which row answered which few letters, for as long as the app runs. Not
@@ -441,6 +457,10 @@ final class CommandBarService: ObservableObject {
         selectionEntries = []
         selectionPreview = ""
         selectedText = ""
+        copiedTextEntries = []
+        copiedTextPreview = ""
+        copiedText = ""
+        contextToolMatches = [:]
         killProcessEntries = []
         portEntries = []
         uninstallSelectionEntries = []
@@ -460,6 +480,7 @@ final class CommandBarService: ObservableObject {
         loadWindowsIfNeeded(for: id)
         loadMenusIfNeeded(for: id)
         loadSelection(for: id)
+        loadCopiedText(for: id)
         loadKillProcessEntries(for: id)
         loadPortEntries(for: id)
         observeAppUpdates(for: id)
@@ -601,6 +622,49 @@ final class CommandBarService: ObservableObject {
         refreshResults()
     }
 
+    /// Opens one tool's page. With no text given it starts from the selection
+    /// or what was just copied, when that is something this tool reads.
+    func openDeveloperTool(_ toolID: String, operationID: String? = nil, input: String? = nil) {
+        guard AppFeature.commandBar.isAvailable, CommandBarDeveloperTools.isEnabled,
+              let tool = CommandBarDeveloperTools.tool(toolID) else { return }
+        if mode == .search { savedQuery = query }
+        let recognized = { (text: String) in
+            CommandBarDeveloperTools.matches(for: text, limit: 8).contains { $0.tool.id == toolID }
+        }
+        let start = input ?? [selectedText, copiedText].first { !$0.isEmpty && recognized($0) } ?? ""
+        developerTool.open(toolID: toolID, operationID: operationID, input: start)
+        mode = .developerTool
+        refreshResults()
+        guard start.isEmpty, input == nil else { return }
+        GeneralPasteboardAccess.shared.async(timeout: 0.5, { _ in
+            NSPasteboard.general.string(forType: .string)
+        }, then: { [weak self] text in
+            guard let self, let text, self.mode == .developerTool, self.developerTool.toolID == tool.id,
+                  self.developerTool.input.isEmpty, text.utf8.count <= CommandBarDeveloperTools.maxInputBytes,
+                  recognized(text) else { return }
+            self.developerTool.open(toolID: tool.id, input: text.trimmingCharacters(in: .whitespacesAndNewlines))
+        })
+    }
+
+    func copyDeveloperToolResult() {
+        guard mode == .developerTool, developerTool.canCopy else { NSSound.beep(); return }
+        CommandBarCatalog.copyAnswer(developerTool.output)
+        hide()
+    }
+
+    /// Moves the page into a window of its own, with what was typed so far.
+    func detachDeveloperTool() {
+        guard mode == .developerTool else { return }
+        let (toolID, operationID, input) = (developerTool.toolID, developerTool.operationID, developerTool.input)
+        hide()
+        CommandBarDeveloperToolsWindows.shared.show(toolID: toolID, operationID: operationID, input: input)
+    }
+
+    /// The recognized text behind a row, when it is one of those rows.
+    func developerToolMatch(for entry: CommandBarEntry) -> CommandBarDeveloperTools.Match? {
+        queryToolMatches[entry.id] ?? contextToolMatches[entry.id]
+    }
+
     func openTranslationSettings() {
         hide()
         SettingsRouter.shared.page = .commandBar
@@ -609,6 +673,7 @@ final class CommandBarService: ObservableObject {
 
     func hide() {
         translator.reset()
+        developerTool.reset()
         // Cleared first, so the island closing under the bar does not close it again.
         let presented = presentation
         presentation = .window
@@ -666,6 +731,11 @@ final class CommandBarService: ObservableObject {
             selectedText = ""
             indexEntries()
         }
+        copiedTextEntries = []
+        copiedTextPreview = ""
+        copiedText = ""
+        contextToolMatches = [:]
+        queryToolMatches = [:]
         if !killProcessEntries.isEmpty {
             killProcessEntries = []
             indexEntries()
@@ -1751,7 +1821,7 @@ final class CommandBarService: ObservableObject {
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
         case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .cleanReview, .actions,
-             .naming, .capturingShortcut, .translation:
+             .naming, .capturingShortcut, .translation, .developerTool:
             setCompactHome(false)
         }
         let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
@@ -1802,6 +1872,13 @@ final class CommandBarService: ObservableObject {
                 ? bar.selectedTitle
                 : bar.selectedTitle + " · " + selectionPreview
             rows.append(contentsOf: selectionEntries)
+        }
+        // Text copied since the bar last opened, when a tool reads it: the
+        // uTools habit of copy, summon, convert. Not when it is the selection.
+        if !copiedTextEntries.isEmpty, copiedText != selectedText {
+            let heading = L10n.shared.language.rawValue.hasPrefix("zh") ? "刚复制" : "Just copied"
+            titles[rows.count] = heading + " · " + copiedTextPreview
+            rows.append(contentsOf: copiedTextEntries)
         }
 
         let offerable = (catalog + appEntries + macSettingsEntries + windowEntries).filter {
@@ -2050,6 +2127,18 @@ final class CommandBarService: ObservableObject {
             fileSearch.cancelPending()
         }
 
+        // Pasted or typed text a tool reads (JSON, a JWT, a timestamp) leads
+        // like a sum's answer. A long paste is not a search for anything else.
+        let toolMatches = CommandBarDeveloperTools.isEnabled ? CommandBarDeveloperTools.matches(for: query) : []
+        let toolRows = CommandBarCatalog.developerToolEntries(toolMatches, idPrefix: "devtool.query.",
+                                                              language: L10n.shared.language)
+        queryToolMatches = Dictionary(zip(toolRows.map(\.id), toolMatches), uniquingKeysWith: { first, _ in first })
+        if !toolRows.isEmpty, trimmed.count > 120 {
+            scriptRunner.cancelPending()
+            fileSearch.cancelPending()
+            return toolRows
+        }
+
         // "brilho 40" is a command with a value; "code 1234" is a search.
         // The number is only taken off when a command that
         // actually takes one answers to what is left.
@@ -2179,6 +2268,7 @@ final class CommandBarService: ObservableObject {
         var counts: [String: Int] = [:]
         var result: [CommandBarEntry] = []
         if let answer, colorPreview == nil { result.append(answer) }
+        result.append(contentsOf: toolRows)
         if let openURL { result.append(openURL) }
         if let scriptAnswer { result.append(scriptAnswer) }
         if let pid = KillProcessSupport.pidQuery(from: trimmed,
@@ -2225,6 +2315,11 @@ final class CommandBarService: ObservableObject {
     /// `CommandBarTabStep`), otherwise completes it, then runs it on the next Tab.
     func tabSelected() {
         guard case .search = mode, let entry = selectedEntry else { return }
+        // A recognized-text row opens its tool on that text, to edit or try another operation.
+        if let match = developerToolMatch(for: entry) {
+            openDeveloperTool(match.tool.id, operationID: match.operation.id, input: match.input)
+            return
+        }
         switch tabStep(for: entry) {
         case .enter: run(entry)
         case .askForNumber: askForNumber(entry)
@@ -2237,6 +2332,7 @@ final class CommandBarService: ObservableObject {
     /// Whether Tab steps into this row, for the ⇥ mark at the end of it.
     func tabEnters(_ entry: CommandBarEntry) -> Bool {
         guard case .search = mode else { return false }
+        if developerToolMatch(for: entry) != nil { return true }
         switch tabStep(for: entry) {
         case .enter, .askForNumber, .prefill: return true
         case .stay, .complete: return false
@@ -3172,6 +3268,8 @@ final class CommandBarService: ObservableObject {
         switch mode {
         case .translation:
             translator.start()
+        case .developerTool:
+            copyDeveloperToolResult()
         case .actions:
             runSelectedAction()
             return
@@ -3276,6 +3374,11 @@ final class CommandBarService: ObservableObject {
         switch mode {
         case .translation:
             translator.reset()
+            mode = .search
+            query = savedQuery
+            refreshResults()
+        case .developerTool:
+            developerTool.reset()
             mode = .search
             query = savedQuery
             refreshResults()
@@ -3680,8 +3783,14 @@ final class CommandBarService: ObservableObject {
                 }
                 let bar = FeatureStrings.commandBar(L10n.shared.language)
                 self.selectedText = text
-                self.selectionEntries = CommandBarCatalog.selectionEntries(text, exactly: exact,
-                                                                           typesOver: typesOver, bar: bar) {
+                // What a tool recognizes in the selection leads: it is the most
+                // specific thing the bar can do with it.
+                let matches = CommandBarDeveloperTools.isEnabled ? CommandBarDeveloperTools.matches(for: exact) : []
+                let toolRows = CommandBarCatalog.developerToolEntries(matches, idPrefix: "selection.devtool.",
+                                                                      language: L10n.shared.language)
+                self.contextToolMatches.merge(zip(toolRows.map(\.id), matches).map { ($0, $1) }) { $1 }
+                self.selectionEntries = toolRows + CommandBarCatalog.selectionEntries(text, exactly: exact,
+                                                                                      typesOver: typesOver, bar: bar) {
                     [weak self] selected in
                     // The bar stays open: the point is to convert, add up or
                     // look up what was selected without retyping it.
@@ -3692,6 +3801,37 @@ final class CommandBarService: ObservableObject {
                 self.refreshResults()
             }
         }
+    }
+
+    /// The clipboard, read once as the bar opens and only when it changed
+    /// since the last time: what was copied for the bar shows once, an old
+    /// copy never comes back. Text only, never a secret a password manager
+    /// marked, never what Vorssaint wrote itself (a result just copied).
+    private func loadCopiedText(for id: UUID) {
+        guard CommandBarDeveloperTools.isEnabled else { return }
+        GeneralPasteboardAccess.shared.async(timeout: 0.5, { _ -> (change: Int, text: String?) in
+            let board = NSPasteboard.general
+            let types = board.types ?? []
+            let ownOrSecret = types.contains(NSPasteboard.PasteboardType(ClipboardHistorySensitiveText.concealedPasteboardType))
+                || board.string(forType: .source) == Bundle.main.bundleIdentifier
+            let text = ownOrSecret ? nil : board.string(forType: .string)
+            return (board.changeCount, text.flatMap { $0.utf8.count <= CommandBarDeveloperTools.maxInputBytes ? $0 : nil })
+        }, then: { [weak self] result in
+            guard let self, let result else { return }
+            let isNew = self.lastSeenPasteboardChange != result.change
+            self.lastSeenPasteboardChange = result.change
+            guard isNew, let text = result.text,
+                  self.presentationLifecycle.acceptsHomeUpdates(id, isVisible: self.isVisible) else { return }
+            let matches = CommandBarDeveloperTools.matches(for: text)
+            guard !matches.isEmpty else { return }
+            let rows = CommandBarCatalog.developerToolEntries(matches, idPrefix: "devtool.copied.",
+                                                              language: L10n.shared.language)
+            self.contextToolMatches.merge(zip(rows.map(\.id), matches).map { ($0, $1) }) { $1 }
+            self.copiedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            self.copiedTextPreview = CommandBarText.preview(text)
+            self.copiedTextEntries = rows
+            self.refreshResults()
+        })
     }
 
     /// Every running process, so a name typed directly finds and can kill it.
@@ -4095,6 +4235,39 @@ final class CommandBarService: ObservableObject {
                     return nil
                 }
                 // Native editors and pickers own arrows, selection, Tab and Shift-Return.
+                return event
+            }
+            if self.mode == .developerTool {
+                let code = Int(event.keyCode)
+                if code == kVK_Escape {
+                    self.stepBack()
+                    return nil
+                }
+                if navigationModifiers == [.command] {
+                    if code == kVK_Return || code == kVK_ANSI_KeypadEnter {
+                        if !event.isARepeat { self.copyDeveloperToolResult() }
+                        return nil
+                    }
+                    switch event.charactersIgnoringModifiers?.lowercased() {
+                    case "d": self.detachDeveloperTool(); return nil
+                    case "w": self.hide(); return nil
+                    case "q", "m", "h": return nil
+                    case "a": return NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: panel) ? nil : event
+                    case "c": return NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: panel) ? nil : event
+                    case "x": return NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: panel) ? nil : event
+                    case "v": return NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: panel) ? nil : event
+                    case "z": return NSApp.sendAction(Selector(("undo:")), to: nil, from: panel) ? nil : event
+                    default: break
+                    }
+                }
+                if navigationModifiers == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "z" {
+                    return NSApp.sendAction(Selector(("redo:")), to: nil, from: panel) ? nil : event
+                }
+                if navigationModifiers == [.option], let index = Self.digitIndex(for: event.keyCode) {
+                    self.developerTool.selectOperation(at: index)
+                    return nil
+                }
+                // The editor owns Return (a new line), arrows and selection.
                 return event
             }
             if event.modifierFlags.contains(.command) {

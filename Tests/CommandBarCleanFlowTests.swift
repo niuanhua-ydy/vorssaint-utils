@@ -62,6 +62,7 @@ enum CommandBarCleanFlowTests {
     }
     class ServiceState {
         let translator = CommandBarTranslationModel()
+        let developerTool = CommandBarDeveloperToolModel()
         typealias JunkCleaner = Cleaner
         typealias AppUninstaller = Uninstaller
         typealias AppFeature = Feature
