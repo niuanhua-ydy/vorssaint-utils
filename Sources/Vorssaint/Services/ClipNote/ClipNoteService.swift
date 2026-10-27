@@ -67,23 +67,10 @@ final class ClipNoteService: ObservableObject {
             if let opened = self.store {
                 store = opened
             } else {
-                // Vorssaint's own folder only: falling back to the standalone
-                // app's would share the history with it again.
-                guard let directory = ClipNoteStorage.directory else {
+                guard let directory = ClipNoteStorage.directory,
+                      PrivateFileStore.createDirectory(at: directory, container: ClipNoteStorage.container) else {
                     storeError = "no Application Support folder"
                     return
-                }
-                switch ClipNoteStorage.prepare(directory: directory,
-                                               standalone: ClipNoteStorage.standaloneDirectory,
-                                               container: PrivateFileStore.containerURL) {
-                case let .failed(reason):
-                    storeError = reason
-                    NSLog("[ClipNote] could not move the history: \(reason)")
-                    return
-                case .copied:
-                    NSLog("[ClipNote] copied the standalone app's history into \(directory.path)")
-                case .ready:
-                    break
                 }
                 store = try ClipStore(directory: directory)
             }

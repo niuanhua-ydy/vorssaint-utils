@@ -79,6 +79,22 @@ enum ClipNoteAppTests {
                      "a switched-off Paste Stack shortcut stays off")
         suite.expect(defaults.object(forKey: "unrelatedKey") == nil, "keys ClipNote never had are not copied")
 
+        defaults.removePersistentDomain(forName: name)
+        suite.expect(!ClipNoteDefaults.adoptOtherVariant(["appLanguage": "en-US"], into: defaults),
+                     "another build that never ran ClipNote gives nothing")
+        suite.expect(ClipNoteDefaults.adoptOtherVariant([DefaultsKey.clipNoteEnabled: true,
+                                                         DefaultsKey.clipNoteRetentionDays: 90,
+                                                         "appLanguage": "en-US"], into: defaults),
+                     "another build's ClipNote choices are taken")
+        suite.expect(defaults.bool(forKey: DefaultsKey.clipNoteEnabled)
+                        && defaults.integer(forKey: DefaultsKey.clipNoteRetentionDays) == 90,
+                     "ClipNote's own keys come over as they are")
+        suite.expect(defaults.object(forKey: "appLanguage") == nil, "the rest of that build's settings stay there")
+        suite.expectEqual(AppInfo.otherVariantBundleID(of: "com.vorssaint.utils.dev"), "com.vorssaint.utils",
+                          "the Developer build's other build is the official app")
+        suite.expectEqual(AppInfo.otherVariantBundleID(of: "com.vorssaint.utils"), "com.vorssaint.utils.dev",
+                          "the official app's other build is the Developer build")
+
         let bare = Data(#"{"keyCode":9,"modifiers":0,"keyName":"V"}"#.utf8)
         suite.expect(ClipNoteDefaults.standaloneShortcut(bare) == nil, "a shortcut without a modifier is dropped")
         suite.expect(ClipNoteDefaults.standaloneShortcut("not data") == nil, "an unreadable shortcut is dropped")

@@ -119,15 +119,30 @@ enum ClipNoteDefaults {
         defaults.set(true, forKey: DefaultsKey.clipNoteEnabled)
     }
 
-    /// The standalone app's choices, copied once into Vorssaint's domain. Its
-    /// own domain is only read, never changed, so the app keeps working if
-    /// someone opens it again. Runs at launch before defaults are registered.
+    /// The standalone app's choices, copied once into Vorssaint's domain, or
+    /// the other build's ClipNote choices when it has any: that build took
+    /// the standalone app's over itself and may have changed them since.
+    /// Other domains are only read, never changed, so their apps keep working
+    /// if someone opens them again. Runs at launch before defaults are registered.
     static func migrateFromStandaloneApp(in defaults: UserDefaults) {
         guard !defaults.bool(forKey: DefaultsKey.clipNoteMigratedFromApp) else { return }
         defaults.set(true, forKey: DefaultsKey.clipNoteMigratedFromApp)
+        if let bundleID = Bundle.main.bundleIdentifier,
+           let other = defaults.persistentDomain(forName: AppInfo.otherVariantBundleID(of: bundleID)),
+           adoptOtherVariant(other, into: defaults) { return }
         guard let old = UserDefaults(suiteName: standaloneDomain),
               let saved = old.persistentDomain(forName: standaloneDomain), !saved.isEmpty else { return }
         migrate(saved, into: defaults)
+    }
+
+    /// Copies the other build's ClipNote choices, which use the same keys.
+    /// False when it has none, as a build that never ran ClipNote.
+    @discardableResult
+    static func adoptOtherVariant(_ saved: [String: Any], into defaults: UserDefaults) -> Bool {
+        let choices = saved.filter { $0.key.hasPrefix("clipNote") }
+        guard !choices.isEmpty else { return false }
+        for (key, value) in choices { defaults.set(value, forKey: key) }
+        return true
     }
 
     /// `saved` is the standalone domain as a dictionary, so the mapping is

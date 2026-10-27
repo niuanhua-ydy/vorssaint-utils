@@ -25,6 +25,13 @@ enum AppInfo {
         (Bundle.main.bundleIdentifier ?? "").hasSuffix(".dev")
     }
 
+    /// The other build's bundle id: the official app's for the Developer
+    /// build, the Developer build's for the official app. Each keeps its own
+    /// data, so switching from one to the other starts from what it left.
+    static func otherVariantBundleID(of bundleID: String) -> String {
+        bundleID.hasSuffix(".dev") ? String(bundleID.dropLast(4)) : bundleID + ".dev"
+    }
+
     /// True when the current version is a pre-release (e.g. 3.3.4-beta.1 or 3.3.4-rc.1).
     static var isBeta: Bool {
         if isDeveloperBuild && UserDefaults.standard.bool(forKey: DefaultsKey.simulateBetaUI) {
