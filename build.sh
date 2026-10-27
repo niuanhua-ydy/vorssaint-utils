@@ -707,6 +707,11 @@ if (( DEV )); then
     /usr/libexec/PlistBuddy -c "Add :VorssaintBuildCommit string '$SHA · $(date '+%Y-%m-%d %H:%M')'" "$STAGE/Contents/Info.plist"
     echo "  stamped dev build: $SHA"
 fi
+# Agent usage progress is kept across builds that read the logs alike: the
+# stamp is a hash of that code, so a rebuild resumes the saved progress
+# instead of reading every log from its start again.
+AGENT_USAGE_STAMP="$(cat Sources/Vorssaint/Services/AgentUsage/**/*.swift(N) | shasum -a 256 | cut -c1-16)"
+/usr/libexec/PlistBuddy -c "Add :VorssaintAgentUsageStamp string $AGENT_USAGE_STAMP" "$STAGE/Contents/Info.plist"
 printf 'APPL????' > "$STAGE/Contents/PkgInfo"
 cp build/AppIcon.icns "$STAGE/Contents/Resources/AppIcon.icns"
 cp build/MenuBarIcon.png build/MenuBarIcon@2x.png build/BrandMark.png "$STAGE/Contents/Resources/"

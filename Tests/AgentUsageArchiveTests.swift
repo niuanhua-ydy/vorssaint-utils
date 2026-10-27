@@ -248,6 +248,16 @@ enum AgentUsageArchiveTests {
                         && AgentUsageArchive.build(info: developer) != AgentUsageArchive.build(info: release)
                         && AgentUsageArchive.build(info: developer) != AgentUsageArchive.build(info: rebuilt),
                      "a developer build keeps its progress apart from its release's and from another developer build's")
+        var stamped = developer
+        stamped["VorssaintAgentUsageStamp"] = "0123456789abcdef"
+        var restamped = rebuilt
+        restamped["VorssaintAgentUsageStamp"] = "0123456789abcdef"
+        var changed = rebuilt
+        changed["VorssaintAgentUsageStamp"] = "fedcba9876543210"
+        suite.expect(AgentUsageArchive.build(info: stamped) == AgentUsageArchive.build(info: restamped)
+                        && AgentUsageArchive.build(info: stamped) != AgentUsageArchive.build(info: changed)
+                        && AgentUsageArchive.build(info: stamped) != AgentUsageArchive.build(info: release),
+                     "builds that read logs alike share progress, and a change to that code starts over")
 
         // Opening a FIFO for reading waits for a writer, and a stop waits for
         // the usage queue: a FIFO named like a log must never be opened that way.

@@ -30,10 +30,13 @@ enum AgentUsageArchive {
     /// read is not taken for what another would have.
     static var build: String { build(info: Bundle.main.infoDictionary) }
 
-    /// A Developer build keeps the version of the release it comes from, so
-    /// its build stamp tells two of them apart.
+    /// build.sh stamps a hash of the usage code, so builds of one version
+    /// that read the logs alike share progress and any change to that code
+    /// starts over. Without it, a Developer build keeps the version of the
+    /// release it comes from, so its build stamp tells two of them apart.
     static func build(info: [String: Any]?) -> String {
         let version = "\(info?["CFBundleShortVersionString"] as? String ?? "")-\(info?["CFBundleVersion"] as? String ?? "")"
+        if let reading = info?["VorssaintAgentUsageStamp"] as? String { return "\(version) \(reading)" }
         guard let stamp = info?["VorssaintBuildCommit"] as? String else { return version }
         return "\(version) \(stamp)"
     }
