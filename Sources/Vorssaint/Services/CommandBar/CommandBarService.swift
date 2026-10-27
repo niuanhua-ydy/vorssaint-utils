@@ -494,7 +494,9 @@ final class CommandBarService: ObservableObject {
         loadPortEntries(for: id)
         observeAppUpdates(for: id)
         loadAgents(for: id)
-        loadUninstallSelectionEntries(for: id)
+        // Finder's selection is read only when its row is chosen: compiling
+        // the AppleScript on every opening made XProtect build its YARA rules
+        // in this process, about 14 MB kept for good.
     }
 
     /// Decides where the bar shows and gives that window the keyboard,
