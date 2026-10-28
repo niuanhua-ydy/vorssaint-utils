@@ -336,6 +336,16 @@ enum CommandBarCatalog {
                 keepsBarOpen: true,
                 run: { _ in CommandBarService.shared.openTranslation() }))
         }
+        if AppFeature.usageRecord.isAvailable {
+            let record = UsageRecordStrings.strings(language)
+            entries.append(CommandBarEntry(
+                id: "action.usageRecord",
+                title: record.title,
+                subtitle: area(.usageRecord),
+                keywords: record.keywords,
+                icon: .symbol("chart.bar.xaxis"),
+                run: { _ in UsageRecordWindow.shared.show() }))
+        }
 
         // Screen tools first: the beat lets the bar leave before capture.
         if AppFeature.screenshot.isAvailable {
@@ -490,7 +500,10 @@ enum CommandBarCatalog {
                 icon: .symbol("doc.plaintext"),
                 shortcut: roleShortcut(.pastePlain),
                 trouble: accessibilityTrouble(),
-                run: { _ in afterBeat { PastePlainService.shared.performPastePlain() } }))
+                run: { _ in
+                    AppUsageRecorder.note(.plainPaste)
+                    afterBeat { PastePlainService.shared.performPastePlain() }
+                }))
         }
         if AppFeature.cleaningMode.isAvailable {
             entries.append(CommandBarEntry(

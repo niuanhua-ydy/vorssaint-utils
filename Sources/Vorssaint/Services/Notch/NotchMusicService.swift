@@ -394,6 +394,7 @@ final class NotchMusicService: ObservableObject {
         cancelAutomationAction()
         commandWriter.stop()
         queueVisible = false
+        NotchLyricsService.shared.setCompactVisible(false, playback: playback)
         NotchLyricsService.shared.hide()
         NotchBrowserArtwork.shared.cancel()
         queueRequest = nil

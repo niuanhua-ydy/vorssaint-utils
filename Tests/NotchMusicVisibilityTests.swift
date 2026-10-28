@@ -10,7 +10,7 @@ enum NotchMusicVisibilityTests {
     enum ReviewDefaults { static var current: UserDefaults! }
     final class NotchMusicService {
         static var shared = NotchMusicService()
-        struct Track { var appPID: Int32? = nil }
+        struct Track { var title: String? = "Song"; var appPID: Int32? = nil }
         struct Playback { var isPlaying: Bool; var commandContext: NotchPlaybackContext? = nil; var track = Track() }
         var playback: Playback?
         var running = false
@@ -153,6 +153,9 @@ enum NotchMusicVisibilityTests {
         for feature in AppFeature.allCases { defaults.set(true, forKey: feature.availabilityKey) }
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
         defaults.set(false, forKey: DefaultsKey.notchTrackChange)
+        // The original music-only policy still retracts on pause. Lyrics have
+        // their own retention contract below, without changing that policy.
+        defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
         let service = Service()
         let reader = NotchMusicService.shared
         service.modules = NotchSupport.modules(in: defaults)
@@ -302,6 +305,32 @@ enum NotchMusicVisibilityTests {
                        && (service.surfaceSize == closed) == !playing,
                        "re-enabling music detects resume while paused playback occupies no wings")
             }
+            defaults.set(true, forKey: DefaultsKey.notchLyricsEnabled)
+            defaults.set(false, forKey: DefaultsKey.notchLyricsOnline)
+            let lyricSize = service.surfaceSize
+            for playing in [false, false, true, false] {
+                reader.playback = .init(isPlaying: playing)
+                service.syncVisibleConsumers()
+                suite.expect(reader.running && service.hasMusicActivity && service.compactActivity == .music
+                             && service.surfaceSize == lyricSize && service.musicStripHeldSong == nil,
+                             "lyrics keep the same compact surface across pause/resume without hover, consent changes or a new lookup")
+            }
+            reader.playback = nil
+            suite.expect(!service.hasMusicActivity && service.compactActivity == nil && service.surfaceSize == closed,
+                         "closing the player or clearing its playback session retracts paused lyrics")
+            reader.playback = .init(isPlaying: false, track: .init(title: "  \n"))
+            suite.expect(!service.hasMusicActivity && service.compactActivity == nil,
+                         "a player without a current song cannot retain an empty paused lyric surface")
+            reader.playback = .init(isPlaying: false)
+            defaults.set(false, forKey: AppFeature.notchLyrics.availabilityKey)
+            suite.expect(!service.hasMusicActivity, "uninstalling lyrics releases a paused lyric surface")
+            defaults.set(true, forKey: AppFeature.notchLyrics.availabilityKey)
+            defaults.set(false, forKey: DefaultsKey.notchShowPlayingMusic)
+            suite.expect(!service.hasMusicActivity, "paused lyrics cannot bypass disabled automatic music presentation")
+            defaults.set(true, forKey: DefaultsKey.notchShowPlayingMusic)
+            defaults.set(false, forKey: DefaultsKey.notchLyricsEnabled)
+            suite.expect(!service.hasMusicActivity, "turning lyrics off restores the original music-only pause policy")
+            reader.playback = .init(isPlaying: true)
             service.awaitsTrackNotice = true
             suite.expect(service.compactActivity == nil && service.idleContent == .none && service.surfaceSize == closed,
                    "a new song waiting for its notice leaves the closed island at rest, cover included")

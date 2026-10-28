@@ -422,6 +422,7 @@ final class ScreenshotService: ObservableObject {
         NotchService.shared.reactMascot(.flash, patience: 1)
         preview?.close()
         RecentCaptureService.shared.recordScreenshot(capture)
+        AppUsageRecorder.note(.screenshot)
         let defaults = UserDefaults.standard
         if defaults.bool(forKey: DefaultsKey.screenshotCopyToClipboard) {
             autoCopy(capture)

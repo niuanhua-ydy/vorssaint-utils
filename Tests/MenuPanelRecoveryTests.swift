@@ -30,6 +30,8 @@ enum MenuPanelRecoveryTests {
         var frame: CGRect
         var screen: NSScreen? = NSScreen.screens.first
         var windowNumber = 71
+        var parent: NSWindow?
+        var sheetParent: NSWindow?
         var alphaValue = 1.0
         var ignoresMouseEvents = false
         var contentView: View? = View()
@@ -176,6 +178,7 @@ enum MenuPanelRecoveryTests {
         func clearCachedRows() {}
     }
     enum ResponsibleProcess { static func clearIconCache() {} }
+    enum AirPlayRouteManager { static var isPresentingPicker = false }
     final class PanelInteractionState {
         static var shared = PanelInteractionState()
         var viewKeepsPopoverOpen = false
@@ -504,34 +507,64 @@ enum MenuPanelRecoveryTests {
             let sideSettings = NSWindow(CGRect(x: 50, y: 100, width: 400, height: 400))
             sideSettings.windowNumber = 88
             host.settingsWindow = sideSettings
-            let sideEvent = event(window: 88)!
-            expect(!host.shouldDismissPopover(forLocalEvent: sideEvent),
-                   "side-by-side Settings window does not dismiss the live preview panel")
+            expect(host.shouldDismissPopover(for: sideSettings),
+                   "side-by-side Settings dismisses the panel without requiring overlap")
 
             let overlappingSettings = NSWindow(CGRect(x: 500, y: 500, width: 400, height: 400))
             overlappingSettings.windowNumber = 89
             host.settingsWindow = overlappingSettings
-            let overlapEvent = event(window: 89)!
-            expect(host.shouldDismissPopover(forLocalEvent: overlapEvent),
+            expect(host.shouldDismissPopover(for: overlappingSettings),
                    "overlapping Settings window dismisses the panel")
 
             PanelInteractionState.shared.viewKeepsPopoverOpen = true
-            expect(!host.shouldDismissPopover(forLocalEvent: overlapEvent),
-                   "dismissal protection keeps panel open even when Settings window overlaps")
+            expect(host.shouldDismissPopover(for: sideSettings),
+                   "a cross-app utility still closes when switching to another Vorssaint page")
             PanelInteractionState.shared.viewKeepsPopoverOpen = false
 
             PanelInteractionState.shared.isPresentingPopoverModal = true
-            expect(!host.shouldDismissPopover(forLocalEvent: overlapEvent),
+            expect(!host.shouldDismissPopover(for: overlappingSettings),
                    "modal presentation keeps panel open even when Settings window overlaps")
             PanelInteractionState.shared.isPresentingPopoverModal = false
 
-            let popoverEvent = event(window: 71)!
-            expect(!host.shouldDismissPopover(forLocalEvent: popoverEvent),
+            let panelWindow = host.popover.contentViewController!.view.window!
+            expect(!host.shouldDismissPopover(for: panelWindow),
                    "interaction with the panel itself does not dismiss the popover")
 
-            let unrelatedEvent = event(window: 99)!
-            expect(!host.shouldDismissPopover(forLocalEvent: unrelatedEvent),
-                   "interaction with unrelated window does not dismiss the popover")
+            let child = NSWindow(.zero)
+            child.parent = panelWindow
+            let sheet = NSWindow(.zero)
+            sheet.sheetParent = child
+            expect(!host.shouldDismissPopover(for: child) && !host.shouldDismissPopover(for: sheet),
+                   "panel child popovers and nested sheets keep their parent open")
+            expect(!host.shouldDismissPopover(for: nil), "events without a window leave the panel open")
+
+            let otherWindow = NSWindow(.zero)
+            expect(host.shouldDismissPopover(for: otherWindow),
+                   "other Vorssaint windows dismiss the panel, not just Settings")
+            NSApp.modalWindow = otherWindow
+            expect(!host.shouldDismissPopover(for: otherWindow),
+                   "native modal sessions protect the panel from automatic dismissal")
+            NSApp.modalWindow = nil
+            AirPlayRouteManager.isPresentingPicker = true
+            expect(!host.shouldDismissPopover(for: otherWindow),
+                   "the AirPlay route picker keeps the panel open")
+            AirPlayRouteManager.isPresentingPicker = false
+        }
+        do {
+            let (host, source) = trackingSetup()
+            notifyCloses(host)
+            let panelWindow = host.popover.contentViewController!.view.window!
+            host.popoverApplicationWindowDidBecomeKey(Notification(name: Notification.Name("key"), object: panelWindow))
+            expect(!host.popoverIsClosing, "the panel becoming key does not close itself")
+            let settings = NSWindow(.zero)
+            NSApp.keyWindow = settings
+            host.popoverApplicationWindowDidBecomeKey(Notification(name: Notification.Name("key"), object: settings))
+            expect(host.popoverIsClosing && host.popoverCloseReason == .action,
+                   "a programmatic window activation closes the panel as a takeover")
+            NSAnimationContext.finish()
+            DispatchQueue.main.drain()
+            expect(!host.popover.isShown && source.activations == 0 && !host.monitors,
+                   "switching windows does not reopen the panel or return focus to another app")
         }
         do {
             let host = setup()

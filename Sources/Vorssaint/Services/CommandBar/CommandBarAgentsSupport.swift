@@ -20,14 +20,16 @@ struct CommandBarAgent: Identifiable, Equatable {
 /// The terminals the bar knows how to open in a folder with a command typed
 /// into the person's own shell, so their PATH and startup files apply and the
 /// tab outlives the agent. Warp is missing on purpose: it can open a folder
-/// but has no way to be handed a command to run there.
+/// but has no way to be handed a command to run there. Case order is the
+/// order the bar prefers; Rex leads, as the terminal the owner moved to.
 enum CommandBarTerminal: String, CaseIterable, Identifiable {
-    case otty, ghostty, iterm, terminal
+    case rex, otty, ghostty, iterm, terminal
 
     var id: String { rawValue }
 
     var bundleID: String {
         switch self {
+        case .rex: return "com.superlogical.rex"
         case .otty: return "io.appmakes.otty"
         case .ghostty: return "com.mitchellh.ghostty"
         case .iterm: return "com.googlecode.iterm2"
@@ -37,6 +39,7 @@ enum CommandBarTerminal: String, CaseIterable, Identifiable {
 
     var name: String {
         switch self {
+        case .rex: return "Rex"
         case .otty: return "Otty"
         case .ghostty: return "Ghostty"
         case .iterm: return "iTerm"
@@ -229,6 +232,39 @@ enum CommandBarAgentsSupport {
         ]
     }
 
+    /// The `rex` CLI inside the app, which talks to the Rex server the app
+    /// keeps its sessions in.
+    static let rexCLIPath = "Contents/Helpers/Rex Server.rex/Contents/MacOS/rex"
+
+    /// The session a new Rex tab joins, from `rex ls --json`. Rex cannot say
+    /// which session its window shows, so with several the first in its own
+    /// order is taken; nil when there is none and one has to be made.
+    static func rexSession(listJSON data: Data) -> String? {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let sessions = object["sessions"] as? [[String: Any]] else { return nil }
+        return sessions.lazy.compactMap { $0["session_id"] as? String }.first { !$0.isEmpty }
+    }
+
+    /// Opens a shell tab in the folder, in `session` or in a new session when
+    /// there is none. The tab is named for the folder; the agent is typed in
+    /// afterwards so the shell outlives it.
+    static func rexOpenArguments(session: String?, directory: String) -> [String] {
+        let label = (normalizedPath(directory) as NSString).lastPathComponent
+        guard let session else { return ["new", label, "-c", directory, "--json"] }
+        return ["window", "new", "-s", session, label, "-c", directory, "--json"]
+    }
+
+    /// The new tab's session, window and terminal, from either `window new`
+    /// or `new`, which nests its first window.
+    static func rexOpened(json data: Data, session: String?) -> (session: String, window: String, block: String)? {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let session = session ?? object["session_id"] as? String else { return nil }
+        let window = (object["initial_windows"] as? [[String: Any]])?.first ?? object
+        guard let id = window["window_id"] as? String,
+              let block = (window["block_ids"] as? [Any])?.first as? String else { return nil }
+        return (session, id, block)
+    }
+
     /// The script for a terminal driven over Apple Events. A terminal that was
     /// not running opens a window of its own on launch, which is reused
     /// instead of leaving an empty one behind the agent's.
@@ -236,7 +272,7 @@ enum CommandBarAgentsSupport {
                             wasRunning: Bool) -> String? {
         let app = "application id \(appleScriptLiteral(terminal.bundleID))"
         switch terminal {
-        case .otty:
+        case .rex, .otty:
             return nil
         case .ghostty:
             // Typed into the shell rather than run in its place, so the tab

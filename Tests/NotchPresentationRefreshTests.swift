@@ -9,6 +9,11 @@ import Combine
 /// starting the island's hardware consumers. Mode changes model AppStorage:
 /// they alter computed geometry without publishing a service property.
 enum NotchPresentationRefreshContract {
+    final class NotchLyricsService {
+        static let shared = NotchLyricsService()
+        var compactVisible = false
+        func setCompactVisible(_ visible: Bool, playback: NotchPlayback?) { compactVisible = visible }
+    }
     typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
     enum NSEvent {
         static var mouseLocation = CGPoint.zero
@@ -414,6 +419,19 @@ enum NotchPresentationRefreshContract {
     }
 
     static func run(_ suite: TestSuite) {
+        let compactLyrics = Service()
+        compactLyrics.expanded = false
+        compactLyrics.compactActivityIsVisible = true
+        compactLyrics.compactActivity = .music
+        compactLyrics.refreshPresentation(animated: false)
+        suite.expect(NotchLyricsService.shared.compactVisible, "a visible compact music surface owns a lyrics consumer")
+        compactLyrics.suspended = true
+        compactLyrics.refreshPresentation(animated: false)
+        suite.expect(!NotchLyricsService.shared.compactVisible, "suspending the island releases compact lyrics")
+        compactLyrics.suspended = false
+        compactLyrics.running = false
+        compactLyrics.refreshPresentation(animated: false)
+        suite.expect(!NotchLyricsService.shared.compactVisible, "a stopped island cannot start compact lyrics")
         compactMusicDepartureChecks(suite)
         mascotYieldChecks(suite)
         UserDefaults.standard.hides = false

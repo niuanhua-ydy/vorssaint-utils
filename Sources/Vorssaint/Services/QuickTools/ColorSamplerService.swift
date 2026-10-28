@@ -60,6 +60,7 @@ final class ColorSamplerService: ObservableObject {
         pasteboard.clearContents()
         pasteboard.declareVorssaintSource()
         pasteboard.setString(value, forType: .string)
+        AppUsageRecorder.note(.colorPicker)
         return value
     }
 

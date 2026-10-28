@@ -212,6 +212,7 @@ def main():
               "    private func showPopover(", "    func popoverWillClose(", "    func popoverDidClose(",
               "    private func releasePanelResources(", "    private func anchorAfterForeignClose(",
               "    private func reopenPanelAfterForeignClose(", "    private func shouldDismissPopover(",
+              "    private func popoverApplicationWindowDidBecomeKey(",
               "    private var popoverIsOpen:", "    private func togglePopover(", "    private func showMetricPanel(",
               "    private func beginPanelActivationTracking(", "    private func updatePanelActivationSource(",
               "    private func endPanelActivationTracking(", "    private func returnActivation(",
@@ -1016,7 +1017,7 @@ def main():
         "    private func detachCaptureIfClosingOnCollapse(", "    func endCaptureControls(",
         "    private func syncVisibleConsumers(", "    private func releaseMonitor("])
     for call in ["NotchSupport.controls", "NotchSupport.watchesMusicActivity", "NotchSupport.idleContent",
-                 "NotchSupport.hiddenShowsActivity"]:
+                 "NotchSupport.hiddenShowsActivity", "NotchLyricsSupport.isEnabled"]:
         music_visibility = music_visibility.replace(call + "()", call + "(in: ReviewDefaults.current)")
     music_visibility = music_visibility.replace("NotchSupport.routes(.track)",
                                                 "NotchSupport.routes(.track, in: ReviewDefaults.current)")
@@ -1618,13 +1619,15 @@ def main():
     write("NotchLyricsLifecycle.swift", "import Foundation\nimport UniformTypeIdentifiers\n\nextension NotchLyricsContract {\n"
           + "final class Service {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
-          + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var visible = false\nvar pageVisible = false\nvar compactVisible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
           + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
           + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
           + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\nvar loads: [NotchMusicIdentity] = []\n"
           + "func load(_ track: NotchMusicIdentity) { loads.append(track); state = .loading; session = Session() }\n"
           + declaration(lyrics, "    func update(playback:")
+          + declaration(lyrics, "    func setCompactVisible(")
+          + declaration(lyrics, "    func syncedLyrics(")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func hide()")
           + declaration(lyrics, "    func stop()")
@@ -1636,18 +1639,23 @@ def main():
     write("NotchLyricsLookup.swift", "import Foundation\n\nextension NotchLyricsContract {\n"
           + "final class LookupService {\nvar memory = NotchLyricsMemory()\n"
           + "var lyrics: NotchLyrics? { memory.lyrics }\nvar track: NotchMusicIdentity? { memory.track }\n"
-          + "var visible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
+          + "var visible = false\nvar pageVisible = false\nvar compactVisible = false\nvar online = false\nvar generation = UUID()\nvar state: State = .idle\n"
           + "var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?\n"
           + "var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]\n"
           + "var aliasWork: DispatchWorkItem?\nvar lastAliasRequest: TimeInterval = 0\n"
           + "var session: Session?\nvar importPanel: Panel?\n"
           + declaration(lyrics, "    func update(playback:")
+          + declaration(lyrics, "    func setCompactVisible(")
+          + declaration(lyrics, "    func syncedLyrics(")
           + declaration(lyrics, "    func playbackChanged(")
           + declaration(lyrics, "    func retry()")
           + declaration(lyrics, "    func hide()")
           + declaration(lyrics, "    func stop()")
           + declaration(lyrics, "    private func cancel()")
           + declaration(lyrics, "    private func load(")
+          + declaration(lyrics, "    private func loadQQ(")
+          + declaration(lyrics, "    private func loadQQLyrics(")
+          + declaration(lyrics, "    private func loadCatalog(")
           + declaration(lyrics, "    private func acceptsResult(")
           + declaration(lyrics, "    private func finish(")
           + declaration(lyrics, "    private func search(")

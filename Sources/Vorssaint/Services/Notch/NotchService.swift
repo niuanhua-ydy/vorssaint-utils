@@ -488,7 +488,12 @@ final class NotchService: ObservableObject {
         let playback = NotchMusicService.shared.playback
         // A song paused from the strip's button counts as playing while the pointer stays.
         let held = playback.map { musicStripHolds(context: $0.commandContext, player: $0.track.appPID) } ?? false
-        return NotchSupport.showsMusicActivity(isPlaying: held || playback?.isPlaying == true)
+        // Lyrics belong to the current song, not just its playing state. A
+        // pause keeps the surface (and any pending lookup) until the player
+        // clears its song or exits; it does not depend on pointer hover.
+        let keepsLyrics = NotchLyricsSupport.isEnabled()
+            && playback?.track.title?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        return NotchSupport.showsMusicActivity(isPlaying: held || keepsLyrics || playback?.isPlaying == true)
     }
 
     var hasAgentActivity: Bool {
@@ -1012,6 +1017,9 @@ final class NotchService: ObservableObject {
             let live = NotchMusicService.shared.playback
             let shown = heldMusic ?? (ownDisplay ? musicStripStandIn(for: live) : nil)
             let playback = shown?.playback ?? live
+            if !named, shown == nil, let lyrics = NotchLyricsService.shared.syncedLyrics(for: playback) {
+                return layout.musicLyricsSurface(lyrics, geometry: geometry)
+            }
             return layout.musicSurface(title: named
                                         ? playback?.track.title ?? FeatureStrings.radialMenu(language).mediaNowPlaying : nil,
                                        geometry: geometry)
@@ -2559,6 +2567,9 @@ final class NotchService: ObservableObject {
     }
 
     func refreshPresentation(animated: Bool = true, transitionContent: NotchContentTransition = .none) {
+        NotchLyricsService.shared.setCompactVisible(
+            running && !suspended && compactMusicIsVisible && !hiddenUntilHover && !hiddenAtRestInFullscreen,
+            playback: NotchMusicService.shared.playback)
         // A notice with a new reading, or the music strip naming its song,
         // fits its new width in place.
         let fitsInPlace = noticeFitsInPlace && notice != nil && !noticeExpanded
@@ -2850,7 +2861,14 @@ final class NotchService: ObservableObject {
     /// the cover on the camera's left, the bars alone on its right. Nil while
     /// it shows only the cover and the bars, or already shows the song.
     var namedMusicWings: NotchNoticeWings? {
-        guard musicStripNamesSong, !geometry.floats else { return nil }
+        guard !geometry.floats else { return nil }
+        if !musicStripNamesSong {
+            let playback = NotchMusicService.shared.playback
+            guard compactMusicIsVisible, !showsCompactActivityPicker, heldMusic == nil, musicStripStandIn(for: playback) == nil,
+                  let lyrics = NotchLyricsService.shared.syncedLyrics(for: playback) else { return nil }
+            return NotchMusicStripLayout.lyricWings(lyrics, geometry: compactActivityGeometry,
+                                                    room: geometry.compactSideRoom ?? 0)
+        }
         // The song the strip shows, which may still be the one a skip left.
         let live = NotchMusicService.shared.playback
         let track = (heldMusic ?? musicStripStandIn(for: live))?.playback.track ?? live?.track
@@ -3835,6 +3853,11 @@ final class NotchService: ObservableObject {
         }
         if modules.contains(.music) {
             let music = NotchMusicService.shared
+            NotchLyricsService.shared.objectWillChange.receive(on: DispatchQueue.main)
+                .sink { [weak self] in
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
             music.$playback.combineLatest(music.$artwork, music.$artworkTint)
                 .sink { [weak self] playback, artwork, tint in
                     // @Published sends before storing the new value. Keep the last

@@ -3541,6 +3541,13 @@ final class CommandBarService: ObservableObject {
     /// Normal insertion and one-off variants share the same learning history.
     private func recordUsage(of entry: CommandBarEntry) {
         let now = Date().timeIntervalSince1970
+        // The usage record names only rows that stay the same between runs;
+        // an answer or a one-off result counts without its title.
+        if entry.countsUsage {
+            AppUsageRecorder.noteCommand(id: entry.id, title: entry.title)
+        } else {
+            AppUsageRecorder.note(.commandBar)
+        }
         let typedQuery: String
         switch mode {
         case .argument, .actions:

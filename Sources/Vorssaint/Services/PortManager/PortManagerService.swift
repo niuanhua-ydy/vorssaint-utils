@@ -52,7 +52,8 @@ final class PortManagerService: ObservableObject {
         KillProcessService.shared.kill(pid: entry.pid,
                                        name: entry.processName,
                                        startedAt: startedAt,
-                                       force: force) { [weak self] in
+                                       force: force,
+                                       counted: .freePort) { [weak self] in
             self?.refresh()
         }
     }

@@ -265,6 +265,8 @@ final class JunkCleaner: ObservableObject {
                 guard let self, self.phase == .cleaning else { return }
                 self.items = []
                 self.phase = .done(freed: freed, failed: failed)
+                // A scheduled pass runs on its own; only a clean asked for counts.
+                if escalate { AppUsageRecorder.note(.clean, bytes: freed) }
             }
         }
     }

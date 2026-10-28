@@ -130,20 +130,13 @@ enum CommandBarAgents {
                 opened = CommandBarAgentsSupport.ottyAttempts(isRunning: wasRunning, directory: directory,
                                                               command: command)
                     .contains { arguments in
-                        let result = runOtty(cli, arguments, timeout: 10)
+                        let result = runTool(cli, arguments, timeout: 10)
                         log.notice("otty \(arguments.prefix(2).joined(separator: " "), privacy: .public) → \(result.status): \(result.output.prefix(300), privacy: .public)")
                         return result.status == 0
                     }
-                if opened {
-                    // The bar never takes focus, so Vorssaint is not the active
-                    // app and may not hand activation over itself; Launch
-                    // Services brings the terminal forward either way.
-                    DispatchQueue.main.async {
-                        let configuration = NSWorkspace.OpenConfiguration()
-                        configuration.activates = true
-                        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
-                    }
-                }
+            } else if terminal == .rex {
+                opened = launchInRex(cli: appURL.appending(path: CommandBarAgentsSupport.rexCLIPath).path,
+                                     directory: directory, command: command)
             } else if let script = CommandBarAgentsSupport.appleScript(for: terminal, directory: directory,
                                                                        command: command, wasRunning: wasRunning) {
                 let result = AppleScriptRunner.run(script)
@@ -151,6 +144,16 @@ enum CommandBarAgents {
                 opened = result.ok
             } else {
                 opened = false
+            }
+            if opened, terminal == .otty || terminal == .rex {
+                // The bar never takes focus, so Vorssaint is not the active
+                // app and may not hand activation over itself; Launch
+                // Services brings the terminal forward either way.
+                DispatchQueue.main.async {
+                    let configuration = NSWorkspace.OpenConfiguration()
+                    configuration.activates = true
+                    NSWorkspace.shared.openApplication(at: appURL, configuration: configuration)
+                }
             }
             DispatchQueue.main.async {
                 guard opened else {
@@ -273,13 +276,39 @@ enum CommandBarAgents {
         }
     }
 
+    /// Opens a tab in the folder and types the agent into its shell. The rex
+    /// CLI starts the server when it is not running; the tab joins a session
+    /// the app already has, and the app is asked to show it, which it only
+    /// does with Remote Control on, so that last step may fail quietly.
+    private static func launchInRex(cli: String, directory: String, command: String) -> Bool {
+        guard FileManager.default.isExecutableFile(atPath: cli) else {
+            log.error("rex cli missing at \(cli, privacy: .public)")
+            return false
+        }
+        let list = runTool(cli, ["ls", "--json"], timeout: 10)
+        let session = list.status == 0 ? CommandBarAgentsSupport.rexSession(listJSON: Data(list.output.utf8)) : nil
+        let open = runTool(cli, CommandBarAgentsSupport.rexOpenArguments(session: session, directory: directory),
+                           timeout: 10)
+        log.notice("rex open in \(session ?? "new session", privacy: .public) → \(open.status): \(open.output.prefix(300), privacy: .public)")
+        guard open.status == 0,
+              let tab = CommandBarAgentsSupport.rexOpened(json: Data(open.output.utf8), session: session) else {
+            return false
+        }
+        let typed = runTool(cli, ["send", "-s", tab.session, "-b", tab.block, command + "\r"], timeout: 10)
+        log.notice("rex send → \(typed.status): \(typed.output.prefix(300), privacy: .public)")
+        _ = runTool(cli, ["do", "session.select", "session_id=\(tab.session)", "window_id=\(tab.window)"], timeout: 5)
+        return typed.status == 0
+    }
+
     /// `otty` finds the running app's socket under `$HOME`, and a child of
     /// `Shell.run` starts with an empty environment, so it is handed this
-    /// process's own, with a home folder whatever launched the app.
-    private static func runOtty(_ cli: String, _ arguments: [String],
+    /// process's own, with a home folder whatever launched the app. A Rex
+    /// pane's own ids are left out so `rex` goes by what it is told.
+    private static func runTool(_ cli: String, _ arguments: [String],
                                 timeout: TimeInterval) -> (status: Int32, output: String) {
         var environment = ProcessInfo.processInfo.environment
         if (environment["HOME"] ?? "").isEmpty { environment["HOME"] = NSHomeDirectory() }
+        for key in ["REX_SESSION", "REX_BLOCK", "REX_WINDOW"] { environment.removeValue(forKey: key) }
         let result = BoundedProcessRunner.run(cli, arguments, timeout: timeout,
                                               maxOutputBytes: 1024 * 1024, environment: environment)
         return (result.status, String(decoding: result.output, as: UTF8.self))
@@ -289,7 +318,7 @@ enum CommandBarAgents {
         guard let app = applicationURL(for: .otty) else { return [] }
         let cli = app.appending(path: "Contents/MacOS/otty-cli").path
         guard FileManager.default.isExecutableFile(atPath: cli) else { return [] }
-        let result = runOtty(cli, ["jump", "ls", "100", "--json"], timeout: 3)
+        let result = runTool(cli, ["jump", "ls", "100", "--json"], timeout: 3)
         guard result.status == 0 else { return [] }
         return CommandBarAgentsSupport.ottyDirectories(json: Data(result.output.utf8))
     }

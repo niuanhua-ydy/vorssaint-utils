@@ -147,6 +147,7 @@ final class AgentUsageService: ObservableObject {
         // A page torn down with the island never reports leaving, so the
         // minute cadence would outlive it.
         pageVisible = false
+        AgentUsageHistoryStore.shared.flush()
         guard running, !paused else { return }
         paused = true
         cancelClaudeLimits()
@@ -181,6 +182,7 @@ final class AgentUsageService: ObservableObject {
         // below is short.
         if running { cancellation.cancel() }
         settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
+        AgentUsageHistoryStore.shared.flush()
         guard running else { return }
         running = false
         cancelClaudeLimits()
@@ -618,6 +620,8 @@ final class AgentUsageService: ObservableObject {
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
         let next = store.snapshot(plans: plans, providers: enabled, now: Date())
         published = next
+        let turns = store.longestTurns
+        let providers = enabled
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
             claudeOrganization == nil || $0.organization == nil || $0.organization == claudeOrganization
@@ -629,6 +633,8 @@ final class AgentUsageService: ObservableObject {
             if self.claudeAppChecked != checked { self.claudeAppChecked = checked }
             if self.pricesUpdated != prices { self.pricesUpdated = prices }
             if self.snapshot != next { self.snapshot = next }
+            AgentUsageHistoryStore.shared.record(next.days, longestTurns: turns, providers: providers,
+                                                 window: Self.horizon)
         }
     }
 

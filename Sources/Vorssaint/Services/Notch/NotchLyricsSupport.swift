@@ -69,6 +69,30 @@ struct NotchLyrics: Equatable {
         }
         return lower == 0 ? nil : lower - 1
     }
+
+    /// The compact strip holds the last words until the next words arrive.
+    /// LRC blank timestamps mark a singing gap, not the end of the surface.
+    /// Derive this from the playback position rather than remembered UI state,
+    /// so a seek backwards or a new song cannot retain a later/old verse.
+    func compactIndex(at position: Double, offset: Double = 0) -> Int? {
+        guard let active = activeIndex(at: position, offset: offset) else { return nil }
+        return (0...active).reversed().first {
+            !lines[$0].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
+    /// Seconds until the verse at `index` gives way to the next, or to the
+    /// end of the song. Nil while paused, when no verse is moving on.
+    func remaining(_ index: Int, for playback: NotchPlayback, offset: Double, at date: Date) -> TimeInterval? {
+        guard lines.indices.contains(index), playback.isPlaying, playback.hasPosition,
+              playback.rate.isFinite, playback.rate > 0, offset.isFinite else { return nil }
+        let next = lines.dropFirst(index + 1).first {
+            !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+        let end = next.map { $0.time + offset } ?? playback.duration
+        let remaining = (end - playback.position(at: date)) / playback.rate
+        return remaining.isFinite && remaining > 0 ? remaining : nil
+    }
 }
 
 /// At most one recording's lyrics and adjustment remain in memory. Hiding the
@@ -477,6 +501,86 @@ enum NotchLyricsSupport {
               components[1].allSatisfy({ $0.isNumber || $0 == "." }),
               minutes <= 10_080 else { return nil }
         return minutes * 60 + seconds
+    }
+}
+
+// QQ Music's system content-item identifier is a session UUID, not a song MID.
+// Resolve it through the catalog, never by scraping windows or reading private
+// app storage. The same title, all credited artists, album and recording length
+// must agree before its lyrics can be used.
+extension NotchLyricsSupport {
+    static func qqSearchURL(for track: NotchMusicIdentity) -> URL? {
+        guard track.bundle == "com.tencent.QQMusicMac", lookupURL(for: track) != nil else { return nil }
+        var url = URLComponents(string: "https://c.y.qq.com/soso/fcgi-bin/client_search_cp")!
+        url.queryItems = [URLQueryItem(name: "format", value: "json"),
+                          URLQueryItem(name: "w", value: track.title + " " + track.artist),
+                          URLQueryItem(name: "n", value: "20"), URLQueryItem(name: "p", value: "1")]
+        return url.url
+    }
+
+    static func qqSongMID(_ data: Data, for track: NotchMusicIdentity) -> String? {
+        guard data.count <= maximumSearchBytes,
+              let reply = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              reply["code"] as? Int == 0,
+              let body = reply["data"] as? [String: Any], let song = body["song"] as? [String: Any],
+              let records = song["list"] as? [[String: Any]], records.count <= 20 else { return nil }
+        var matches: Set<String> = []
+        for record in records {
+            guard let mid = record["songmid"] as? String, qqLyricsURL(songMID: mid) != nil,
+                  let title = record["songname"] as? String, titlesMatch(title, track),
+                  let singers = record["singer"] as? [[String: Any]], !singers.isEmpty,
+                  singers.count <= 20, singers.allSatisfy({ ($0["name"] as? String)?.isEmpty == false }),
+                  creditsMatch(singers.compactMap { $0["name"] as? String }.joined(separator: " / "), track.artist),
+                  let duration = record["interval"] as? Double, duration.isFinite, duration > 0,
+                  abs(duration - track.duration) <= 2,
+                  let album = record["albumname"] as? String,
+                  track.album.isEmpty || key(catalogAlbum(album)) == key(catalogAlbum(track.album)) else { continue }
+            matches.insert(mid)
+        }
+        // Do not guess between distinct recordings that share their metadata.
+        return matches.count == 1 ? matches.first : nil
+    }
+
+    static func qqLyricsURL(songMID: String) -> URL? {
+        guard songMID.utf8.count == 14, songMID.utf8.allSatisfy({
+            (48...57).contains($0) || (65...90).contains($0) || (97...122).contains($0)
+        }) else { return nil }
+        var url = URLComponents(string: "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg")!
+        url.queryItems = [URLQueryItem(name: "songmid", value: songMID),
+                          URLQueryItem(name: "format", value: "json"), URLQueryItem(name: "nobase64", value: "1")]
+        return url.url
+    }
+
+    static func decodeQQ(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? {
+        guard data.count <= maximumBytes,
+              let reply = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              reply["code"] as? Int == 0, var source = reply["lyric"] as? String,
+              !source.isEmpty, source.utf8.count <= maximumBytes else { return nil }
+        // Some responses ignore nobase64. Accept either envelope, with the
+        // same UTF-8 and LRC bounds as imported and LRCLIB lyrics.
+        if !source.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("[") {
+            if let bytes = Data(base64Encoded: source), let decoded = String(data: bytes, encoding: .utf8) { source = decoded }
+        }
+        source = qqUnescape(source)
+        let lines = parse(source, duration: track.duration)
+        guard !lines.isEmpty else { return nil }
+        return NotchLyrics(lines: lines, plain: lines.map(\.text).joined(separator: "\n"), instrumental: false)
+    }
+
+    private static func qqUnescape(_ source: String) -> String {
+        let expression = try! NSRegularExpression(pattern: "&(#x[0-9a-fA-F]{1,6}|#[0-9]{1,7}|amp|lt|gt|quot|apos);")
+        let named = ["amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'"]
+        var result = source
+        for match in expression.matches(in: source, range: NSRange(source.startIndex..., in: source)).reversed() {
+            guard let tokenRange = Range(match.range(at: 1), in: source), let range = Range(match.range, in: result) else { continue }
+            let token = String(source[tokenRange])
+            let number = token.hasPrefix("#x") ? UInt32(token.dropFirst(2), radix: 16)
+                : token.hasPrefix("#") ? UInt32(token.dropFirst()) : nil
+            if let replacement = named[token] ?? number.flatMap(UnicodeScalar.init).map(String.init) {
+                result.replaceSubrange(range, with: replacement)
+            }
+        }
+        return result
     }
 }
 

@@ -679,6 +679,7 @@ final class ScreenRecorderService: ObservableObject {
             self.session = nil
             self.isFinishing = false
             if written {
+                AppUsageRecorder.note(.recording)
                 self.deliver(session.take, reason: reason)
             } else {
                 RecorderTakeStore.shared.delete(session.take)

@@ -6,6 +6,13 @@ import AppKit
 /// Exercises the production hover handler with a controlled clock and pointer.
 /// No input is posted and the user's preferences are never read or changed.
 enum NotchHoverTests {
+    enum NotchLyricsService {
+        static let shared = Reader()
+        final class Reader {
+            var lyrics: NotchLyrics?
+            func syncedLyrics(for playback: NotchPlayback?) -> NotchLyrics? { playback == nil ? nil : lyrics }
+        }
+    }
     typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
     final class NSEvent {
         typealias EventTypeMask = AppKit.NSEvent.EventTypeMask

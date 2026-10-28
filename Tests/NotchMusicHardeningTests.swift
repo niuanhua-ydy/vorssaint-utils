@@ -27,6 +27,10 @@ enum NotchLyricsContract {
         static func artistAlbumURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.artistAlbumURL(for: track) }
         static func artistIdentity(_ data: Data, for track: NotchMusicIdentity, candidates: [ArtistIdentity]) -> ArtistIdentity? { ProductionLyricsParser.artistIdentity(data, for: track, candidates: candidates) }
         static func aliasSearchURLs(for track: NotchMusicIdentity, identity: ArtistIdentity) -> [URL] { ProductionLyricsParser.aliasSearchURLs(for: track, identity: identity) }
+        static func qqSearchURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.qqSearchURL(for: track) }
+        static func qqSongMID(_ data: Data, for track: NotchMusicIdentity) -> String? { ProductionLyricsParser.qqSongMID(data, for: track) }
+        static func qqLyricsURL(songMID: String) -> URL? { ProductionLyricsParser.qqLyricsURL(songMID: songMID) }
+        static func decodeQQ(_ data: Data, for track: NotchMusicIdentity) -> NotchLyrics? { ProductionLyricsParser.decodeQQ(data, for: track) }
         static func lookupURL(for track: NotchMusicIdentity) -> URL? { ProductionLyricsParser.lookupURL(for: track) }
         static func prefersDiscovery(for track: NotchMusicIdentity) -> Bool { ProductionLyricsParser.prefersDiscovery(for: track) }
         static func discoveryURLs(for track: NotchMusicIdentity) -> [URL] { ProductionLyricsParser.discoveryURLs(for: track) }

@@ -227,6 +227,7 @@ final class KillProcessService: ObservableObject {
         guard !entry.isProtected, let target = Self.target(for: entry) else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let removed = self.killBatch([target], force: force, adminPromptProcessName: entry.name)
+            if !removed.isEmpty { AppUsageRecorder.note(.killProcess) }
             self.finishKill(removed: removed)
         }
     }
@@ -237,6 +238,7 @@ final class KillProcessService: ObservableObject {
               name: String,
               startedAt: UInt64,
               force: Bool,
+              counted kind: AppUsageKind = .killProcess,
               completion: (() -> Void)? = nil) {
         guard !Self.isProtected(pid: pid, name: name) else {
             completion?()
@@ -245,6 +247,7 @@ final class KillProcessService: ObservableObject {
         let target = KillTarget(pid: pid, startedAt: startedAt)
         DispatchQueue.global(qos: .userInitiated).async {
             let removed = self.killBatch([target], force: force, adminPromptProcessName: name)
+            if !removed.isEmpty { AppUsageRecorder.note(kind) }
             self.finishKill(removed: removed, completion: completion)
         }
     }
@@ -258,6 +261,7 @@ final class KillProcessService: ObservableObject {
         guard !targets.isEmpty else { return }
         DispatchQueue.global(qos: .userInitiated).async {
             let removed = self.killBatch(targets, force: force, adminPromptProcessName: name)
+            if !removed.isEmpty { AppUsageRecorder.note(.killProcess) }
             self.finishKill(removed: removed)
         }
     }
@@ -273,6 +277,7 @@ final class KillProcessService: ObservableObject {
                 .compactMap(Self.currentTarget(pid:))
             let targets = Array(descendants.reversed()) + [root]
             let removed = self.killBatch(targets, force: force, adminPromptProcessName: entry.name)
+            if !removed.isEmpty { AppUsageRecorder.note(.killProcess) }
             self.finishKill(removed: removed)
         }
     }

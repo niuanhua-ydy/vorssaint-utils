@@ -97,6 +97,7 @@ enum ClipNotePasteboard {
             Permissions.shared.requestAccessibility()
             return
         }
+        AppUsageRecorder.note(.clipNotePaste)
         TransientPaste.shared.pasteCurrentContents(didFail: { NSSound.beep() })
     }
 }

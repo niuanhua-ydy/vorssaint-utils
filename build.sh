@@ -305,6 +305,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/AgentUsage/Harness/OpenCodeReader.swift
         Sources/Vorssaint/Services/AgentUsage/Harness/CopilotReader.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageSummary.swift
+        Sources/Vorssaint/Services/UsageRecord/AppUsageRecord.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageHistory.swift
+        Sources/Vorssaint/Services/AgentUsage/AgentUsageBackfill.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageStore.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageArchive.swift
         Sources/Vorssaint/Services/AgentUsage/AgentClaudeAppUsage.swift
@@ -848,9 +851,10 @@ wait_for_install_metadata() {
     done
 }
 
-# Installed development builds only need the copy in /Applications. Retaining
-# another app in each checkout pollutes application search with stale builds.
-if (( DEV )); then
+# Installed builds only need the copy in /Applications. Retaining another app
+# in each checkout pollutes application search with stale builds. A plain
+# official build keeps build/stage: make-dmg.sh and the release workflow read it.
+if (( DEV || INSTALL )); then
     for old_bundle in "build/stage/$APP_NAME.app" "build/stage.noindex/$APP_NAME.app"; do
         if [[ -d "$old_bundle" ]]; then
             /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
@@ -860,7 +864,7 @@ if (( DEV )); then
     done
 fi
 
-if (( !DEV || !INSTALL )); then
+if (( !INSTALL )); then
     STAGE_DIRECTORY="build/stage"
     (( DEV )) && STAGE_DIRECTORY="build/stage.noindex"
     mkdir -p "$STAGE_DIRECTORY"

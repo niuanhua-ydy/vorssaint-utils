@@ -108,11 +108,14 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
         if !isPinned { close() }
     }
 
-    func show(text value: String, notice: String? = nil, placement: Placement = .remembered) {
+    /// `counted` is false for a caller that already noted the use, like a
+    /// screenshot translation.
+    func show(text value: String, notice: String? = nil, placement: Placement = .remembered, counted: Bool = true) {
         guard AppFeature.translator.isAvailable else { return }
         let wasVisible = isVisible
         let panel = ensurePanel()
         model.open(text: value, notice: notice)
+        if counted, model.hasText { AppUsageRecorder.note(.translate) }
         if !wasVisible {
             place(panel, placement)
             panel.alphaValue = 0
@@ -297,7 +300,10 @@ final class TranslatorService: NSObject, ObservableObject, NSWindowDelegate {
             if let editor = panel.firstResponder as? NSTextView, editor.hasMarkedText() { return event }
             switch modifiers {
             case []:
-                if !event.isARepeat { model.translate() }
+                if !event.isARepeat {
+                    if model.hasText { AppUsageRecorder.note(.translate) }
+                    model.translate()
+                }
                 return nil
             case [.shift], [.option]:
                 return NSApp.sendAction(#selector(NSResponder.insertNewlineIgnoringFieldEditor(_:)), to: nil, from: panel)

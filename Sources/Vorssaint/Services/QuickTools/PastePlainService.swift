@@ -21,7 +21,11 @@ final class PastePlainService: ObservableObject {
     private var promptedForAccessibility = false
 
     private init() {
-        hotkey.onPress = { [weak self] in self?.performPastePlain() }
+        // Counted where it is asked for: the paste itself also runs in tests.
+        hotkey.onPress = { [weak self] in
+            AppUsageRecorder.note(.plainPaste)
+            self?.performPastePlain()
+        }
     }
 
     func syncWithPreferences() {

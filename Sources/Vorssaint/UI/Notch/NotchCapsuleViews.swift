@@ -281,7 +281,10 @@ struct NotchCapsuleMusicStrip: View {
         // cover, and a strip on its way out leaves as it was. Otherwise the
         // cover and bars say enough.
         let named = service.capsuleMusicTitleShown || (live ? service.musicStripNamesSong : snapshot?.namesSong == true)
-        NotchCapsuleRow(size: size ?? CapsuleLayout.musicSurface(title: named ? title : nil, geometry: geometry),
+        let lyrics = snapshot == nil && shown == nil && !named ? NotchLyricsService.shared.syncedLyrics(for: playback) : nil
+        let surface = lyrics.map { CapsuleLayout.musicLyricsSurface($0, geometry: geometry) }
+            ?? CapsuleLayout.musicSurface(title: named ? title : nil, geometry: geometry)
+        NotchCapsuleRow(size: size ?? surface,
                         geometry: geometry, leading: 0, trailing: 0) {
             HStack(spacing: 0) {
                 NotchMusicCover(artwork: artwork, side: side, radius: side / 2, source: playback?.track)
@@ -290,7 +293,8 @@ struct NotchCapsuleMusicStrip: View {
                     .contentShape(Rectangle())
                     .onHover { if live { service.hoverMusicStrip(.cover, entered: $0) } }
                 Group {
-                    if named { Text(title).capsuleTitle().truncationMode(.tail).transition(.opacity) }
+                    if lyrics != nil, let playback { NotchCompactLyricText(playback: playback, font: CapsuleLayout.titleFont) }
+                    else if named { Text(title).capsuleTitle().truncationMode(.tail).transition(.opacity) }
                     else { Color.clear }
                 }
                 .padding(.horizontal, CapsuleLayout.endPadding)

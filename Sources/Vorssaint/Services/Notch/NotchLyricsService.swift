@@ -16,6 +16,8 @@ final class NotchLyricsService: ObservableObject {
     private var session: URLSession?
     private var generation = UUID()
     private var visible = false
+    private var pageVisible = false
+    private var compactVisible = false
     private var online = false
     private var settledAttempt: (track: NotchMusicIdentity, failed: Bool, expires: Date)?
     private var artistCache: [String: (identity: NotchLyricsSupport.ArtistIdentity?, failed: Bool, expires: Date)] = [:]
@@ -27,9 +29,10 @@ final class NotchLyricsService: ObservableObject {
     private init() {}
 
     func update(playback: NotchPlayback?, visible: Bool) {
+        pageVisible = visible
         guard NotchLyricsSupport.isEnabled() else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
-        let wanted = visible && next != nil
+        let wanted = (visible || compactVisible) && next != nil
         let online = NotchLyricsSupport.onlineEnabled()
         let changedTrack = next != nil && next != track
         guard changedTrack || wanted != self.visible || online != self.online else { return }
@@ -43,13 +46,30 @@ final class NotchLyricsService: ObservableObject {
         load(track)
     }
 
+    /// The strip and the expanded reader share one lookup. Closing either
+    /// surface must not cancel work still needed by the other.
+    func setCompactVisible(_ visible: Bool, playback: NotchPlayback?) {
+        let wanted = visible && NotchLyricsSupport.isEnabled()
+        guard wanted != compactVisible || (wanted && (playback.map(NotchMusicIdentity.init) != track
+            || NotchLyricsSupport.onlineEnabled() != online)) else { return }
+        compactVisible = wanted
+        update(playback: playback, visible: pageVisible)
+    }
+
+    func syncedLyrics(for playback: NotchPlayback?) -> NotchLyrics? {
+        guard NotchLyricsSupport.isEnabled(), let playback, playback.hasPosition,
+              NotchMusicIdentity(playback) == track, let lyrics,
+              !lyrics.instrumental, !lyrics.lines.isEmpty else { return nil }
+        return lyrics
+    }
+
     /// Called for actual adapter metadata, including an explicit empty snapshot.
     /// A hidden view supplies no such evidence and must not discard an import.
     func playbackChanged(_ playback: NotchPlayback?) {
         guard NotchLyricsSupport.isEnabled() else { stop(); return }
         let next = playback.map(NotchMusicIdentity.init)
         guard next != track else { return }
-        let wasVisible = visible
+        let wasVisible = pageVisible
         cancel()
         memory.select(next)
         settledAttempt = nil
@@ -73,6 +93,12 @@ final class NotchLyricsService: ObservableObject {
     func resetOffset() { memory.resetOffset() }
 
     func hide() {
+        pageVisible = false
+        if compactVisible, NotchLyricsSupport.isEnabled() {
+            importPanel?.cancel(nil)
+            importPanel = nil
+            return
+        }
         cancel()
         visible = false
         if !NotchLyricsSupport.isEnabled() {
@@ -86,6 +112,8 @@ final class NotchLyricsService: ObservableObject {
     func stop() {
         cancel()
         visible = false
+        pageVisible = false
+        compactVisible = false
         online = false
         memory.clear()
         settledAttempt = nil
@@ -109,6 +137,41 @@ final class NotchLyricsService: ObservableObject {
             return
         }
         settledAttempt = nil
+        if let url = NotchLyricsSupport.qqSearchURL(for: track) {
+            loadQQ(track, searchURL: url)
+        } else { loadCatalog(track) }
+    }
+
+    private func loadQQ(_ track: NotchMusicIdentity, searchURL: URL) {
+        state = .loading
+        let requested = generation
+        session = NotchLyricsDownload.load(searchURL, maximumBytes: NotchLyricsSupport.maximumSearchBytes) { [weak self] result in
+            let mid = result.data.flatMap { NotchLyricsSupport.qqSongMID($0, for: track) }
+            DispatchQueue.main.async {
+                guard let self, self.acceptsResult(for: track, generation: requested) else { return }
+                self.session = nil
+                if let mid, let url = NotchLyricsSupport.qqLyricsURL(songMID: mid) {
+                    self.loadQQLyrics(track, url: url, generation: requested)
+                } else if !result.canSearch { self.finish(nil, for: track, failed: true) }
+                else { self.loadCatalog(track) }
+            }
+        }
+    }
+
+    private func loadQQLyrics(_ track: NotchMusicIdentity, url: URL, generation requested: UUID) {
+        session = NotchLyricsDownload.load(url) { [weak self] result in
+            let lyrics = result.data.flatMap { NotchLyricsSupport.decodeQQ($0, for: track) }
+            DispatchQueue.main.async {
+                guard let self, self.acceptsResult(for: track, generation: requested) else { return }
+                self.session = nil
+                if let lyrics { self.finish(lyrics, for: track, failed: false) }
+                else if !result.canSearch { self.finish(nil, for: track, failed: true) }
+                else { self.loadCatalog(track) }
+            }
+        }
+    }
+
+    private func loadCatalog(_ track: NotchMusicIdentity) {
         guard let url = NotchLyricsSupport.lookupURL(for: track) else { state = .unavailable; return }
         state = .loading
         let requested = generation
@@ -376,7 +439,9 @@ private final class NotchLyricsDownload: NSObject, URLSessionDataDelegate {
         configuration.httpAdditionalHeaders = ["User-Agent": "Vorssaint/\(version) (https://github.com/vorssaint/vorssaint-utils)", "Accept": "application/json"]
         let delegate = NotchLyricsDownload(maximumBytes: maximumBytes, completion: completion)
         let session = URLSession(configuration: configuration, delegate: delegate, delegateQueue: nil)
-        session.dataTask(with: url).resume()
+        var request = URLRequest(url: url)
+        if url.host == "c.y.qq.com" { request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer") }
+        session.dataTask(with: request).resume()
         session.finishTasksAndInvalidate()
         return session
     }

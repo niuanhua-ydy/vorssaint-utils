@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-"""Exercise production lyrics lookup/downloader against LRCLIB, without app windows.
+"""Exercise production lyrics lookup/downloader, without app windows.
 
 Sends selected fixture tracks' title, artist, album and duration to lrclib.net.
 Song titles, artist names and albums may also be checked with musicbrainz.org. Prints metadata/status only, never lyrics. Requires Swift on macOS.
+QQ Music tracks in --track-file query c.y.qq.com first. No accounts or cookies are used.
 """
 
 from pathlib import Path
@@ -62,7 +63,8 @@ for row in rows {
     let song = row["track"] as! [String: Any]
     let track = NotchMusicIdentity(NotchPlayback(
         track: Track(title: song["title"] as? String, artist: song["artist"] as? String,
-                     album: song["album"] as? String), duration: song["duration"] as! Double))
+                     album: song["album"] as? String, appBundleIdentifier: song["bundle"] as? String),
+        duration: song["duration"] as! Double))
     let requestStart = probeRequests.count
     probe.start(track)
     let deadline = Date().addingTimeInterval(150)
@@ -90,10 +92,12 @@ def main():
     parser.add_argument("--all", action="store_true", help="check all corpus samples instead of the default 20")
     parser.add_argument("--metrics", action="store_true", help="print per-track request counts without lyrics")
     parser.add_argument("--title", action="append", help="Replay only these exact fixture titles (repeatable)")
+    parser.add_argument("--track-file", type=Path, help="JSON array of track/expectedAfter rows; sends these selected tracks to the providers")
     options = parser.parse_args()
     service_path = "Sources/Vorssaint/Services/Notch/NotchLyricsService.swift"
     bodies = "".join(sourcegen.declaration(service_path, prefix) for prefix in [
-        "    private func load(", "    private func acceptsResult(",
+        "    private func load(", "    private func loadQQ(", "    private func loadQQLyrics(",
+        "    private func loadCatalog(", "    private func acceptsResult(",
         "    private func finish(", "    private func search(",
         "    private func resolveArtist(", "    private func requestArtistMetadata(",
         "    private func cacheArtist(", "    private func searchArtist(",
@@ -127,13 +131,16 @@ final class Probe {
                         "-o", str(executable)], check=True)
         import json
         rows = []
-        for filename in ["NotchLyricsCorpus.json", "NotchLyricsMultilingualCorpus.json", "NotchLyricsLessMainstreamCorpus.json"]:
-            rows.extend(json.loads((ROOT / "Tests/Fixtures" / filename).read_text()))
+        if options.track_file:
+            rows = json.loads(options.track_file.read_text())
+        else:
+            for filename in ["NotchLyricsCorpus.json", "NotchLyricsMultilingualCorpus.json", "NotchLyricsLessMainstreamCorpus.json"]:
+                rows.extend(json.loads((ROOT / "Tests/Fixtures" / filename).read_text()))
         if options.title:
             rows = [row for row in rows if row["track"]["title"] in options.title]
             if not rows:
                 parser.error("No fixture matches the requested titles")
-        elif not options.all:
+        elif not options.all and not options.track_file:
             rows = rows[:87][-7:] + rows[:13]
         fixture = directory / "corpus.json"
         fixture.write_text(json.dumps(rows, ensure_ascii=False))

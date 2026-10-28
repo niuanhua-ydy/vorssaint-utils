@@ -50,6 +50,13 @@ struct NotchAgentsSettingsControls: View {
             providerRow(.opencode, isOn: $opencode)
             providerRow(.copilot, isOn: $copilot)
             if codex { CodexAccountsSettings() }
+            if AppFeature.usageRecord.isAvailable {
+                Button {
+                    UsageRecordWindow.shared.show(tab: .ai)
+                } label: {
+                    Label(UsageRecordStrings.strings(l10n.language).title, systemImage: AppFeature.usageRecord.symbolName)
+                }
+            }
 
             Divider()
             Text(text.cardsTitle).font(.subheadline.weight(.medium))

@@ -436,6 +436,9 @@ final class AppUninstaller: ObservableObject {
                 guard let self, self.phase == .removing else { return }
                 self.items = []
                 self.phase = .done(freed: freed, failed: failed)
+                if removesApplication, !failed.contains(where: { $0.category == .app }) {
+                    AppUsageRecorder.note(.uninstall, bytes: freed)
+                }
                 if let targetURL {
                     Self.removeCommandBarState(ofRemovedAppAt: targetURL, bundleID: targetBundleID)
                 }

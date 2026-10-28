@@ -14,6 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var popoverDismissMonitor: Any?
     private var popoverLocalDismissMonitor: Any?
     private var popoverKeyboardMonitor: Any?
+    private var popoverWindowFocusObserver: NSObjectProtocol?
     private var popoverIsClosing = false
     /// Counts close fades, so a fade cut short by a reopen never closes the
     /// panel shown after it.
@@ -294,6 +295,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func applicationWillTerminate(_ notification: Notification) {
         isTerminating = true
         CommandBarService.shared.restoreBorrowedInputSource()
+        AppUsageRecorder.shared.flush()
         if AppFeature.notch.isAvailable { NotchService.shared.stop(restoreCapture: false) }
         // Quitting properly means the start worked, whenever it happened.
         endStartupWatch()
@@ -1068,17 +1070,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             self.closePopover(reason: .outsideClick)
         }
 
-        // Local events cover our own Settings window. Keep Settings + panel open
-        // when they sit side by side for live reordering, but close the panel if it
-        // overlaps Settings and the user clicks Settings to get it out of the way.
+        // Global monitors cannot see clicks in our own windows. Switching to
+        // another Vorssaint window is a takeover, not an outside-app dismissal.
         popoverLocalDismissMonitor = NSEvent.addLocalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] event in
             guard let self, self.popover.isShown else { return event }
-            if self.shouldDismissPopover(forLocalEvent: event) {
-                self.closePopover(reason: .outsideClick)
+            if !self.isOverStatusItem(NSEvent.mouseLocation),
+               self.shouldDismissPopover(for: event.window) {
+                self.closePopover(reason: .action)
             }
             return event
+        }
+
+        // Keyboard shortcuts and programmatic opens do not send a local click.
+        popoverWindowFocusObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main
+        ) { [weak self] notification in
+            self?.popoverApplicationWindowDidBecomeKey(notification)
         }
 
         popoverKeyboardMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -1088,6 +1097,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     }
 
     private func removePopoverDismissMonitor() {
+        if let observer = popoverWindowFocusObserver {
+            NotificationCenter.default.removeObserver(observer)
+            popoverWindowFocusObserver = nil
+        }
         if let monitor = popoverDismissMonitor {
             NSEvent.removeMonitor(monitor)
             popoverDismissMonitor = nil
@@ -1102,14 +1115,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
-    private func shouldDismissPopover(forLocalEvent event: NSEvent) -> Bool {
-        guard !PanelInteractionState.shared.preventsPopoverDismissal else { return false }
-        guard let settingsWindow,
-              event.windowNumber == settingsWindow.windowNumber && event.windowNumber > 0,
-              let popoverFrame = popover.contentViewController?.view.window?.frame else {
-            return false
+    private func popoverApplicationWindowDidBecomeKey(_ notification: Notification) {
+        guard popover.isShown,
+              shouldDismissPopover(for: notification.object as? NSWindow) else { return }
+        closePopover(reason: .action)
+    }
+
+    private func shouldDismissPopover(for window: NSWindow?) -> Bool {
+        // A utility may stay open across other apps, but not across an explicit
+        // switch to another Vorssaint page. Never tear down a presented modal.
+        guard !PanelInteractionState.shared.isPresentingPopoverModal,
+              !AirPlayRouteManager.isPresentingPicker,
+              NSApp.modalWindow == nil,
+              let window,
+              let panelWindow = popover.contentViewController?.view.window else { return false }
+        var ancestor: NSWindow? = window
+        while let current = ancestor {
+            if current === panelWindow { return false }
+            ancestor = current.parent ?? current.sheetParent
         }
-        return settingsWindow.frame.intersects(popoverFrame)
+        return true
     }
 
     private func handlePopoverKeyDown(_ event: NSEvent) -> NSEvent? {
@@ -1685,12 +1710,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Windows
 
     func openSettingsWindow() {
-        // Intentionally does NOT close the panel: the panel uses applicationDefined
-        // dismissal, so it stays open beside Settings for a live preview.
         // Capture the destination before activation changes the key window.
         let targetScreen = (popover.isShown
             ? popoverAnchor?.screen ?? popover.contentViewController?.view.window?.screen
             : nil) ?? NSScreen.withMouse
+        // Finish closing before positioning Settings, so the outgoing panel
+        // neither stays beside it nor pushes it away from the preferred frame.
+        closePopover(animated: false)
         let createdWindow = settingsWindow == nil
         if settingsWindow == nil {
             let host = NSHostingController(rootView: SettingsView())

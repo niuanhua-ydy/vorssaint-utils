@@ -3,6 +3,77 @@
 
 import SwiftUI
 
+/// Only wakes at reachable verse boundaries; pauses and seeks use the same
+/// playback clock and timing adjustment as the expanded lyrics reader.
+struct NotchCompactLyricText: View {
+    let playback: NotchPlayback
+    let font: NSFont
+    @ObservedObject private var service = NotchLyricsService.shared
+
+    var body: some View {
+        if let lyrics = service.syncedLyrics(for: playback) {
+            TimelineView(.explicit(lyrics.changeDates(for: playback, offset: service.offset, from: .now))) { context in
+                let index = lyrics.compactIndex(at: playback.position(at: context.date), offset: service.offset)
+                let words = index.map { lyrics.lines[$0].text }
+                NotchLyricMarquee(text: words ?? playback.track.title ?? "♪", font: font,
+                                  remaining: index.flatMap { lyrics.remaining($0, for: playback, offset: service.offset,
+                                                                              at: context.date) })
+                    // Blank timestamps keep both the text and its scroll state;
+                    // only a new actual verse, pause or resume starts it again.
+                    .id("\(index ?? -1) \(playback.isPlaying)")
+            }
+        }
+    }
+}
+
+/// A verse wider than its line scrolls once, after a moment to read its
+/// start, and comes to rest at its end before the next verse. A short verse
+/// sits in the middle. Paused, or with reduced motion, it ends in an ellipsis.
+private struct NotchLyricMarquee: View {
+    let text: String
+    let font: NSFont
+    let remaining: TimeInterval?
+    @State private var scrolled = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private static let readingDelay: TimeInterval = 0.6
+    /// About two CJK characters a second, near the pace they are sung.
+    private static let speed: CGFloat = 30
+    private static let fade: CGFloat = 6
+
+    var body: some View {
+        GeometryReader { proxy in
+            let travel = max(0, NotchCapsuleLayout.width(text, font: font) - proxy.size.width)
+            let label = Text(text).font(Font(font as CTFont)).lineLimit(1)
+            if travel > 0, !reduceMotion, let remaining {
+                // The fades lie in the padding beside the line, so a verse at
+                // rest, at its start or at its end, shows its first and last
+                // characters whole.
+                let faded = proxy.size.width + Self.fade * 2
+                label.fixedSize()
+                    .offset(x: scrolled ? -travel : 0)
+                    .padding(.horizontal, Self.fade)
+                    .frame(width: faded, height: proxy.size.height, alignment: .leading)
+                    .mask(LinearGradient(stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: Self.fade / faded),
+                        .init(color: .black, location: 1 - Self.fade / faded),
+                        .init(color: .clear, location: 1),
+                    ], startPoint: .leading, endPoint: .trailing))
+                    .padding(.horizontal, -Self.fade)
+                    .onAppear {
+                        // Faster when the verse is short, never past its end.
+                        let duration = max(0.4, min(travel / Self.speed, remaining - Self.readingDelay - 0.4))
+                        withAnimation(.linear(duration: duration).delay(Self.readingDelay)) { scrolled = true }
+                    }
+            } else {
+                label.truncationMode(.tail)
+                    .frame(width: proxy.size.width, height: proxy.size.height)
+            }
+        }
+    }
+}
+
 struct NotchLyricsView: View {
     let playback: NotchPlayback
     @ObservedObject private var service = NotchLyricsService.shared

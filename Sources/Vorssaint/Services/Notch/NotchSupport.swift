@@ -758,6 +758,8 @@ enum NotchMusicStripLayout {
     static let spacing: CGFloat = 8
     /// The widest a named side grows, as a notice's. A longer title ends in an ellipsis.
     static let maximumWing: CGFloat = 240
+    static let maximumLyricWing: CGFloat = 320
+    static let lyricWidthScale: CGFloat = 1.25
     /// How long the pointer rests on the cover before the strip names the song,
     /// so a pass on the way to the menus leaves it alone.
     static let namingDelay: TimeInterval = 0.3
@@ -801,10 +803,13 @@ enum NotchMusicStripLayout {
     /// end, then the cover as far from the camera as it rests at the end of
     /// its own wing. Never narrower than that wing.
     static func namedWing(title: String, artist: String?, geometry: NotchGeometry) -> CGFloat {
+        namedWing(words: wordsWidth(title: title, artist: showsArtist(geometry) ? artist : nil), geometry: geometry)
+    }
+
+    private static func namedWing(words: CGFloat, geometry: NotchGeometry, maximum: CGFloat = maximumWing) -> CGFloat {
         let wing = geometry.compactActivityWingWidth
-        let shown = showsArtist(geometry) ? artist : nil
-        let named = endInset + wordsWidth(title: title, artist: shown) + spacing + wing - coverInset(geometry)
-        return max(wing, min(maximumWing, named.rounded(.up)))
+        let named = endInset + words + spacing + wing - coverInset(geometry)
+        return max(wing, min(maximum, named.rounded(.up)))
     }
 
     /// The strip's sides while it names its song, short of the display's edge
@@ -817,8 +822,38 @@ enum NotchMusicStripLayout {
         guard wing > 0, !fillsCameraGap(geometry), let title, !title.isEmpty else { return nil }
         let artist = artist?.trimmingCharacters(in: .whitespaces)
         let named = namedWing(title: title, artist: artist?.isEmpty == false ? artist : nil, geometry: geometry)
+        return wings(named: named, geometry: geometry, room: room)
+    }
+
+    private static func wings(named: CGFloat, geometry: NotchGeometry, room: CGFloat) -> NotchNoticeWings? {
+        let wing = geometry.compactActivityWingWidth
         let leading = min(named, geometry.noticeWingWidth(preferred: named), max(0, room).rounded(.down))
         return leading > wing ? NotchNoticeWings(leading: leading, trailing: wing) : nil
+    }
+
+    /// The song's lyrics hold one width for the whole song, never resizing at
+    /// each verse. Like the hover title, they stay to the camera's left, inside
+    /// menu space.
+    static func lyricWings(_ lyrics: NotchLyrics, geometry: NotchGeometry, room: CGFloat) -> NotchNoticeWings? {
+        guard geometry.compactActivityWingWidth > 0, !fillsCameraGap(geometry) else { return nil }
+        return wings(named: namedWing(words: lyricsWidth(lyrics, font: titleFont), geometry: geometry, maximum: maximumLyricWing),
+                     geometry: geometry, room: room)
+    }
+
+    /// Keep at least ten CJK characters visible beside the cover.
+    static let shortestLyric = String(repeating: "\u{5B57}", count: 10)
+    private static var measuredLyrics: (lyrics: NotchLyrics, font: NSFont, width: CGFloat)?
+
+    /// Give typical verses 25% more room, measured once per song; longer
+    /// outliers still scroll without resizing the island at each verse.
+    static func lyricsWidth(_ lyrics: NotchLyrics, font: NSFont) -> CGFloat {
+        if let measured = measuredLyrics, measured.font == font, measured.lyrics == lyrics { return measured.width }
+        let widths = lyrics.lines.map(\.text).filter { !$0.isEmpty }
+            .map { NotchCapsuleLayout.width(String($0.prefix(120)), font: font) }.sorted()
+        let typical = widths.isEmpty ? 0 : widths[(widths.count - 1) * 3 / 4]
+        let width = max((typical * lyricWidthScale).rounded(.up), NotchCapsuleLayout.width(shortestLyric, font: font))
+        measuredLyrics = (lyrics, font, width)
+        return width
     }
 }
 
@@ -978,6 +1013,7 @@ enum NotchCapsuleLayout {
         static let notification: CGFloat = 380
         static let notice: CGFloat = 340
         static let music: CGFloat = 260
+        static let lyrics: CGFloat = 340
         static let calendar: CGFloat = 300
         static let download: CGFloat = 280
         static let activity: CGFloat = 220
@@ -1098,9 +1134,18 @@ enum NotchCapsuleLayout {
     /// Playing music: the cover in the round end, the title and the bars.
     /// Without a title, only the cover and the bars, at the capsule's ends.
     static func musicSurface(title: String?, geometry: NotchGeometry) -> CGSize {
-        let named = title.map { endPadding + width($0, font: titleFont) + endPadding } ?? endPadding
+        musicSurface(words: title.map { width($0, font: titleFont) }, geometry: geometry)
+    }
+
+    /// Lyrics keep one width for the whole song, as the strip beside a camera does.
+    static func musicLyricsSurface(_ lyrics: NotchLyrics, geometry: NotchGeometry) -> CGSize {
+        musicSurface(words: NotchMusicStripLayout.lyricsWidth(lyrics, font: titleFont), geometry: geometry, maximum: Maximum.lyrics)
+    }
+
+    private static func musicSurface(words: CGFloat?, geometry: NotchGeometry, maximum: CGFloat = Maximum.music) -> CGSize {
+        let named = words.map { endPadding + $0 + endPadding } ?? endPadding
         let content = artworkSide(geometry) + named + barsWidth
-        return surface(content: content, leading: artworkInset(geometry), maximum: Maximum.music, geometry: geometry)
+        return surface(content: content, leading: artworkInset(geometry), maximum: maximum, geometry: geometry)
     }
 
     /// A timer's mark, or the mark of what shares the capsule with a timer

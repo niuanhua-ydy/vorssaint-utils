@@ -385,6 +385,13 @@ final class FeatureRuntime: ObservableObject {
             TranslatorService.shared.syncWithPreferences()
             ScreenCaptureService.shared.syncWithPreferences()
         },
+        // Counting stops on its own once the feature is off; what was
+        // waiting to be written is written now.
+        .usageRecord: {
+            AppUsageRecorder.shared.flush()
+            AgentUsageHistoryStore.shared.flush()
+            if !UsageRecordSupport.isEnabled() { UsageRecordWindow.shared.close() }
+        },
         .cleaner: {
             CleanerScheduler.shared.syncWithPreferences()
             WhatsAppDownloadScheduler.shared.syncWithPreferences()

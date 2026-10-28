@@ -63,7 +63,8 @@ final class ScreenTextService: ObservableObject {
             DispatchQueue.main.async { [weak self] in
                 guard self?.recognitionGeneration == generation, AppFeature.translator.isAvailable else { return }
                 if case .text(let text) = outcome {
-                    TranslatorService.shared.show(text: text)
+                    AppUsageRecorder.note(.screenshotTranslate)
+                    TranslatorService.shared.show(text: text, counted: false)
                 } else {
                     QuickToolHUD.show(icon: "text.viewfinder",
                                       message: TranslatorStrings.strings(L10n.shared.language).noText)
@@ -113,6 +114,7 @@ final class ScreenTextService: ObservableObject {
                     QRResultController.shared.show(reading: reading)
                 case .text(let text):
                     Self.copyToPasteboard(text)
+                    AppUsageRecorder.note(.ocr)
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrCopied)
                 case .empty:
                     QuickToolHUD.show(icon: "text.viewfinder", message: strings.ocrNoText)

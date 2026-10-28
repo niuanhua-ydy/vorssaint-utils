@@ -757,6 +757,7 @@ private struct NotchAgentActivityCard: View {
     let text: NotchAgentStrings
     @State private var hovered: Date?
     @Environment(\.locale) private var locale
+    @Environment(\.notchSettingsPreview) private var preview
 
     /// Days in a row with any use, counting today only once it has some.
     private var streak: Int {
@@ -773,6 +774,18 @@ private struct NotchAgentActivityCard: View {
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
                 NotchAgentCardHeader(title: text.activityCard, symbol: NotchAgentCard.activity.symbol) {
+                    // The map holds thirteen weeks; the record keeps the year.
+                    if AppFeature.usageRecord.isAvailable, !preview {
+                        let record = UsageRecordStrings.strings(L10n.shared.language).open
+                        Button { UsageRecordWindow.shared.show(tab: .ai) } label: {
+                            Image(systemName: "arrow.up.forward.square")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(record)
+                        .accessibilityLabel(record)
+                    }
                     if streak > 1 {
                         Label("\(streak)", systemImage: "flame.fill")
                             .labelStyle(NotchAgentInlineLabel())

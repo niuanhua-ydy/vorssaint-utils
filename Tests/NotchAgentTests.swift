@@ -24,6 +24,8 @@ enum NotchAgentTests {
         timestamps(suite)
         summary(suite)
         AgentUsageSummaryCacheTests.run(suite)
+        AgentUsageHistoryTests.run(suite)
+        AppUsageRecordTests.run(suite)
         limits(suite)
         strip(suite)
         liveTurns(suite)

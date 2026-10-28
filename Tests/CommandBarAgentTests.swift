@@ -69,8 +69,24 @@ enum CommandBarAgentTests {
                      && Support.terminal(preference: "", installed: [.terminal, .iterm]) == .iterm
                      && Support.terminal(preference: "iterm", installed: [.otty, .iterm]) == .iterm
                      && Support.terminal(preference: "ghostty", installed: [.terminal]) == .terminal
-                     && Support.terminal(preference: "", installed: []) == nil,
-                     "Otty leads when left to the bar, and a chosen terminal that is gone falls back")
+                     && Support.terminal(preference: "", installed: []) == nil
+                     && Support.terminal(preference: "", installed: [.otty, .rex]) == .rex,
+                     "Rex, then Otty, leads when left to the bar, and a chosen terminal that is gone falls back")
+        suite.expect(Support.rexSession(listJSON: Data(#"{"sessions":[{"session_id":"session:a","label":"x"},{"session_id":"session:b"}]}"#.utf8)) == "session:a"
+                     && Support.rexSession(listJSON: Data(#"{"sessions":[]}"#.utf8)) == nil
+                     && Support.rexOpenArguments(session: "session:a", directory: "/Users/me/proj/")
+                        == ["window", "new", "-s", "session:a", "proj", "-c", "/Users/me/proj/", "--json"]
+                     && Support.rexOpenArguments(session: nil, directory: "/tmp/x")
+                        == ["new", "x", "-c", "/tmp/x", "--json"],
+                     "Rex takes a tab in its first session, or makes one, named for the folder")
+        let tab = Support.rexOpened(json: Data(#"{"window_id":"window:w","block_ids":["block:b"],"revision":3}"#.utf8),
+                                    session: "session:a")
+        let made = Support.rexOpened(json: Data(#"{"session_id":"session:n","initial_windows":[{"window_id":"window:w","block_ids":["block:b"]}]}"#.utf8),
+                                     session: nil)
+        suite.expect(tab?.session == "session:a" && tab?.window == "window:w" && tab?.block == "block:b"
+                     && made?.session == "session:n" && made?.block == "block:b"
+                     && Support.rexOpened(json: Data("{}".utf8), session: "session:a") == nil,
+                     "a new Rex tab is read from either way of making it")
         suite.expect(Support.typedCommand(directory: "/Users/me/it's here", command: "claude")
                      == #"cd -- '/Users/me/it'\''s here' && claude"#
                      && Support.typedCommand(directory: "/tmp/a", command: "codex") == "cd -- /tmp/a && codex",
@@ -91,7 +107,8 @@ enum CommandBarAgentTests {
                      "iTerm reuses the window it opened on launch")
         suite.expect(Support.appleScript(for: .terminal, directory: "/tmp", command: "x", wasRunning: false)?
                         .contains("in window 1") == true
-                     && Support.appleScript(for: .otty, directory: "/tmp", command: "x", wasRunning: true) == nil,
+                     && Support.appleScript(for: .otty, directory: "/tmp", command: "x", wasRunning: true) == nil
+                     && Support.appleScript(for: .rex, directory: "/tmp", command: "x", wasRunning: true) == nil,
                      "Terminal reuses its first window; Otty is driven by its own command")
 
         // Folders.

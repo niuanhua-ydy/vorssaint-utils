@@ -47,6 +47,18 @@ final class AgentUsageStore {
 
     var live: [AgentLiveSession] { Array(turns.values) }
 
+    /// The longest finished turn read, by agent and the day it started, for
+    /// the usage record. Only turns read whole count: a launch that resumes
+    /// saved progress starts this over, and the record keeps the rest.
+    private(set) var longestTurns: [AgentProvider: [Date: TimeInterval]] = [:]
+
+    private func noteTurn(_ provider: AgentProvider, started: Date, length: TimeInterval) {
+        // A day-long turn is a session left waiting, not work.
+        guard length > 0, length < 86_400 else { return }
+        let day = Calendar.autoupdatingCurrent.startOfDay(for: started)
+        longestTurns[provider, default: [:]][day] = max(longestTurns[provider]?[day] ?? 0, length)
+    }
+
     func snapshot(plans: [AgentProvider: AgentPlan], providers: Set<AgentProvider>, now: Date,
                   calendar: Calendar = .current) -> AgentUsageSnapshot {
         summary.snapshot(records: records, limits: limits, live: live, plans: plans,
@@ -126,11 +138,12 @@ final class AgentUsageStore {
                 settled[file] = nil
                 // A turn that went quiet on the way ends as the whole turn.
                 let quiet = waiting.removeValue(forKey: file)
-                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed, reportsTransitions else { continue }
+                guard let turn = turns.removeValue(forKey: file) ?? quiet, completed else { continue }
                 let end = date ?? modified
-                guard now.timeIntervalSince(end) <= Self.lateEnd else { continue }
-                events.append(.finished(provider: provider,
-                                        duration: max(0, duration ?? end.timeIntervalSince(turn.started)),
+                let length = max(0, duration ?? end.timeIntervalSince(turn.started))
+                noteTurn(provider, started: turn.started, length: length)
+                guard reportsTransitions, now.timeIntervalSince(end) <= Self.lateEnd else { continue }
+                events.append(.finished(provider: provider, duration: length,
                                         cost: turn.cost, tokens: turn.tokens.total, project: turn.project))
             case .reset:
                 let baseFile = file.components(separatedBy: "#").first ?? file

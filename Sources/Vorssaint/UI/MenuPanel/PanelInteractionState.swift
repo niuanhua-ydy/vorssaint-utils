@@ -21,9 +21,9 @@ final class PanelInteractionState {
     /// modal state orphaned and make the next panel unresponsive.
     var isPresentingPopoverModal = false
 
-    /// The one answer every AppKit dismissal path uses. Service state lives
-    /// here so the generic popover host does not know about individual tools,
-    /// and operations stay protected even after the user switches panel tabs.
+    /// Protects workflows from outside-app dismissal. An explicit switch to
+    /// another Vorssaint window still closes the panel (unless a modal is up).
+    /// Operations stay protected even after the user switches panel tabs.
     var preventsPopoverDismissal: Bool {
         viewKeepsPopoverOpen
             || isPresentingPopoverModal

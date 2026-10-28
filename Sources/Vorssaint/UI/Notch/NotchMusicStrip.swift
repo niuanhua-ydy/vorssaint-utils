@@ -78,7 +78,12 @@ struct NotchMusicStrip: View {
             HStack(spacing: 0) {
                 HStack(spacing: Layout.spacing) {
                     // The words grow out from behind the cover, which keeps its place.
-                    if named != nil { namedLabel }
+                    if named != nil {
+                        if snapshot == nil, shown == nil, !service.musicStripNamesSong,
+                           let playback, NotchLyricsService.shared.syncedLyrics(for: playback) != nil {
+                            NotchCompactLyricText(playback: playback, font: Layout.titleFont)
+                        } else { namedLabel }
+                    }
                     if wing > 0 {
                         // Circular corners, like the strip's, so the two stay parallel.
                         NotchMusicCover(artwork: artwork, side: artworkSide, radius: artworkRadius,
@@ -93,7 +98,13 @@ struct NotchMusicStrip: View {
                 .contentShape(Rectangle())
                 .onHover { if live { service.hoverMusicStrip(.cover, entered: $0) } }
                 Group {
-                    if fillsCameraGap { trackLabel } else { Color.clear }
+                    if fillsCameraGap {
+                        if snapshot == nil, shown == nil, let playback,
+                           NotchLyricsService.shared.syncedLyrics(for: playback) != nil {
+                            NotchCompactLyricText(playback: playback, font: Layout.titleFont)
+                                .padding(.horizontal, geometry.compactMusicLabelInset)
+                        } else { trackLabel }
+                    } else { Color.clear }
                 }
                 .frame(width: geometry.compactActivityCameraGap, height: geometry.compactActivityContentHeight)
                 .clipped()
