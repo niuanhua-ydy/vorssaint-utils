@@ -162,9 +162,7 @@ final class ScreenshotQuickPreviewController {
         scheduleAutoDismiss()
     }
 
-    /// Closing while a share link is being made would delete that link.
     private func dismissForClickElsewhere() {
-        guard !model.sharing else { return }
         close()
     }
 
