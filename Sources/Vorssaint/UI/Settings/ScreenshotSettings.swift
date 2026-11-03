@@ -11,7 +11,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotFullScreenShortcutEnabled)
     private var fullScreenShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotLastCaptureShortcutEnabled)
-    private var lastCaptureShortcutEnabled = true
+    private var lastCaptureShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotClipboardShortcutEnabled)
     private var clipboardShortcutEnabled = false
     @AppStorage(DefaultsKey.screenshotFreeze) private var freeze = true
@@ -39,8 +39,7 @@ struct ScreenshotCaptureSettings: View {
     @AppStorage(DefaultsKey.screenshotAddToShelf) private var addToShelf = false
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(AppFeature.shelf.availabilityKey) private var shelfAvailable = false
-    @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw =
-        ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue
+    @AppStorage(DefaultsKey.screenshotPreviewPosition) private var previewPositionRaw = ""
     @AppStorage(DefaultsKey.screenshotPreviewTakesFocus) private var previewTakesFocus = true
     @AppStorage(DefaultsKey.screenshotPreviewEnabled) private var previewEnabled = true
     @AppStorage(DefaultsKey.screenshotPreviewDuration) private var previewDuration =
@@ -240,22 +239,17 @@ struct ScreenshotCaptureSettings: View {
             }
             if usesAutomaticConfirmationPreview {
                 Toggle(strings.confirmationPreviewToggle, isOn: $previewEnabled)
-            }
-            // Without an after-capture action the preview always shows, and
-            // the same duration decides how long it waits.
-            if defaultAction == .none || (usesAutomaticConfirmationPreview && previewEnabled) {
-                Picker(ScreenshotPreviewStrings.strings(l10n.language).durationLabel,
-                       selection: $previewDuration) {
-                    ForEach(ScreenshotSupport.confirmationPreviewDurations, id: \.self) { seconds in
-                        if seconds == 0 {
-                            Text(strings.confirmationPreviewUntilDismissed).tag(0)
-                        } else {
-                            Text(String(format: strings.delaySecondsFormat, seconds)).tag(seconds)
+                if previewEnabled {
+                    Picker(strings.confirmationPreviewDurationLabel, selection: $previewDuration) {
+                        ForEach(ScreenshotSupport.confirmationPreviewDurations, id: \.self) { seconds in
+                            if seconds == 0 {
+                                Text(strings.confirmationPreviewUntilDismissed).tag(0)
+                            } else {
+                                Text(String(format: strings.delaySecondsFormat, seconds)).tag(seconds)
+                            }
                         }
                     }
                 }
-            }
-            if usesAutomaticConfirmationPreview {
                 Text(strings.confirmationPreviewCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -281,16 +275,6 @@ struct ScreenshotCaptureSettings: View {
     }
 
     private var previewPositionRow: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            previewPositionPicker
-            Text(ScreenshotPreviewStrings.strings(l10n.language).hoverKeysCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var previewPositionPicker: some View {
         Picker(strings.previewPositionLabel, selection: $previewPositionRaw) {
             Text(strings.previewPositionAutomatic)
                 .tag(ScreenshotSupport.QuickPreviewPosition.automatic.rawValue)

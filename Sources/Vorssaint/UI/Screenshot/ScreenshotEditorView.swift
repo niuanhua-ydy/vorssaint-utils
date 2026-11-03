@@ -28,8 +28,7 @@ struct ScreenshotEditorView: View {
     @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
-    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw =
-        ScreenshotSupport.Tool.defaultBindingsStorage
+    @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.shelfEnabled) private var shelfEnabled = false
     @AppStorage(AppFeature.shelf.availabilityKey) private var shelfAvailable = false
@@ -934,7 +933,7 @@ struct ScreenshotEditorView: View {
                 controller.copyToClipboard()
             }
             .buttonStyle(.borderedProminent)
-            .screenshotSafeHelp("⌘C")
+            .screenshotSafeHelp("⏎")
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)

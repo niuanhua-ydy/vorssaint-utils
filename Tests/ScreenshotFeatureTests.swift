@@ -801,9 +801,7 @@ enum ScreenshotFeatureTests {
                     ScreenshotSupport.defaultConfirmationPreviewDuration)
                 && ScreenshotSupport.confirmationPreviewDurations.contains(0)
                 && ScreenshotSupport.sanitizedConfirmationPreviewDuration(2) == 2
-                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(99)
-                    == ScreenshotSupport.defaultConfirmationPreviewDuration
-                && ScreenshotSupport.defaultConfirmationPreviewDuration == 0
+                && ScreenshotSupport.sanitizedConfirmationPreviewDuration(99) == 3
                 && ScreenshotSupport.confirmationPreviewDismissInterval(2) == 2
                 && ScreenshotSupport.confirmationPreviewDismissInterval(0) == nil,
                "confirmation previews support short, default, and persistent dismissal behavior")
@@ -885,26 +883,21 @@ enum ScreenshotFeatureTests {
                 && routePreview(.copy, copied: true) == .shown(dismissInterval: 10)
                 && routePreview(.none) == recovery && routePreview(.edit) == .hidden,
                "a successful action confirms for the chosen duration and asking each time keeps the longer timer")
-        routeDefaults.set(5, forKey: DefaultsKey.screenshotPreviewDuration)
-        suite.expect(routePreview(.copy, copied: true) == .shown(dismissInterval: 5)
-                && routePreview(.none) == recovery && routePreview(.copy) == recovery,
-               "a short duration never takes away a preview that still has work to offer sooner than recovery")
         routeDefaults.set(0, forKey: DefaultsKey.screenshotPreviewDuration)
-        suite.expect(routePreview(.saveAndCopy, saved: true, copied: true) == .shown(dismissInterval: nil)
-                && routePreview(.none) == .shown(dismissInterval: nil)
-                && routePreview(.save) == .shown(dismissInterval: nil),
-               "until dismissed keeps every preview with no timer, asking each time included")
+        suite.expect(routePreview(.saveAndCopy, saved: true, copied: true) == .shown(dismissInterval: nil),
+               "until dismissed keeps a successful confirmation with no timer")
         routeDefaults.set(false, forKey: DefaultsKey.screenshotPreviewEnabled)
         suite.expect(routePreview(.save, saved: true) == .hidden
                 && routePreview(.saveAndCopy, saved: true, copied: true) == .hidden
-                && routePreview(.save) == .shown(dismissInterval: nil)
-                && routePreview(.saveAndCopy, saved: true) == .shown(dismissInterval: nil)
-                && routePreview(.copy) == .shown(dismissInterval: nil),
-               "with confirmations off a successful action shows nothing and a failed or partial one still shows the preview")
+                && routePreview(.save) == recovery
+                && routePreview(.saveAndCopy, saved: true) == recovery
+                && routePreview(.copy) == recovery,
+               "with confirmations off a successful action shows nothing and a failed or partial one still shows the recovery preview")
         routeDefaults.set(true, forKey: DefaultsKey.screenshotPreviewEnabled)
         routeDefaults.set("soon", forKey: DefaultsKey.screenshotPreviewDuration)
-        suite.expect(routePreview(.save, saved: true) == .shown(dismissInterval: nil),
-               "a stored duration that is not a number falls back to the default, until dismissed")
+        suite.expect(routePreview(.save, saved: true) == .shown(
+                    dismissInterval: TimeInterval(ScreenshotSupport.defaultConfirmationPreviewDuration)),
+               "a stored duration that is not a number falls back to the default instead of staying until dismissed")
         let screenshotRouteBody = ((try? String(
             contentsOfFile: "Sources/Vorssaint/Services/QuickTools/ScreenshotService.swift",
             encoding: .utf8)) ?? "")
@@ -1565,21 +1558,6 @@ enum ScreenshotFeatureTests {
         suite.expect(ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: true)
                 && !ScreenshotSupport.editorIgnoresRepeatedOutputKey(keyCode: kVK_ANSI_V, command: true, isRepeat: false),
                "a held Command-V pastes the image once instead of stacking copies under it")
-        func previewKey(_ key: Int, _ modifiers: GlobalShortcutModifiers = [],
-                        _ typed: String? = nil) -> ScreenshotSupport.QuickPreviewKeyAction? {
-            ScreenshotSupport.quickPreviewKeyAction(keyCode: key, modifiers: modifiers,
-                                                    charactersIgnoringModifiers: typed)
-        }
-        suite.expect(previewKey(kVK_ANSI_E) == .edit && previewKey(kVK_ANSI_E, .command) == .edit
-                && previewKey(kVK_Return) == .edit && previewKey(kVK_ANSI_C, .command) == .copy
-                && previewKey(kVK_ANSI_S, .command) == .save && previewKey(kVK_ANSI_P, .command) == .pin
-                && previewKey(kVK_Delete) == .discard && previewKey(kVK_Delete, .command) == .discard
-                && previewKey(kVK_Escape) == .close && previewKey(kVK_ANSI_W, .command, "w") == .close,
-               "the preview answers CleanShot's overlay keys, with E and Return editing")
-        suite.expect(previewKey(kVK_ANSI_C) == nil && previewKey(kVK_ANSI_S) == nil
-                && previewKey(kVK_ANSI_A) == nil && previewKey(kVK_ANSI_E, .option) == nil
-                && previewKey(kVK_ANSI_E, .control) == nil && previewKey(kVK_Space) == nil,
-               "every other key passes through, so pointing at the preview never eats typing")
         let previewFrame = ScreenshotSupport.quickPreviewFrame(
             size: CGSize(width: 286, height: 210),
             anchor: CGRect(x: 1100, y: 100, width: 300, height: 300),
@@ -3221,29 +3199,9 @@ enum ScreenshotFeatureTests {
             let rebound = Tool.assigningBinding(text, to: .text, orderRaw: "crop,text", bindingsRaw: "")
             suite.expect(Tool.ordered(from: rebound.orderRaw).prefix(2) == [.crop, .text]
                 && Tool.bindings(from: rebound.bindingsRaw)[.text] == text, "custom recording preserves rail order")
-            suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcuts] as? String
-                    == Tool.defaultBindingsStorage
+            suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcuts] as? String == ""
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotToolShortcuts),
-                   "letter tool bindings are registered and included in settings backups")
-            let letters = Tool.bindings(from: Tool.defaultBindingsStorage)
-            suite.expect(letters == Tool.defaultBindings
-                && Set(letters.values).count == letters.count
-                && letters.values.allSatisfy { $0.modifiers.isEmpty && !Tool.isReservedEditorKey($0) },
-                   "the default letters all survive reading back, one tool each, none reserved")
-            suite.expect(Tool.editorTools.prefix(Tool.shortcutLimit).allSatisfy { letters[$0] != nil }
-                && (1...Tool.shortcutLimit).allSatisfy { digit in
-                    Tool.shortcutTool(keyCode: Int64(kVK_ANSI_1), modifiers: [], number: digit,
-                                      orderRaw: nil, bindingsRaw: Tool.defaultBindingsStorage,
-                                      enabled: true) == nil },
-                   "every tool in the first nine has a letter, so the rail digits stay idle by default")
-            func letterTool(_ key: Int) -> Tool? {
-                Tool.shortcutTool(keyCode: Int64(key), modifiers: [], orderRaw: nil,
-                                  bindingsRaw: Tool.defaultBindingsStorage, enabled: true)
-            }
-            suite.expect(letterTool(kVK_ANSI_A) == .arrow && letterTool(kVK_ANSI_T) == .text
-                && letterTool(kVK_ANSI_R) == .rect && letterTool(kVK_ANSI_V) == .select
-                && letterTool(kVK_ANSI_K) == .crop && letterTool(kVK_ANSI_Z) == nil,
-                   "default letters reach tools by name, as CleanShot's annotate keys do")
+                   "empty tool bindings are registered and included in settings backups")
             // What a key "is" comes from what it types on the active layout,
             // so these pin the layout instead of trusting the test machine's.
             if let usData = testLayoutData(for: "com.apple.keylayout.US") {
@@ -3544,15 +3502,14 @@ enum ScreenshotFeatureTests {
                "magnifier zoom preferences preserve the original behavior by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotToolShortcutsEnabled] as? Bool == true,
                "screenshot number shortcuts ship enabled")
-        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String
-                == ScreenshotSupport.QuickPreviewPosition.bottomRight.rawValue,
-               "the screenshot preview waits in the bottom right corner by default, as CleanShot's does")
+        suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewPosition] as? String == "",
+               "screenshot preview placement preserves the existing automatic behavior by default")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewTakesFocus] as? Bool == true,
                "the screenshot preview takes the keyboard as it appears by default, so its shortcuts work at once; leaving it is the opt-out")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotPreviewEnabled] as? Bool == true
                 && Defaults.registeredDefaults[DefaultsKey.screenshotPreviewDuration] as? Int
                     == ScreenshotSupport.defaultConfirmationPreviewDuration,
-               "screenshot previews stay enabled and wait until dismissed by default")
+               "automatic screenshot confirmations stay enabled at the existing three-second duration by default")
         suite.expect(SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewEnabled)
                 && SettingsBackupSupport.exportKeys().contains(DefaultsKey.screenshotPreviewDuration),
                "screenshot confirmation preferences are included in settings backups")
@@ -3607,8 +3564,8 @@ enum ScreenshotFeatureTests {
                 == "control+option+command:20",
                "the full-screen shortcut sits beside screenshot selection")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcutEnabled]
-                as? Bool == true,
-               "the latest screenshot editor shortcut ships on, so a capture can be edited from anywhere")
+                as? Bool == false,
+               "the latest screenshot editor shortcut ships off")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.screenshotLastCaptureShortcut] as? String
                 == "control+option+command:14",
                "the latest screenshot editor shortcut defaults to control option command E")

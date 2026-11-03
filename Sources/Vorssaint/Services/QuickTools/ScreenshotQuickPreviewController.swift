@@ -165,14 +165,6 @@ final class ScreenshotQuickPreviewController {
         pointerInside = inside
         dismissWork?.cancel()
         dismissWork = nil
-        // Pointing at the preview arms its keys without taking the keyboard.
-        if inside, !closed {
-            ScreenshotPreviewHoverKeys.begin(owner: presentationID) { [weak self] action in
-                self?.handleKeyAction(action)
-            }
-        } else {
-            ScreenshotPreviewHoverKeys.end(owner: presentationID)
-        }
         if !inside { scheduleAutoDismiss() }
     }
 
@@ -237,7 +229,6 @@ final class ScreenshotQuickPreviewController {
     func close() {
         guard !closed else { return }
         closed = true
-        ScreenshotPreviewHoverKeys.end(owner: presentationID)
         dismissWork?.cancel()
         dismissWork = nil
         if let keyMonitor {
@@ -347,25 +338,51 @@ final class ScreenshotQuickPreviewController {
                   !self.shownInNotch || NotchService.shared.isCaptureVisible(id: self.presentationID),
                   panel.attachedSheet == nil, !(panel.firstResponder is NSText),
                   !ShortcutCapture.isCapturing else { return event }
-            guard let action = ScreenshotSupport.quickPreviewKeyAction(
-                keyCode: Int(event.keyCode),
-                modifiers: GlobalShortcutModifiers(eventFlags: event.modifierFlags),
-                charactersIgnoringModifiers: event.charactersIgnoringModifiers)
-            else { return event }
-            self.handleKeyAction(action)
-            return nil
-        }
-    }
-
-    private func handleKeyAction(_ action: ScreenshotSupport.QuickPreviewKeyAction) {
-        guard !closed, !systemSharing, !ShortcutCapture.isCapturing else { return }
-        switch action {
-        case .edit: perform(.edit)
-        case .copy: perform(.copy)
-        case .save: perform(.save)
-        case .pin: perform(.pin)
-        case .discard: perform(.discard)
-        case .close: close()
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let key = Int(event.keyCode)
+            if flags.intersection([.command, .option, .shift, .control]) == .command {
+                let text = event.charactersIgnoringModifiers?.folding(
+                    options: [.diacriticInsensitive, .caseInsensitive], locale: nil)
+                let letter = text?.count == 1 ? text?.first : nil
+                let isLatinLetter = letter.map { $0.isASCII && $0.isLetter } ?? false
+                if isLatinLetter ? letter == "w" : key == kVK_ANSI_W {
+                    self.close()
+                    return nil
+                }
+            }
+            if flags.contains(.command) {
+                switch key {
+                case kVK_ANSI_C:
+                    self.perform(.copy)
+                    return nil
+                case kVK_ANSI_S:
+                    self.perform(.save)
+                    return nil
+                case kVK_Delete, kVK_ForwardDelete:
+                    self.perform(.discard)
+                    return nil
+                default:
+                    return event
+                }
+            }
+            guard flags.isDisjoint(with: [.command, .control, .option]) else { return event }
+            switch key {
+            case kVK_Return, kVK_ANSI_KeypadEnter, kVK_ANSI_E:
+                self.perform(.edit)
+                return nil
+            case kVK_Delete, kVK_ForwardDelete:
+                self.perform(.discard)
+                return nil
+            case kVK_Escape:
+                // Escape only dismisses. Before the after-capture actions it
+                // was equivalent to discard; now a discard can delete a file
+                // the HUD just announced as saved, and "make this popup go
+                // away" must never do that. Deleting stays on Trash and ⌫.
+                self.close()
+                return nil
+            default:
+                return event
+            }
         }
     }
 }
