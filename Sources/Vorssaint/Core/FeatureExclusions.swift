@@ -70,3 +70,10 @@ extension FeaturePreset {
         allCases.filter { $0.features.isDisjoint(with: AppFeature.excludedFromBuild) }
     }
 }
+
+extension SupportUpdateIntroInfo {
+    /// Upstream's post-update support/sponsor invitation. This build is not
+    /// upstream's release, so the invitation stays off; the code stays so
+    /// upstream merges keep applying.
+    static let offeredInBuild = false
+}

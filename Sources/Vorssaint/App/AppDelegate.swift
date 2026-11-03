@@ -2477,6 +2477,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     private func showSupportUpdateIntro(isReview: Bool = false) {
         guard !isTerminating, isReview || !AppInfo.isBeta else { return }
+        // This build never shows upstream's support invitation. Marking it
+        // seen keeps the update intros from asking again on every launch.
+        guard SupportUpdateIntroInfo.offeredInBuild else {
+            if !isReview { markSupportUpdateIntroSeen() }
+            return
+        }
         closePopover()
         if let window = supportIntroWindow {
             NSApp.activate(ignoringOtherApps: true)
