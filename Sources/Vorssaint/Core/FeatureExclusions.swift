@@ -28,6 +28,8 @@ extension AppFeature {
         // Tools: the Command Bar is the launcher, so the quick panel goes;
         // media tools and the scratchpad stay for the island
         .quickLauncher, .cleaningMode, .cameraPreview, .radialMenu, .wallpaper,
+        // Added upstream in 3.4.3; hidden like the rest of their groups.
+        .scrollZoom, .quitApps,
     ]
 
     var isExcludedFromBuild: Bool { Self.excludedFromBuild.contains(self) }

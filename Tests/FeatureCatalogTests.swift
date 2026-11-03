@@ -386,18 +386,18 @@ enum FeatureCatalogTests {
 
         // MARK: Features hub catalog
 
-        suite.expect(AppFeature.allCases.count == 79, "feature catalog has 79 features")
+        suite.expect(AppFeature.allCases.count == 81, "feature catalog has 81 features")
         suite.expect(Set(AppFeature.allCases.map(\.rawValue)).count == AppFeature.allCases.count,
                "feature ids are unique")
         suite.expect(AppFeature.allCases.map(\.rawValue) == [
             "switcher", "dockPreview", "dockClick", "windowMaximizer", "windowLayout", "autoQuit", "spacesOrder",
-            "scrollInverter", "scrollHorizontal", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
+            "scrollInverter", "scrollHorizontal", "scrollZoom", "focusFollowsMouse", "smoothScroll", "linearScroll", "mouseAcceleration", "mouseNavigation", "mouseButtonShortcuts", "middleClick",
             "mouseClickDebounce", "keyboardDebounce", "textSnippets", "superKey", "quitWindowProtection",
             "clipboardHistory", "pastePlain", "finderCutPaste", "finderRename", "shelf", "urlCleaner",
             "diskImageInstaller", "clipNote",
             "mixer", "soundOutputSwitcher", "audioPriority", "micMute", "musicBlock",
             "keepAwake", "brightness", "extraBrightness", "bluetoothSleep",
-            "quickLauncher", "quickToggles", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
+            "quickLauncher", "quickToggles", "quitApps", "colorPicker", "screenOCR", "cleaningMode", "mediaTools",
             "cleaner", "uninstaller", "homebrew", "appUpdates", "screenshot", "cameraPreview",
             "radialMenu", "scratchpad", "commandBar", "screenRecorder", "wallpaper", "killProcess", "portManager", "translator", "usageRecord", "notch", "notchCalendar", "notchNotifications", "notchGestures", "notchTimer", "notchAccessories", "notchLyrics", "notchQueue", "notchLiveEqualizer", "notchDownloads", "notchAgents", "notchWatch", "notchMascot",
             "monitorCPU", "monitorGPU", "monitorMemory", "monitorNetwork", "monitorDisk", "monitorPower",
@@ -558,6 +558,9 @@ enum FeatureCatalogTests {
         suite.expect(runtimeSource.contains(
             "setAvailable(AppFeature.allCases, available, enablingFirstInstalls: false)"),
                "install all makes features available without switching on their behavior")
+        suite.expect(runtimeSource.contains(
+            ".scrollZoom: { ScrollInverter.shared.syncWithPreferences() }"),
+               "installing, relaunching, or removing Zoom re-syncs the shared scroll tap")
 
         // Most updating installs never saved an availability, so this list is
         // what they have: a feature leaving it would vanish for all of them.
@@ -587,7 +590,8 @@ enum FeatureCatalogTests {
                "every feature an update already had stays installed and every other one ships uninstalled")
         suite.expect((AppFeature.availabilityDefaults[AppFeature.linearScroll.availabilityKey] as? Bool) == false
                 && (AppFeature.availabilityDefaults[AppFeature.focusFollowsMouse.availabilityKey] as? Bool) == false
-                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false,
+                && (AppFeature.availabilityDefaults[AppFeature.notchMascot.availabilityKey] as? Bool) == false
+                && (AppFeature.availabilityDefaults[AppFeature.quitApps.availabilityKey] as? Bool) == false,
                "features added after the list was frozen wait on the Features page instead of installing themselves")
         let linearScrollSuiteName = "com.vorssaint.tests.linear-scroll-availability.\(UUID().uuidString)"
         if let linearDefaults = UserDefaults(suiteName: linearScrollSuiteName) {
@@ -706,7 +710,7 @@ enum FeatureCatalogTests {
                      "the companion leaves with the island but only comes when picked, with a page of its own")
         suite.expect(AppPermission.allCases.map(\.rawValue) == [
             "accessibility", "screenRecording", "fullDiskAccess", "filesAndFolders", "notifications",
-            "automationFinder", "automationTerminal", "automationPlayback", "audioCapture", "microphone", "camera",
+            "automationFinder", "automationPlayback", "audioCapture", "microphone", "camera",
             "appManagement", "calendar",
         ], "permission portal contains every supported permission")
         let onboardingViewSource = (try? String(
@@ -750,21 +754,52 @@ enum FeatureCatalogTests {
                "both feature pickers refuse an unsupported install from the same rule")
         suite.expect(featureHubSource.contains("installableCount"),
                "the hub counts against what this Mac can install, so install-all can finish")
-        // Issue #2270: nested in the page's plain stack, the lazy stack resized
-        // it as group cards came into view and could keep redoing its layout
-        // until Settings froze. A source check on the page's `content` with
-        // comment lines dropped: it keeps that structure from coming back, not
-        // the scrolling itself, which only a scroll run shows.
-        let hubContentCode = featureHubSource
-            .components(separatedBy: "private var content: some View {").dropFirst().first?
-            .components(separatedBy: "\n    }\n").first ?? ""
-        let compactHubContent = hubContentCode.split(separator: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined()
-            .filter { !$0.isWhitespace }
-        suite.expect(compactHubContent.components(separatedBy: "LazyVStack(").count == 2
-                && compactHubContent.contains("ScrollView{LazyVStack("),
-               "the hub's one lazy stack is its scroll view's own content, never nested in another stack")
+        // The first top-level member opened by `declaration`, with comment lines
+        // and whitespace dropped, so a layout check reads structure only.
+        func compactMember(_ declaration: String, in source: String) -> String {
+            let code = source
+                .components(separatedBy: declaration).dropFirst().first?
+                .components(separatedBy: "\n    }\n").first ?? ""
+            return code.split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined()
+                .filter { !$0.isWhitespace }
+        }
+        // The lazy stack remained after #2270 and still appears in the hang
+        // reports for #2311/#2642. Guard the eager layout here; the layout
+        // suite checks scroll geometry and the offscreen notice changes.
+        let compactHubContent = compactMember("private var content: some View {", in: featureHubSource)
+        suite.expect(compactHubContent.contains("ScrollView{VStack(")
+                && !compactHubContent.contains("LazyVStack("),
+               "the Features page measures its cards eagerly instead of estimating their height during scrolling")
+        // The first-run feature picker had the same loop: its lazy stack sat in
+        // the step's plain stack under the onboarding scroll view and froze the
+        // app while scrolling the catalog. Same kind of source check.
+        let purposeStepSource = onboardingFeatureSource
+            .components(separatedBy: "private struct PurposeStep: View {").dropFirst().first ?? ""
+        let compactPurposeBody = compactMember("var body: some View {", in: purposeStepSource)
+        // This build lists only the groups it offers (FeatureExclusions).
+        suite.expect(compactPurposeBody.contains("ForEach(FeatureGroup.offered")
+                && !compactPurposeBody.contains("LazyVStack("),
+               "the onboarding feature picker measures its cards eagerly instead of estimating their height during scrolling")
+        // A lazy stack on the Monitor page re-measures and re-anchors its rows
+        // without settling once the Bars options make the menu bar card taller,
+        // which hangs Settings on the first scroll. The same kind of source
+        // check: it keeps the eager stack and the preview above the scroll
+        // view, not the scrolling itself.
+        let monitorSettingsSource = (try? String(
+            contentsOfFile: "Sources/Vorssaint/UI/Settings/MonitorSettings.swift",
+            encoding: .utf8)) ?? ""
+        let compactMonitorBody = compactMember("var body: some View {", in: monitorSettingsSource)
+        let monitorPreviewAboveScroll: Bool = {
+            guard let preview = compactMonitorBody.range(of: "MenuBarMetricsPreview()"),
+                  let scroll = compactMonitorBody.range(of: "ScrollView{VStack(") else { return false }
+            return preview.upperBound <= scroll.lowerBound
+        }()
+        suite.expect(compactMonitorBody.hasPrefix("VStack(spacing:0){")
+                && monitorPreviewAboveScroll
+                && !compactMonitorBody.contains("LazyVStack("),
+               "the Monitor page lays its rows out eagerly, with the live preview above its scroll view")
         suite.expect(AppFeature.diskImageInstaller.group == .clipboardFiles
                 && AppFeature.diskImageInstaller.enabledKeys.isEmpty
                 && AppFeature.diskImageInstaller.permissions == [.appManagement]
@@ -1006,6 +1041,10 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
+        suite.expect(activeSet(.accessibility, available: [.scrollZoom], on: [DefaultsKey.pinchZoomEnabled])
+                == [.scrollZoom]
+                && activeSet(.accessibility, available: [], on: [DefaultsKey.pinchZoomEnabled]).isEmpty,
+               "Zoom alone owns accessibility only while installed")
         suite.expect(AppFeature.scrollInverter.enabledKeys == [DefaultsKey.scrollInverterEnabled,
                                                            DefaultsKey.scrollInverterHorizontalEnabled],
                "the inversion feature tracks only its own axes")
@@ -1124,11 +1163,21 @@ enum FeatureCatalogTests {
                "pasting copied images as files engages the shared Finder feature")
         suite.expect(AppFeature.quickToggles.permissions == [.automationFinder],
                "the quick toggles need no permission beyond the Trash's Finder ask")
-        suite.expect(activeSet(.automationTerminal) == [.homebrew], "homebrew drives the Terminal")
+        suite.expect(AppFeature.quitApps.permissions.isEmpty
+                && AppFeature.quitApps.onboardingPermissions.isEmpty
+                && AppFeature.quitApps.enabledKeys.isEmpty
+                && AppFeature.quitApps.energyProfile == .idle
+                && AppFeature.quitApps.group == .tools
+                && AppFeature.quitApps.symbolName == "xmark.app",
+               "Quit apps is an on-demand tool that needs no permission and keeps nothing running")
+        suite.expect(AppFeature.quitApps.settingsDestination
+                == FeatureSettingsDestination(.quickTools, sectionAnchor: .quitApps)
+                && !FeaturePreset.allCases.contains { $0.features.contains(.quitApps) },
+               "Quit apps opens its own Quick tools section and joins no preset")
         suite.expect(activeSet(.appManagement) == [.homebrew, .appUpdates, .diskImageInstaller],
                "package, update and disk-image installs declare App Management access")
-        suite.expect(AppFeature.homebrew.permissions == [.automationTerminal, .appManagement],
-               "the package manager declares both permissions used by its operations")
+        suite.expect(AppFeature.homebrew.permissions == [.appManagement],
+               "the package manager needs no Automation: the person's own terminal runs its commands")
         suite.expect(activeSet(.audioCapture) == [.mixer], "the mixer is the only audio capture user")
         suite.expect(activeSet(.audioCapture, available: Set(AppFeature.allCases).subtracting([.mixer])) == [],
                "audio capture reads as unused once the mixer is off in the hub")
@@ -1174,10 +1223,10 @@ enum FeatureCatalogTests {
                "a role leaves the shortcuts page when its feature is off in the hub")
         suite.expect(GlobalShortcutRole.activeRoles(isOn: { _ in true },
                                               isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
-               "both switcher roles follow the switcher feature")
+                .allSatisfy { $0.feature != .switcher },
+               "all switcher roles follow the switcher feature")
         suite.expect(GlobalShortcutRole.availableRoles(isAvailable: { $0 != .switcher })
-                .allSatisfy { $0 != .switcher && $0 != .switcherWindow },
+                .allSatisfy { $0.feature != .switcher },
                "the shortcut editor lists installed roles even without reading enable keys")
         for role in [GlobalShortcutRole.displayBrightnessDecrease, .displayBrightnessIncrease] {
             suite.expect(role.feature == .brightness && role.group == .energyDisplay,
@@ -1662,6 +1711,8 @@ enum FeatureCatalogTests {
                "cleaner settings, including WhatsApp downloads, follow the cleaner module")
         suite.expect(pageVisible(.quickTools, available: [.quickToggles]),
                "the quick toggles alone keep the quick tools page")
+        suite.expect(pageVisible(.quickTools, available: [.quitApps]),
+               "Quit apps alone keeps the quick tools page")
         suite.expect(pageVisible(.clipboard, available: [.finderCutPaste]),
                "the image paste option keeps the Clipboard page available")
         suite.expect(AppFeature.allCases.allSatisfy { feature in
