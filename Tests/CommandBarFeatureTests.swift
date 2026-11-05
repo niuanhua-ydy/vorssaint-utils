@@ -2927,7 +2927,7 @@ enum CommandBarFeatureTests {
             suite.expect(KillProcessSupport.pidQuery(from: query, allowBareDigits: allowBare, language: lang) == expected,
                          "\(query) reads as a PID query (\(expected ?? "nil"))")
         }
-        for query in ["4242", "0", "kill", "kill node", "pid", "kill 0", "kill 12345678", "12+34"] {
+        for query in ["4242", "0", "kill", "kill node", "pid", "kill 0", "kill 12345678", "12+34", "kill :3000", "kill -9 :3000", ":3000"] {
             suite.expect(KillProcessSupport.pidQuery(from: query, allowBareDigits: false, language: .enUS) == nil,
                          "\(query) does not read as a root-level PID query")
         }

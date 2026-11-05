@@ -158,9 +158,11 @@ enum ClipNoteAppTests {
 
     private static func panelDelete(_ suite: TestSuite) {
         func deletes(_ keyCode: Int = kVK_Delete, command: Bool = false, other: Bool = false, repeating: Bool = false,
-                     queryIsEmpty: Bool = true, needsCommand: Bool = false) -> Bool {
+                     queryIsEmpty: Bool = true, searchIsOpen: Bool = false, holdBeganInSearch: Bool = false,
+                     needsCommand: Bool = false) -> Bool {
             ClipNotePanelKeys.deletesItem(keyCode: keyCode, command: command, otherModifiers: other,
-                                          isRepeat: repeating, queryIsEmpty: queryIsEmpty, needsCommand: needsCommand)
+                                          isRepeat: repeating, queryIsEmpty: queryIsEmpty, searchIsOpen: searchIsOpen,
+                                          holdBeganInSearch: holdBeganInSearch, needsCommand: needsCommand)
         }
         suite.expectEqual(ClipNoteDefaults.registered[DefaultsKey.clipNoteDeleteNeedsCommand] as? Bool, false,
                           "Delete alone removes an item by default, as in Paste")
@@ -168,8 +170,11 @@ enum ClipNoteAppTests {
         suite.expect(deletes(kVK_ForwardDelete), "forward Delete removes the item")
         suite.expect(!deletes(needsCommand: true), "with ⌘ required, Delete alone does nothing")
         suite.expect(deletes(command: true, needsCommand: true), "⌘Delete removes the item when ⌘ is required")
-        suite.expect(deletes(command: true, queryIsEmpty: false), "⌘Delete removes the item while searching")
-        suite.expect(!deletes(queryIsEmpty: false), "Delete alone edits the search while it has text")
+        suite.expect(!deletes(command: true, queryIsEmpty: false), "⌘Delete edits the search while it has text")
+        suite.expect(!deletes(command: true, repeating: true, holdBeganInSearch: true),
+                     "a held ⌘Delete that cleared the search stops at the empty field")
+        suite.expect(!deletes(queryIsEmpty: false, searchIsOpen: true), "Delete alone edits the search while it has text")
+        suite.expect(!deletes(searchIsOpen: true), "Delete alone in the open, empty search field never removes an item")
         suite.expect(!deletes(repeating: true), "holding Delete to clear the search stops at the empty field")
         suite.expect(deletes(command: true, repeating: true), "a held ⌘Delete keeps removing items")
         suite.expect(!deletes(other: true), "Delete with ⌥, ⌃ or ⇧ is not the panel's")

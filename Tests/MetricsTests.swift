@@ -14,6 +14,7 @@ struct MetricsTests {
                 TestHarnessTests.run(suite)
                 PreferenceNamespaceTests.run(suite)
             }),
+            ("memory", { MemoryResourceTests.run(suite) }),
             ("metrics", {
                 MetricsFeatureTests.run(suite)
                 DiskCapacityTests.run(suite)
@@ -120,6 +121,7 @@ struct MetricsTests {
                 RecorderExportSpeedTests.run(suite)
                 RecorderExportRenderingTests.run(suite)
             }),
+            ("system-commands", { CommandBarSystemTests.run(suite) }),
             ("developer-tools", { CommandBarDeveloperToolsTests.run(suite) }),
             ("translation", { TranslatorTests.run(suite) }),
             ("agent-cli", { CommandBarAgentTests.run(suite) }),
@@ -209,7 +211,6 @@ struct MetricsTests {
                 CleanerLastRunContract.run(suite)
                 CleanerScanFlowTests.run(suite)
                 CleanerLayoutTests.run(suite)
-                CommandBarCleanFlowTests.run(suite)
             }),
             ("uninstaller", {
                 HomebrewOwnershipTests.run(suite)

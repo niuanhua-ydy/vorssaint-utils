@@ -251,6 +251,22 @@ enum ClipNoteStoreTests {
             suite.expect(store.pinboards().isEmpty, "a deleted pinboard is gone")
         }
 
+        suite.clipNoteCase("filtering by several types") { scratch in
+            let store = try scratch.store()
+            try store.addTestText("plain report")
+            try store.insert(NewClip(type: .rich, content: "rich report", searchText: "rich report", hash: "r"))
+            try store.insert(NewClip(type: .link, content: "https://report.example", searchText: "https://report.example",
+                                     hash: "l"))
+            suite.expectEqual(Set(store.fetch(ClipQuery(types: [.text, .rich])).map(\.content)),
+                              ["plain report", "rich report"], "several types list each of them")
+            suite.expectEqual(Set(store.fetch(ClipQuery(text: "report", types: [.text, .rich])).map(\.content)),
+                              ["plain report", "rich report"], "a search keeps to the chosen types")
+            suite.expectEqual(store.fetch(ClipQuery(text: "report", types: [.link])).map(\.content),
+                              ["https://report.example"], "a search with another type is cached apart")
+            suite.expectEqual(store.fetch(ClipQuery(type: .rich)).map(\.content), ["rich report"],
+                              "one type still filters alone")
+        }
+
         suite.clipNoteCase("deleting removes files") { scratch in
             let store = try scratch.store()
             let path = "Images/x.png"

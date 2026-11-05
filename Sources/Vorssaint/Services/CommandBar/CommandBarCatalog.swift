@@ -215,10 +215,17 @@ enum CommandBarCatalog {
                                        language: AppLanguage,
                                        bar: CommandBarFeatureStrings,
                                        automationDenied: Bool) -> [CommandBarEntry] {
-        actionEntries(s, language: language, bar: bar, automationDenied: automationDenied)
+        let entries = actionEntries(s, language: language, bar: bar, automationDenied: automationDenied)
             + toggleEntries(s, language: language, bar: bar)
             + systemAnswerEntries(s, bar: bar)
+            + systemCommandEntries(language: language)
             + settingsEntries(s, language: language, bar: bar)
+        return entries.map { entry in
+            var entry = entry
+            let aliases = CommandBarSystemQuery.fixed.filter { $0.value == entry.id }.map(\.key)
+            entry.keywords += " " + aliases.joined(separator: " ")
+            return entry
+        }
     }
 
     /// Read both languages from the same definitions, including live action
@@ -808,7 +815,7 @@ enum CommandBarCatalog {
                 subtitle: area(.cleaner, under: s.cleanerName),
                 icon: .symbol("sparkle"),
                 keepsBarOpen: true,
-                run: { _ in CommandBarService.shared.beginCleanReview(entryID: "action.cleaner") }))
+                run: { _ in CommandBarService.shared.beginCleanReview() }))
         }
         if AppFeature.homebrew.isAvailable {
             // Searching and installing packages wants room and time, so the

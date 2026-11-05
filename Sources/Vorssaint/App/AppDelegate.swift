@@ -52,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     private var inputSourceRestorationPending = false
     private var cancellables = Set<AnyCancellable>()
     private var settingsWindow: NSWindow?
+    private let settingsIdleRelease = IdleResourceRelease()
+    private let menuPanelIdleRelease = IdleResourceRelease()
     private var settingsKeepsAppRegular = false
     private var onboardingWindow: NSWindow?
     private var supportIntroWindow: NSWindow?
@@ -477,9 +479,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         // the popover draw its native material and corners there.
         popover.hasFullSizeContent = PanelSurface.popoverHostsFullSizeContent
         popover.delegate = self
-        let host = NSHostingController(rootView: MenuPanelView())
-        host.sizingOptions = .preferredContentSize
-        popover.contentViewController = host
+        ensurePopoverContent()
         AppAppearanceController.shared.follow(panel: popover)
     }
 
@@ -1020,10 +1020,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         }
     }
 
+    private func ensurePopoverContent() {
+        guard popover.contentViewController == nil else { return }
+        let host = NSHostingController(rootView: MenuPanelView())
+        host.sizingOptions = .preferredContentSize
+        popover.contentViewController = host
+    }
+
     private func showPopover(anchor button: NSStatusBarButton? = nil,
                              animate: Bool = true,
                              activate: Bool = true,
                              restoring savedAnchor: PanelAnchor? = nil) {
+        menuPanelIdleRelease.cancel()
+        ensurePopoverContent()
         // An interrupted or unfinished close continues the same presentation.
         // Keep the requested metric and activation source through its cleanup.
         let wasReopening = popoverIsReopening
@@ -1593,6 +1602,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
         ProcessUsageService.shared.stopNetworkMonitoring()
         ProcessUsageService.shared.clearCachedRows()
         ResponsibleProcess.clearIconCache()
+        menuPanelIdleRelease.schedule { [weak self] in
+            guard let self, !self.popover.isShown, !self.popoverIsReopening else { return }
+            self.popover.contentViewController = nil
+        }
     }
 
     /// Preserve the corrected anchor, not just the status item's stale frame.
@@ -1848,6 +1861,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     // MARK: - Windows
 
     func openSettingsWindow() {
+        settingsIdleRelease.cancel()
         // Capture the destination before activation changes the key window.
         let targetScreen = (popover.isShown
             ? popoverAnchor?.screen ?? popover.contentViewController?.view.window?.screen
@@ -2617,6 +2631,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             // moment the window reopens, on this page or any other.
             SecureInputMonitor.shared.setSettingsWindowOpen(false)
             SettingsWindowVisibility.shared.set(false)
+            settingsIdleRelease.schedule { [weak self, weak window] in
+                guard let self, let window, self.settingsWindow === window,
+                      !window.isVisible, !window.isMiniaturized, window.attachedSheet == nil else { return }
+                // Preferences and destination live outside the view. Release
+                // the closed view graph, not a hidden/minimized active window.
+                window.contentViewController = nil
+                window.contentView = nil
+                self.settingsWindow = nil
+            }
             return
         }
         if window === onboardingWindow {

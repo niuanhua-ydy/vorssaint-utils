@@ -137,12 +137,22 @@ final class NotchLyricsService: ObservableObject {
             return
         }
         settledAttempt = nil
-        if let url = NotchLyricsSupport.qqSearchURL(for: track) {
-            loadQQ(track, searchURL: url)
-        } else { loadCatalog(track) }
+        loadCatalog(track)
     }
 
-    private func loadQQ(_ track: NotchMusicIdentity, searchURL: URL) {
+    /// Imported/current-song lyrics are handled before load(). LRCLIB timed
+    /// lyrics win; only a clean miss (including plain-only lyrics) tries QQ.
+    /// Keep plain lyrics if the secondary provider cannot improve them.
+    private func finishCatalog(_ lyrics: NotchLyrics?, for track: NotchMusicIdentity, failed: Bool) {
+        guard !failed, lyrics?.instrumental != true, lyrics?.lines.isEmpty != false,
+              let url = NotchLyricsSupport.qqSearchURL(for: track) else {
+            finish(lyrics, for: track, failed: failed)
+            return
+        }
+        loadQQ(track, searchURL: url, fallback: lyrics)
+    }
+
+    private func loadQQ(_ track: NotchMusicIdentity, searchURL: URL, fallback: NotchLyrics? = nil) {
         state = .loading
         let requested = generation
         session = NotchLyricsDownload.load(searchURL, maximumBytes: NotchLyricsSupport.maximumSearchBytes) { [weak self] result in
@@ -151,22 +161,20 @@ final class NotchLyricsService: ObservableObject {
                 guard let self, self.acceptsResult(for: track, generation: requested) else { return }
                 self.session = nil
                 if let mid, let url = NotchLyricsSupport.qqLyricsURL(songMID: mid) {
-                    self.loadQQLyrics(track, url: url, generation: requested)
-                } else if !result.canSearch { self.finish(nil, for: track, failed: true) }
-                else { self.loadCatalog(track) }
+                    self.loadQQLyrics(track, url: url, generation: requested, fallback: fallback)
+                } else { self.finish(fallback, for: track, failed: result.failed) }
             }
         }
     }
 
-    private func loadQQLyrics(_ track: NotchMusicIdentity, url: URL, generation requested: UUID) {
+    private func loadQQLyrics(_ track: NotchMusicIdentity, url: URL, generation requested: UUID,
+                              fallback: NotchLyrics? = nil) {
         session = NotchLyricsDownload.load(url) { [weak self] result in
             let lyrics = result.data.flatMap { NotchLyricsSupport.decodeQQ($0, for: track) }
             DispatchQueue.main.async {
                 guard let self, self.acceptsResult(for: track, generation: requested) else { return }
                 self.session = nil
-                if let lyrics { self.finish(lyrics, for: track, failed: false) }
-                else if !result.canSearch { self.finish(nil, for: track, failed: true) }
-                else { self.loadCatalog(track) }
+                self.finish(lyrics ?? fallback, for: track, failed: result.failed)
             }
         }
     }
@@ -181,7 +189,7 @@ final class NotchLyricsService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.acceptsResult(for: track, generation: requested) else { return }
                 self.session = nil
-                if let lyrics { self.finish(lyrics, for: track, failed: false) }
+                if let lyrics { self.finishCatalog(lyrics, for: track, failed: false) }
                 else if !result.canSearch { self.finish(nil, for: track, failed: true) }
                 else {
                     self.search(track, urls: NotchLyricsSupport.searchURLs(for: track),
@@ -224,7 +232,7 @@ final class NotchLyricsService: ObservableObject {
                        mayResolveAliases: false, mayDiscover: false)
                 return
             }
-            finish(NotchLyricsSupport.bestLyrics(in: candidates), for: track, failed: failed)
+            finishCatalog(NotchLyricsSupport.bestLyrics(in: candidates), for: track, failed: failed)
             return
         }
         session = NotchLyricsDownload.load(url, maximumBytes: NotchLyricsSupport.maximumSearchBytes) { [weak self] result in
@@ -256,7 +264,7 @@ final class NotchLyricsService: ObservableObject {
             return
         }
         guard let url = NotchLyricsSupport.artistIdentityURL(for: track) else {
-            finish(nil, for: track, failed: false)
+            finishCatalog(nil, for: track, failed: false)
             return
         }
         requestArtistMetadata(url, track: track, generation: requested) { [weak self] result in
@@ -333,7 +341,7 @@ final class NotchLyricsService: ObservableObject {
             if !failed && !NotchLyricsSupport.prefersDiscovery(for: track) {
                 search(track, urls: NotchLyricsSupport.discoveryURLs(for: track), candidates: [], failed: false,
                        generation: requested, mayResolveAliases: false, mayDiscover: false)
-            } else { finish(nil, for: track, failed: failed) }
+            } else { finishCatalog(nil, for: track, failed: failed) }
             return
         }
         search(track, urls: NotchLyricsSupport.aliasSearchURLs(for: track, identity: identity),

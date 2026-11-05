@@ -33,8 +33,17 @@ final class ClipNotePanelModel: ObservableObject {
     @Published private(set) var pinboards: [Pinboard] = []
     @Published private(set) var sourceApps: [SourceApp] = []
     @Published var tab: Tab = .history { didSet { if tab != oldValue { reload(resetSelection: true, animated: true) } } }
-    @Published var query = "" { didSet { if query != oldValue { reloadGeneration += 1; scheduleReload() } } }
-    @Published var typeFilter: ClipType? {
+    @Published var query = "" {
+        didSet {
+            guard query != oldValue else { return }
+            // Once typed in, the field stays open after its text is deleted,
+            // so a Delete too many edits an empty field instead of removing a card.
+            if !query.isEmpty && !isSearchExpanded { isSearchExpanded = true }
+            reloadGeneration += 1
+            scheduleReload()
+        }
+    }
+    @Published var typeFilter: ClipNoteTypeFilter? {
         didSet { if typeFilter != oldValue { reload(resetSelection: true, animated: true) } }
     }
     @Published var appFilter: String? { didSet { if appFilter != oldValue { reload(resetSelection: true, animated: true) } } }
@@ -47,6 +56,15 @@ final class ClipNotePanelModel: ObservableObject {
     @Published var showShortcuts = false
     /// The search field opens on a click of the magnifier or on typing.
     @Published var isSearchExpanded = false
+    /// The filter popover above the search field, like Paste's.
+    @Published var isFilterOpen = false
+    /// The popover lists every source app, not just the first few.
+    @Published var showsAllApps = false
+    /// Where the popover's arrow points, from its leading edge.
+    @Published var filterArrowX: CGFloat = 0
+    /// The filter button's frame in the panel (SwiftUI coordinates, origin
+    /// top left), which the popover is placed against.
+    var filterButtonFrame: CGRect = .zero
     /// The card whose title is being edited.
     @Published var editingTitleID: Int64?
     @Published var syncIndicator: SyncIndicator = .hidden
@@ -54,7 +72,7 @@ final class ClipNotePanelModel: ObservableObject {
     /// The app in front before the panel opened, for "Paste to …".
     @Published var pasteTarget: (name: String, bundleID: String?)?
 
-    var isSearchActive: Bool { isSearchExpanded || !query.isEmpty }
+    var isSearchActive: Bool { isSearchExpanded || !query.isEmpty || hasActiveFilter }
 
     let store: ClipStore
     weak var searchField: NSTextField?
@@ -89,6 +107,7 @@ final class ClipNotePanelModel: ObservableObject {
     private var isLoadingMore = false
     private var reloadWork: DispatchWorkItem?
     private var needsReload = true
+    private var isSuspended = false
     private var observer: NSObjectProtocol?
     /// Each card's computed content (highlights, details), so a render never recomputes it.
     private var contentCache: [Int64: ClipNoteCardContent] = [:]
@@ -100,6 +119,11 @@ final class ClipNotePanelModel: ObservableObject {
                                                           queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.storeDidChange() }
         }
+    }
+
+    deinit {
+        reloadWork?.cancel()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 
     var searchTerms: [String] { SearchQuery(query).terms }
@@ -115,6 +139,44 @@ final class ClipNotePanelModel: ObservableObject {
 
     var hasActiveFilter: Bool { typeFilter != nil || appFilter != nil }
 
+    /// The app filtered by, as it is listed; its bundle ID when it no longer has items.
+    var appFilterApp: SourceApp? {
+        guard let appFilter else { return nil }
+        return sourceApps.first { $0.bundleID == appFilter } ?? SourceApp(bundleID: appFilter, name: appFilter)
+    }
+
+    /// Delete in an empty search field takes off the last token, as in a token field.
+    func removeLastFilter() {
+        if appFilter != nil {
+            appFilter = nil
+        } else {
+            typeFilter = nil
+        }
+    }
+
+    func clearFilters() {
+        typeFilter = nil
+        appFilter = nil
+    }
+
+    /// A choice in the popover; choosing the one already chosen removes it.
+    func toggle(_ filter: ClipNoteTypeFilter) {
+        typeFilter = typeFilter == filter ? nil : filter
+        isFilterOpen = false
+    }
+
+    func toggleApp(_ bundleID: String) {
+        appFilter = appFilter == bundleID ? nil : bundleID
+        isFilterOpen = false
+    }
+
+    func togglePinboard(_ board: Pinboard) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) {
+            tab = tab == .pinboard(board.id) ? .history : .pinboard(board.id)
+        }
+        isFilterOpen = false
+    }
+
     func pinboard(id: Int64?) -> Pinboard? {
         guard let id else { return nil }
         return pinboards.first { $0.id == id }
@@ -124,16 +186,22 @@ final class ClipNotePanelModel: ObservableObject {
 
     /// Before showing. The data is usually ready from while it was hidden.
     func prepareForShow() {
+        isSuspended = false
         isVisible = true
         now = Date()
         editor = nil
         editingTitleID = nil
         showShortcuts = false
         isSearchExpanded = false
+        isFilterOpen = false
+        showsAllApps = false
         reloadWork?.cancel()
-        let queryChanged = !query.isEmpty
+        // Each opening starts unfiltered, like the query: a filter left on
+        // from last time would hide items with no sign of why.
+        let queryChanged = !query.isEmpty || hasActiveFilter
         if queryChanged {
             query = ""
+            clearFilters()
             reloadWork?.cancel()
         }
         if needsReload || queryChanged || items.count > Self.pageSize {
@@ -148,8 +216,30 @@ final class ClipNotePanelModel: ObservableObject {
         isVisible = false
     }
 
+    /// Only the presentation is discarded; recording, sync and history stay alive.
+    func releaseIdleResources() {
+        guard !isVisible else { return }
+        isSuspended = true
+        reloadGeneration += 1
+        reloadWork?.cancel()
+        reloadWork = nil
+        needsReload = true
+        isLoadingMore = false
+        items = []
+        pinboards = []
+        sourceApps = []
+        contentCache = [:]
+        cardFrames = [:]
+        selectedID = nil
+        searchField = nil
+        // Queue behind outstanding reads so an old query cannot repopulate it.
+        let store = store
+        queryQueue.async { store.discardSearchCache() }
+    }
+
     private func storeDidChange() {
         needsReload = true
+        guard !isSuspended else { return }
         reloadWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
             MainActor.assumeIsolated {
@@ -177,12 +267,13 @@ final class ClipNotePanelModel: ObservableObject {
     /// `keepLoadedCount` keeps the pages already scrolled in, so a visible
     /// refresh does not jump.
     func reload(resetSelection: Bool, animated: Bool = false, synchronous: Bool = false, keepLoadedCount: Bool = false) {
+        guard !isSuspended else { needsReload = true; return }
         needsReload = false
         reloadGeneration += 1
         let generation = reloadGeneration
         let scope: ClipQuery.Scope = if case .pinboard(let id) = tab { .pinboard(id) } else { .all }
         let limit = keepLoadedCount ? max(Self.pageSize, items.count) : Self.pageSize
-        let query = ClipQuery(text: query, scope: scope, type: typeFilter, sourceBundleID: appFilter, limit: limit)
+        let query = ClipQuery(text: query, scope: scope, types: typeFilter?.types ?? [], sourceBundleID: appFilter, limit: limit)
         let store = self.store
 
         let load = { () -> ([Pinboard], [SourceApp], [ClipItem]) in
@@ -237,11 +328,11 @@ final class ClipNotePanelModel: ObservableObject {
     /// Near the end of the strip, fetches the next page in the background.
     /// Search results come from the store's ranked cache, so a page is cheap.
     func loadMoreIfNeeded(currentIndex: Int) {
-        guard currentIndex >= items.count - 10, hasMore, !isLoadingMore else { return }
+        guard !isSuspended, currentIndex >= items.count - 10, hasMore, !isLoadingMore else { return }
         isLoadingMore = true
         let generation = reloadGeneration
         let scope: ClipQuery.Scope = if case .pinboard(let id) = tab { .pinboard(id) } else { .all }
-        let query = ClipQuery(text: query, scope: scope, type: typeFilter, sourceBundleID: appFilter,
+        let query = ClipQuery(text: query, scope: scope, types: typeFilter?.types ?? [], sourceBundleID: appFilter,
                               limit: Self.pageSize, offset: items.count)
         let store = self.store
         queryQueue.async { [weak self] in
@@ -378,6 +469,27 @@ final class ClipNotePanelModel: ObservableObject {
         if tab == .pinboard(board.id) { tab = .history }
         store.deletePinboard(id: board.id)
     }
+}
+
+/// The panel's type filter. Text covers rich text too, as one kind to the
+/// person looking: most text copied from a browser or an editor is rich.
+enum ClipNoteTypeFilter: CaseIterable, Hashable {
+    case text
+    case link
+    case image
+    case file
+
+    var types: [ClipType] {
+        switch self {
+        case .text: return [.text, .rich]
+        case .link: return [.link]
+        case .image: return [.image]
+        case .file: return [.file]
+        }
+    }
+
+    /// The type whose name and symbol it shows.
+    var displayType: ClipType { types[0] }
 }
 
 /// The parts of a card worth computing once.

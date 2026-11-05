@@ -440,7 +440,7 @@ final class QuickTogglesService: ObservableObject {
         return QuickTogglesSupport.finderFlag(value, default: defaultValue)
     }
 
-    private static func ejectableVolumeURLs() -> [URL] {
+    static func ejectableVolumeURLs() -> [URL] {
         let keys: Set<URLResourceKey> = [
             .volumeIsInternalKey, .volumeIsRemovableKey,
             .volumeIsEjectableKey, .volumeIsLocalKey,

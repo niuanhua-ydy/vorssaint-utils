@@ -59,10 +59,11 @@ struct ClipNoteStrings {
     let untitledPinboard: String
     let nextColorHelp: String
     let typeFilter: String
-    let allTypes: String
     let sourceAppFilter: String
-    let allApps: String
-    let clearFilters: String
+    let pinboardsFilter: String
+    let moreApps: String
+    let fewerApps: String
+    let removeFilterHelp: String
     let filterHelp: String
     let pauseRecording: String
     let autoPaste: String
@@ -414,10 +415,11 @@ extension ClipNoteStrings {
         untitledPinboard: "Untitled",
         nextColorHelp: "Click to change the color",
         typeFilter: "Type",
-        allTypes: "All Types",
-        sourceAppFilter: "Source App",
-        allApps: "All Apps",
-        clearFilters: "Clear Filters",
+        sourceAppFilter: "Apps",
+        pinboardsFilter: "Pinboards",
+        moreApps: "More",
+        fewerApps: "Less",
+        removeFilterHelp: "Remove Filter",
         filterHelp: "Filter",
         pauseRecording: "Pause Recording",
         autoPaste: "Paste After Choosing",
@@ -648,10 +650,11 @@ extension ClipNoteStrings {
         untitledPinboard: "未命名",
         nextColorHelp: "点击切换颜色",
         typeFilter: "类型",
-        allTypes: "全部类型",
-        sourceAppFilter: "来源应用",
-        allApps: "全部应用",
-        clearFilters: "清除过滤",
+        sourceAppFilter: "应用",
+        pinboardsFilter: "分类",
+        moreApps: "更多",
+        fewerApps: "收起",
+        removeFilterHelp: "移除此过滤",
         filterHelp: "过滤",
         pauseRecording: "暂停记录",
         autoPaste: "选择后自动粘贴",
@@ -882,10 +885,11 @@ extension ClipNoteStrings {
         untitledPinboard: "名称未設定",
         nextColorHelp: "クリックで色を変更",
         typeFilter: "種類",
-        allTypes: "すべての種類",
-        sourceAppFilter: "コピー元のアプリ",
-        allApps: "すべてのアプリ",
-        clearFilters: "フィルタを解除",
+        sourceAppFilter: "アプリ",
+        pinboardsFilter: "ピンボード",
+        moreApps: "その他",
+        fewerApps: "閉じる",
+        removeFilterHelp: "フィルタを外す",
         filterHelp: "フィルタ",
         pauseRecording: "記録を一時停止",
         autoPaste: "選択後に自動でペースト",
@@ -1116,10 +1120,11 @@ extension ClipNoteStrings {
         untitledPinboard: "제목 없음",
         nextColorHelp: "클릭하여 색상 변경",
         typeFilter: "유형",
-        allTypes: "모든 유형",
-        sourceAppFilter: "출처 앱",
-        allApps: "모든 앱",
-        clearFilters: "필터 지우기",
+        sourceAppFilter: "앱",
+        pinboardsFilter: "핀보드",
+        moreApps: "더 보기",
+        fewerApps: "접기",
+        removeFilterHelp: "필터 제거",
         filterHelp: "필터",
         pauseRecording: "기록 일시 정지",
         autoPaste: "선택 후 자동 붙여넣기",

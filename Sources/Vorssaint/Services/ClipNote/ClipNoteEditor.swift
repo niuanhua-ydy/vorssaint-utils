@@ -39,9 +39,6 @@ final class ClipNoteEditController {
 
     init(store: ClipStore) {
         self.store = store
-        let hosting = NSHostingView(rootView: ClipNoteEditView(model: model))
-        hosting.sizingOptions = []
-        panel.contentView = hosting
 
         model.onSave = { [weak self] in self?.save() }
         model.onCancel = { [weak self] in self?.close(saving: false) }
@@ -63,10 +60,23 @@ final class ClipNoteEditController {
 
     var isVisible: Bool { panel.isVisible }
 
+    func releaseHiddenView() {
+        guard !panel.isVisible else { return }
+        panel.contentView = nil
+    }
+
+    private func ensureContent() {
+        guard !(panel.contentView is NSHostingView<ClipNoteEditView>) else { return }
+        let hosting = NSHostingView(rootView: ClipNoteEditView(model: model))
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+    }
+
     static func isAvailable(for item: ClipItem) -> Bool { item.type.isTextual }
 
     /// Opens the item's full text; the window sits above `anchor`.
     func edit(_ item: ClipItem, above anchor: NSWindow) {
+        ensureContent()
         guard let full = store.item(id: item.id), Self.isAvailable(for: full) else { return }
         model.item = full
         model.text = full.content

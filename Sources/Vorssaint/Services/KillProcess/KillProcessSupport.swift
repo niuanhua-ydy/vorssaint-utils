@@ -171,7 +171,7 @@ enum KillProcessSupport {
     private static func isValidPIDDigits(_ text: Substring) -> Bool {
         guard !text.isEmpty, text.first != "0",
               text.allSatisfy({ $0.isASCII && $0.isNumber }),
-              let value = Int32(text), value > 0 else { return false }
+              let value = Int32(text), value > 0, value <= 99_999 else { return false }
         return true
     }
 
@@ -194,17 +194,25 @@ enum KillProcessSupport {
         guard isValidPIDDigits(digits) else { return nil }
 
         let rawPrefix = trimmed[..<splitIndex]
+        // A port query must never reach PID termination, even inside the
+        // process category where bare numbers are otherwise allowed.
+        if rawPrefix.contains(":"),
+           !rawPrefix.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("pid:") {
+            return nil
+        }
         if rawPrefix.isEmpty {
             return allowBareDigits ? (String(digits), false) : nil
         }
 
-        // Strip trailing separators (spaces, ':', '=') between the prefix and digits.
+        // Strip trailing separators (spaces, ':', '=', '#') between the prefix and digits.
         var prefix = String(rawPrefix)
-            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":=")))
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: ":=#")))
             .lowercased()
             .split(whereSeparator: \.isWhitespace)
             .map(String.init)
-        guard !prefix.isEmpty else { return nil }
+        if prefix.isEmpty {
+            return allowBareDigits ? (String(digits), false) : nil
+        }
 
         var forceSignal = false
         if prefix.count >= 2, let last = prefix.last {

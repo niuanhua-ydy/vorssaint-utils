@@ -47,6 +47,15 @@ def availability_declaration(path, prefix):
 
 def main():
     OUTPUT.mkdir(parents=True, exist_ok=True)
+    write("MemoryRecognition.swift", "import AppKit\nimport Foundation\nimport SwiftUI\nimport Vision\nextension MemoryResourceTests {\nfinal class RecognitionModel: RecognitionFixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/QuickTools/ScreenshotEditorController.swift", prefix)
+                    for prefix in ["    func recognizeText()", "    func recognizeQRCodes()", "    func cancelRecognition()"])
+          + "}\n}\n")
+    write("MemoryClipPanel.swift", "import AppKit\nimport Foundation\nextension MemoryResourceTests {\nfinal class ClipPanel: ClipFixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/ClipNote/ClipNotePanelModel.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    func releaseIdleResources()", "    private func storeDidChange()"])
+          + "}\n}\n")
     write("SettingsCommandDispatch.swift", "import Foundation\n"
           + "extension SettingsFeatureTests.CommandDispatchHost {\nstatic func run() {\n"
           # Both app entry points are named main.swift. Keep diagnostics in
@@ -255,7 +264,7 @@ def main():
           + "}\n}\n")
     panel = "Sources/Vorssaint/App/AppDelegate.swift"
     write("UpdateIntroFlow.swift", "import AppKit\nimport Foundation\n"
-          + "extension UpdateIntroFlowTests {\nfinal class Host: Fixture {\n"
+          + "extension UpdateIntroFlowTests {\nfinal class Host: Fixture {\nlet settingsIdleRelease = IdleResourceRelease()\n"
           + "".join(declaration(panel, prefix).replace("    private ", "    ", 1) for prefix in [
               "    private func presentUpdateIntros()", "    private func showUpdateHighlightsIfNeeded()",
               "    private func markUpdateHighlightsSeen()", "    private func showSupportUpdateIntroIfNeeded()",
@@ -273,7 +282,7 @@ def main():
               "    private func iconIsOnScreen("])
           + "}\n}\n")
     write("MenuPanelRecovery.swift", "import AppKit\nimport Foundation\n"
-          + "extension MenuPanelRecoveryTests {\nfinal class Host: Fixture {\n"
+          + "extension MenuPanelRecoveryTests {\nfinal class Host: Fixture {\nlet menuPanelIdleRelease = IdleResourceRelease()\nfunc ensurePopoverContent() { if popover.contentViewController == nil { popover.contentViewController = Controller() } }\n"
           + "".join(declaration(panel, prefix).replace("private ", "") for prefix in [
               "    private struct PanelAnchor", "    private func statusButtonMidX(",
               "    private func statusScreen(", "    private func positionSettingsWindow(",
@@ -727,26 +736,10 @@ def main():
           + "}\nfinal class Service: ServiceState {\n"
           + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
               "    @Published var query", "    private func beginUninstallReview(",
-              "    private func handleChecklistKey(", "    func stepBack()",
-              "    private func confirmUninstallReview(",
-              "    private func finishUninstallReview()"])
+              "    func stepBack()"])
           + "}\n}\nextension UninstallerFlowTests.Finder {\n"
           + declaration("Sources/Vorssaint/Services/Finder/FinderCutPaste.swift", "    static func selectionURLs(")
           + "}\n")
-    junk = "Sources/Vorssaint/Services/Cleaner/JunkCleaner.swift"
-    write("CommandBarCleanFlow.swift", "import AppKit\nimport Carbon.HIToolbox\nimport Combine\n"
-          + "extension CommandBarCleanFlowTests {\n"
-          + declaration(junk, "    enum Phase:")
-          + declaration(bar, "    enum Mode:")
-          + "final class Cleaner: CleanerState {\nstatic let shared = Cleaner()\n"
-          + "".join(declaration(junk, prefix) for prefix in [
-              "    func items(in group:", "    func isIncluded(", "    func setInclude(_ include: Bool, forGroup"])
-          + "}\nfinal class Service: ServiceState {\n"
-          + "".join(declaration(bar, prefix).replace("private func", "func", 1) for prefix in [
-              "    @Published var query", "    func beginCleanReview(", "    private func runCleanReview()",
-              "    private func leaveCleanReview()", "    private func finishCleanReview()",
-              "    private func releaseCleaner()", "    private func handleChecklistKey(", "    func stepBack()"])
-          + "}\n}\n")
     homebrew = "Sources/Vorssaint/Services/Homebrew/HomebrewManager.swift"
     write("HomebrewOwnership.swift", "import Foundation\n"
           + "extension HomebrewOwnershipTests.Manager {\n"
@@ -2015,6 +2008,7 @@ def main():
           + declaration(lyrics, "    private func cancel()")
           + declaration(lyrics, "    private func load(")
           + declaration(lyrics, "    private func loadQQ(")
+          + declaration(lyrics, "    private func finishCatalog(")
           + declaration(lyrics, "    private func loadQQLyrics(")
           + declaration(lyrics, "    private func loadCatalog(")
           + declaration(lyrics, "    private func acceptsResult(")

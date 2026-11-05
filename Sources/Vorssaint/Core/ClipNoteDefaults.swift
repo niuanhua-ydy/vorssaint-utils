@@ -62,15 +62,23 @@ extension GlobalShortcut {
 
 /// Which keys in the panel remove the chosen item.
 enum ClipNotePanelKeys {
-    /// ⌘Delete always does. Delete alone does, as in Paste, unless ⌘ is
-    /// required, the search is being typed or the key is repeating: holding
-    /// Delete to clear the search must stop at an empty field, not go on
-    /// through the items.
+    static func isDelete(_ keyCode: Int) -> Bool {
+        keyCode == kVK_Delete || keyCode == kVK_ForwardDelete
+    }
+
+    /// While the search has text, Delete and ⌘Delete edit it (⌘Delete
+    /// erases to the line's start, as in any field). Delete alone removes
+    /// the item only while the search field is closed, as in Paste, and
+    /// unless ⌘ is required: once the field is open, even empty, Delete is
+    /// its own. ⌘Delete with no text removes the item, held too, except for
+    /// a hold that began in the search, which stops at the empty field.
     static func deletesItem(keyCode: Int, command: Bool, otherModifiers: Bool, isRepeat: Bool,
-                            queryIsEmpty: Bool, needsCommand: Bool) -> Bool {
-        guard keyCode == kVK_Delete || keyCode == kVK_ForwardDelete, !otherModifiers else { return false }
+                            queryIsEmpty: Bool, searchIsOpen: Bool = false, holdBeganInSearch: Bool = false,
+                            needsCommand: Bool) -> Bool {
+        guard isDelete(keyCode), !otherModifiers, queryIsEmpty else { return false }
+        if isRepeat && holdBeganInSearch { return false }
         if command { return true }
-        return !needsCommand && queryIsEmpty && !isRepeat
+        return !needsCommand && !searchIsOpen && !isRepeat
     }
 }
 

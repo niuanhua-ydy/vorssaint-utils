@@ -104,6 +104,11 @@ public struct Pinboard: Identifiable, Hashable, Sendable {
 public struct SourceApp: Hashable, Sendable {
     public var bundleID: String
     public var name: String
+
+    public init(bundleID: String, name: String) {
+        self.bundleID = bundleID
+        self.name = name
+    }
 }
 
 public struct ClipQuery: Sendable {
@@ -114,16 +119,23 @@ public struct ClipQuery: Sendable {
 
     public var text: String
     public var scope: Scope
-    public var type: ClipType?
+    /// 只取这些类型；为空时不限
+    public var types: [ClipType]
     public var sourceBundleID: String?
     public var limit: Int
     public var offset: Int
 
-    public init(text: String = "", scope: Scope = .all, type: ClipType? = nil,
+    /// 单一类型的写法；`types` 为多个时为 nil
+    public var type: ClipType? {
+        get { types.count == 1 ? types[0] : nil }
+        set { types = newValue.map { [$0] } ?? [] }
+    }
+
+    public init(text: String = "", scope: Scope = .all, type: ClipType? = nil, types: [ClipType] = [],
                 sourceBundleID: String? = nil, limit: Int = 200, offset: Int = 0) {
         self.text = text
         self.scope = scope
-        self.type = type
+        self.types = type.map { [$0] } ?? types
         self.sourceBundleID = sourceBundleID
         self.limit = limit
         self.offset = offset

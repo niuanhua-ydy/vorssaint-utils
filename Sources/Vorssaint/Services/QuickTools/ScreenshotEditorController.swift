@@ -11,6 +11,28 @@ import Vision
 /// SwiftUI editor view observes this model; geometry is in image pixels.
 final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     @Published private(set) var baseImage: CGImage
+    // Serial across editors: a crop/undo burst must not run several Vision
+    // models at once. Generations cancel superseded work, including A -> B -> A.
+    private static let recognitionQueue = DispatchQueue(
+        label: "com.vorssaint.utils.screenshot-recognition", qos: .userInitiated,
+        autoreleaseFrequency: .workItem)
+    private let textRecognition = LatestRequestGate()
+    private let qrRecognition = LatestRequestGate()
+    private var textRecognitionImage: ObjectIdentifier?
+    private var qrRecognitionImage: ObjectIdentifier?
+
+    deinit {
+        textRecognition.cancel()
+        qrRecognition.cancel()
+    }
+
+    func cancelRecognition() {
+        textRecognition.cancel()
+        qrRecognition.cancel()
+        textRecognitionImage = nil
+        qrRecognitionImage = nil
+    }
+
     @Published var annotations: [ScreenshotSupport.Annotation] = []
     /// How dark a spotlight turns everything outside its regions,
     /// remembered between captures like the blur strength.
@@ -442,84 +464,92 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
     /// boxes land in image pixels with their line index.
     func recognizeText() {
         let image = baseImage
+        let identity = ObjectIdentifier(image)
+        guard textRecognitionImage != identity else { return }
+        textRecognitionImage = identity
+        let gate = textRecognition
+        let token = gate.begin()
         let width = CGFloat(image.width)
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+        Self.recognitionQueue.async { [weak self] in
+            guard gate.isCurrent(token) else { return }
             let tiles = ScreenshotSupport.recognitionTiles(width: image.width, height: image.height)
-            // One read per band, nil for a band recognition failed on. A band
-            // left out or failed keeps text only areas covering all of
-            // themselves, because its text is unknown.
             var reads: [[ScreenshotSupport.BandWord]?] = []
             var lineOffset = 0
             for band in tiles {
-                guard let current = self, image === current.baseImage else { return }
-                let tileY = band.rect.minY
-                let currentHeight = band.rect.height
-                guard let tile = image.cropping(to: band.rect) else { break }
-                let request = VNRecognizeTextRequest()
-                request.recognitionLevel = .accurate
-                request.usesLanguageCorrection = true
-                request.automaticallyDetectsLanguage = true
-                let handler = VNImageRequestHandler(cgImage: tile, options: [:])
-                do {
-                    try handler.perform([request])
-                } catch {
-                    reads.append(nil)
-                    continue
-                }
-                func imageRect(_ box: CGRect) -> CGRect {
-                    CGRect(x: box.minX * width,
-                           y: tileY + (1 - box.maxY) * currentHeight,
-                           width: box.width * width,
-                           height: box.height * currentHeight)
-                }
-                let observations = request.results ?? []
-                var read: [ScreenshotSupport.BandWord] = []
-                for (line, observation) in observations.enumerated() {
-                    let lineBox = imageRect(observation.boundingBox)
-                    // A line read without any text is still text to cover.
-                    guard let candidate = observation.topCandidates(1).first else {
-                        read.append(ScreenshotSupport.BandWord(text: "", rect: nil, lineBox: lineBox,
-                                                               line: lineOffset + line))
-                        continue
+                guard gate.isCurrent(token) else { return }
+                // Drain Vision results, tiles and temporary objects per band,
+                // not only after the entire tall screenshot has been read.
+                let (read, lineCount): ([ScreenshotSupport.BandWord]?, Int) = autoreleasepool {
+                    let tileY = band.rect.minY
+                    let currentHeight = band.rect.height
+                    guard let tile = image.cropping(to: band.rect) else { return (nil, 0) }
+                    let request = VNRecognizeTextRequest()
+                    request.recognitionLevel = .accurate
+                    request.usesLanguageCorrection = true
+                    request.automaticallyDetectsLanguage = true
+                    guard gate.installCancellation(for: token, { request.cancel() }) else { return (nil, 0) }
+                    defer { gate.finish(token) }
+                    let handler = VNImageRequestHandler(cgImage: tile, options: [:])
+                    do {
+                        try handler.perform([request])
+                    } catch {
+                        return (nil, 0)
                     }
-                    let text = candidate.string
-                    var searchStart = text.startIndex
-                    for raw in text.split(separator: " ") {
-                        let word = String(raw)
-                        guard let range = text.range(of: word,
-                                                   range: searchStart..<text.endIndex)
-                        else { continue }
-                        searchStart = range.upperBound
-                        let box = try? candidate.boundingBox(for: range)?.boundingBox
-                        read.append(ScreenshotSupport.BandWord(
-                            text: word,
-                            rect: box.map(imageRect),
-                            lineBox: lineBox,
-                            line: lineOffset + line))
+                    guard gate.isCurrent(token) else { return (nil, 0) }
+                    func imageRect(_ box: CGRect) -> CGRect {
+                        CGRect(x: box.minX * width,
+                               y: tileY + (1 - box.maxY) * currentHeight,
+                               width: box.width * width,
+                               height: box.height * currentHeight)
                     }
+                    let observations = request.results ?? []
+                    var read: [ScreenshotSupport.BandWord] = []
+                    for (line, observation) in observations.enumerated() {
+                        let lineBox = imageRect(observation.boundingBox)
+                        guard let candidate = observation.topCandidates(1).first else {
+                            read.append(ScreenshotSupport.BandWord(text: "", rect: nil, lineBox: lineBox,
+                                                                   line: lineOffset + line))
+                            continue
+                        }
+                        let text = candidate.string
+                        var searchStart = text.startIndex
+                        for raw in text.split(separator: " ") {
+                            let word = String(raw)
+                            guard let range = text.range(of: word, range: searchStart..<text.endIndex) else { continue }
+                            searchStart = range.upperBound
+                            let box = try? candidate.boundingBox(for: range)?.boundingBox
+                            read.append(ScreenshotSupport.BandWord(
+                                text: word, rect: box.map(imageRect), lineBox: lineBox, line: lineOffset + line))
+                        }
+                    }
+                    return (read, observations.count)
                 }
                 reads.append(read)
-                lineOffset += observations.count
+                lineOffset += lineCount
             }
+            guard gate.isCurrent(token) else { return }
             let merged = ScreenshotSupport.mergedRecognition(reads, tiles: tiles)
             DispatchQueue.main.async { [weak self] in
-                guard let self, image === self.baseImage else { return }
+                guard let self, gate.isCurrent(token), image === self.baseImage else { return }
                 self.textWords = merged.words
-                self.textRuns = merged.runs.map { $0 + (self.carriedRuns[ObjectIdentifier(image)] ?? []) }
+                self.textRuns = merged.runs.map { $0 + (self.carriedRuns[identity] ?? []) }
             }
         }
     }
 
-    /// Scans the capture for a QR code off the main thread; the result drives
-    /// the copy or open action in the toolbar. Re-run whenever the base image
-    /// changes (crop, undo) so a cropped out code stops being offered.
+    /// Share the recognition lane rather than competing with text recognition.
     func recognizeQRCodes() {
         let image = baseImage
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let current = self, image === current.baseImage else { return }
-            let reading = BarcodeDetector.read(image)
+        let identity = ObjectIdentifier(image)
+        guard qrRecognitionImage != identity else { return }
+        qrRecognitionImage = identity
+        let gate = qrRecognition
+        let token = gate.begin()
+        Self.recognitionQueue.async { [weak self] in
+            guard gate.isCurrent(token) else { return }
+            let reading = autoreleasepool { BarcodeDetector.read(image) }
             DispatchQueue.main.async { [weak self] in
-                guard let self, image === self.baseImage else { return }
+                guard let self, gate.isCurrent(token), image === self.baseImage else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
                     self.qrReading = reading
                 }
@@ -1796,6 +1826,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     func windowWillClose(_ notification: Notification) {
+        model.cancelRecognition()
         if let pointerMonitor {
             NSEvent.removeMonitor(pointerMonitor)
             self.pointerMonitor = nil

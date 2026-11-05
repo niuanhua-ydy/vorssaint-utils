@@ -138,9 +138,6 @@ final class ClipNoteAIController {
         self.store = store
         self.preferences = preferences
         self.monitor = monitor
-        let hosting = NSHostingView(rootView: ClipNoteAIResultView(model: model))
-        hosting.sizingOptions = []
-        panel.contentView = hosting
 
         model.onRunCustom = { [weak self] in self?.runCustom() }
         model.onRegenerate = { [weak self] in self?.start() }
@@ -170,6 +167,18 @@ final class ClipNoteAIController {
 
     var isVisible: Bool { panel.isVisible }
 
+    func releaseHiddenView() {
+        guard !panel.isVisible else { return }
+        panel.contentView = nil
+    }
+
+    private func ensureContent() {
+        guard !(panel.contentView is NSHostingView<ClipNoteAIResultView>) else { return }
+        let hosting = NSHostingView(rootView: ClipNoteAIResultView(model: model))
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+    }
+
     /// Runs an action; the window sits above `anchor` when there is one.
     func run(_ action: ClipNoteAIAction, on item: ClipItem, above anchor: NSWindow?) {
         present(item: item, action: action, above: anchor)
@@ -194,6 +203,7 @@ final class ClipNoteAIController {
     }
 
     private func present(item: ClipItem, action: ClipNoteAIAction, above anchor: NSWindow?) {
+        ensureContent()
         model.item = store.item(id: item.id) ?? item
         model.action = action
         model.toast = nil

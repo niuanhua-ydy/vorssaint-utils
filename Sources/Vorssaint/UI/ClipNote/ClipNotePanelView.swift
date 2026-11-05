@@ -89,19 +89,24 @@ private struct ClipNoteTopBar: View {
                         .foregroundStyle(.orange)
                         .help(strings.pausedHelp)
                 }
-                ClipNoteFilterMenu(model: model, strings: strings)
                 ClipNoteMoreMenu(model: model, preferences: preferences, strings: strings)
             }
         }
     }
 
-    /// Just the magnifier until a click or typing opens the field (which is
-    /// always first responder, zero wide while closed).
+    /// Just the magnifier and the filter button until a click, typing or a
+    /// filter opens the field (which is always first responder, zero wide
+    /// while closed). Active filters sit in it as tokens, like Paste's.
     private var searchControl: some View {
         HStack(spacing: 6) {
             Button {
-                model.isSearchExpanded.toggle()
-                if !model.isSearchExpanded { model.query = "" }
+                if model.isSearchActive {
+                    model.isSearchExpanded = false
+                    model.query = ""
+                    model.clearFilters()
+                } else {
+                    model.isSearchExpanded = true
+                }
                 model.onFocusSearch?()
             } label: {
                 Image(systemName: "magnifyingglass")
@@ -112,6 +117,25 @@ private struct ClipNoteTopBar: View {
             }
             .buttonStyle(.plain)
             .help(strings.searchHelp)
+
+            if let filter = model.typeFilter {
+                ClipNoteFilterToken(title: strings.typeName(filter.displayType), removeHelp: strings.removeFilterHelp) {
+                    Image(systemName: filter.displayType.systemImage)
+                } onRemove: {
+                    model.typeFilter = nil
+                    model.onFocusSearch?()
+                }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
+            if let app = model.appFilterApp {
+                ClipNoteFilterToken(title: app.name, removeHelp: strings.removeFilterHelp) {
+                    ClipNoteAppIcon(bundleID: app.bundleID, size: 14)
+                } onRemove: {
+                    model.appFilter = nil
+                    model.onFocusSearch?()
+                }
+                .transition(.scale(scale: 0.8).combined(with: .opacity))
+            }
 
             ClipNoteSearchField(text: $model.query, placeholder: strings.searchPlaceholder) { field in
                 model.searchField = field
@@ -125,10 +149,14 @@ private struct ClipNoteTopBar: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            ClipNoteFilterButton(model: model, strings: strings)
         }
-        .padding(.trailing, model.isSearchActive ? 8 : 0)
+        .padding(.trailing, model.isSearchActive ? 2 : 0)
         .frame(height: 30)
         .background(Capsule().fill(Color.primary.opacity(model.isSearchActive ? 0.07 : 0)))
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: model.typeFilter)
+        .animation(.spring(response: 0.3, dampingFraction: 0.85), value: model.appFilter)
     }
 
     private var tabs: some View {
@@ -354,40 +382,31 @@ private struct ClipNotePinboardEditorView: View {
     }
 }
 
-private struct ClipNoteFilterMenu: View {
+/// Opens the filter popover; tinted while a filter is on or the popover is open.
+private struct ClipNoteFilterButton: View {
     @ObservedObject var model: ClipNotePanelModel
     let strings: ClipNoteStrings
 
     var body: some View {
-        Menu {
-            Picker(strings.typeFilter, selection: $model.typeFilter) {
-                Text(strings.allTypes).tag(ClipType?.none)
-                ForEach(ClipType.allCases, id: \.self) { type in
-                    Label(strings.typeName(type), systemImage: type.systemImage).tag(ClipType?.some(type))
-                }
-            }
-            Picker(strings.sourceAppFilter, selection: $model.appFilter) {
-                Text(strings.allApps).tag(String?.none)
-                ForEach(model.sourceApps, id: \.bundleID) { app in
-                    Text(app.name).tag(String?.some(app.bundleID))
-                }
-            }
-            if model.hasActiveFilter {
-                Divider()
-                Button(strings.clearFilters) {
-                    model.typeFilter = nil
-                    model.appFilter = nil
-                }
-            }
+        Button {
+            model.isFilterOpen.toggle()
+            model.onFocusSearch?()
         } label: {
             Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(model.hasActiveFilter ? Color.accentColor : Color.primary)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(model.hasActiveFilter || model.isFilterOpen ? Color.accentColor : Color.primary)
+                .frame(width: 28, height: 28)
+                .background(Circle().fill(Color.primary.opacity(model.isFilterOpen ? 0.09 : 0)))
+                .contentShape(Rectangle())
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
+        .buttonStyle(.plain)
         .help(strings.filterHelp)
+        // The popover is placed against this frame (in the panel, origin top left).
+        .background(GeometryReader { proxy in
+            Color.clear
+                .onAppear { model.filterButtonFrame = proxy.frame(in: .global) }
+                .onChange(of: proxy.frame(in: .global)) { _, frame in model.filterButtonFrame = frame }
+        })
     }
 }
 

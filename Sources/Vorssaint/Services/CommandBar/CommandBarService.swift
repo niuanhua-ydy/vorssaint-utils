@@ -22,16 +22,6 @@ final class CommandBarService: ObservableObject {
         case developerTool
         case argument(entryID: String)
         case confirm(entryID: String)
-        /// The full leftover-files checklist for one app, in place of a
-        /// one-line confirm: this is what `uninstallAppURL` rows lead to.
-        case uninstallReview(entryID: String)
-        /// Guards a Homebrew-managed app's removal, since that runs `brew
-        /// uninstall` and takes longer than a Trash move - the same extra
-        /// step the Settings page and menu panel already ask for.
-        case uninstallHomebrewConfirm(entryID: String)
-        /// The junk cleaner run in place: its scan, the same groups and
-        /// defaults the Settings page reviews, the clean and its outcome.
-        case cleanReview(entryID: String)
         /// The list of things that can be done to one row: pin it, name it,
         /// hide it, forget it. Everything the person controls lives here, one
         /// key away from whatever they were looking at.
@@ -46,21 +36,6 @@ final class CommandBarService: ObservableObject {
 
         /// A page that draws its own header and keys in place of the field and footer.
         var ownsPanel: Bool { self == .developerTool }
-
-        var isUninstallFlow: Bool {
-            switch self {
-            case .uninstallReview, .uninstallHomebrewConfirm: return true
-            default: return false
-            }
-        }
-
-        /// A card made of native controls: they own Tab, Space and the
-        /// arrows, and Return in the field is the card's primary action.
-        var isChecklist: Bool {
-            if case .cleanReview = self { return true }
-            return isUninstallFlow
-        }
-
     }
 
     /// One line in the actions list.
@@ -87,16 +62,7 @@ final class CommandBarService: ObservableObject {
     @Published var query = "" {
         didSet {
             guard query != oldValue else { return }
-            uninstallWarning = nil
             uninstallFinderRequestID = nil
-            if mode.isUninstallFlow {
-                AppUninstaller.shared.reset()
-                mode = .search
-            }
-            if case .cleanReview = mode {
-                releaseCleaner()
-                mode = .search
-            }
             // The argument field is temporary. Keep the completed search and
             // its original spelling intact until returning to search mode.
             if case .argument = mode {
@@ -111,7 +77,6 @@ final class CommandBarService: ObservableObject {
             refreshResults()
         }
     }
-    @Published private(set) var uninstallWarning: String?
     @Published private(set) var rows: [CommandBarEntry] = []
     @Published private(set) var isShowingSuggestions = false
     /// The heading that belongs above a row, by its position. What was pinned
@@ -189,6 +154,9 @@ final class CommandBarService: ObservableObject {
     private var lastSeenPasteboardChange: Int?
     let scriptRunner = CommandBarScriptRunner()
     let fileSearch = CommandBarFileSearch()
+    private let instantAnswers = CommandBarInstantAnswers(readLocal: {
+        await Task.detached(priority: .userInitiated) { NetworkAddressService.commandBarAddresses() }.value
+    })
     /// Which row answered which few letters, for as long as the app runs. Not
     /// stored: the bar forgets everything typed into it when it goes.
     private var queryMemory = CommandBarQueryMemory()
@@ -262,7 +230,6 @@ final class CommandBarService: ObservableObject {
     private var uninstallSelectionEntries: [CommandBarEntry] = [] { didSet { foldedSections[.uninstallSelection] = nil } }
     private var uninstallSelectionLoading = false
     private var uninstallFinderRequestID: UUID?
-    private var pendingHomebrewRemoval: AppUninstaller.HomebrewRemovalConfirmation?
     /// True while the bar is closing, so nothing is rebuilt on the way out.
     private var isTearingDown = false
     private var menusLoading = false
@@ -313,6 +280,10 @@ final class CommandBarService: ObservableObject {
         hotkey.onPress = { [weak self] in self?.toggle() }
         scriptRunner.onResult = { [weak self] in self?.refreshResults() }
         fileSearch.onResult = { [weak self] in self?.refreshResults() }
+        instantAnswers.onResult = { [weak self] in
+            guard let self, self.isVisible else { return }
+            self.refreshResults()
+        }
     }
 
     // MARK: - Lifecycle
@@ -431,6 +402,7 @@ final class CommandBarService: ObservableObject {
         deferredRowShortcut.cancel()
         scriptRunner.reset()
         fileSearch.reset()
+        instantAnswers.reset()
         let id = UUID()
         presentationID = id
         presentationLifecycle.beginHome(id)
@@ -473,7 +445,6 @@ final class CommandBarService: ObservableObject {
         killProcessEntries = []
         portEntries = []
         uninstallSelectionEntries = []
-        uninstallWarning = nil
         rebuildCatalog(index: false)
         rebuildRunningEntries()
         startBackgroundLoads(for: presentationID)
@@ -688,6 +659,7 @@ final class CommandBarService: ObservableObject {
         deferredRowShortcut.cancel()
         scriptRunner.reset()
         fileSearch.reset()
+        instantAnswers.reset()
         // Closing while listening for a combination must give every global key
         // back, or the whole app would go quiet until the next relaunch.
         if case .capturingShortcut = mode { endCapturingShortcut() }
@@ -708,23 +680,9 @@ final class CommandBarService: ObservableObject {
             CommandBarDroplet.shared.retract(from: dropped, look: NotchMascotSupport.look(), mood: farewell)
         }
         if presented == .island { NotchService.shared.dismissCommandBar() }
-        // Leaving mid-review through this path (global shortcut, outside
-        // click) skipped the reset stepBack() does for the same mode -
-        // AppUninstaller kept its selected target and scanned checklist,
-        // which then showed up unprompted in Settings and the menu panel.
-        // Guarded the same way: don't tear down a removal - Homebrew or
-        // plain - that's still actually running in the background.
-        switch mode {
-        case .uninstallReview, .uninstallHomebrewConfirm:
-            let uninstaller = AppUninstaller.shared
-            if !uninstaller.isRemoving {
-                uninstaller.reset()
-            }
-        case .cleanReview:
-            releaseCleaner()
-        default:
-            break
-        }
+        // A review is no longer a mode of the bar: it runs in its own window,
+        // so closing the bar leaves the scan, the checklist and a removal in
+        // progress exactly where they are.
         mode = .search
         uninstallFinderRequestID = nil
         // A selection belongs to the moment the bar was opened. Keeping it
@@ -770,6 +728,12 @@ final class CommandBarService: ObservableObject {
         query = ""
         presentationLifecycle.hide()
         clearIndex()
+        idlePanelRelease.schedule { [weak self] in
+            guard let self, !self.isVisible, self.panel?.isVisible != true else { return }
+            self.panel?.contentViewController = nil
+            self.panel?.contentView = nil
+            self.panel = nil
+        }
     }
 
     // MARK: - The bar's own keyboard layout
@@ -1761,6 +1725,7 @@ final class CommandBarService: ObservableObject {
         case .search:
             let trimmed = query.trimmingCharacters(in: .whitespaces)
             if trimmed.isEmpty {
+                instantAnswers.update(query: "", allowsIP: false, allowsCurrency: false)
                 let showsBrowse = CommandBarHome.showsBrowseList(
                     compact: compactMode,
                     hasCategory: activeCategory != nil,
@@ -1836,11 +1801,11 @@ final class CommandBarService: ObservableObject {
                                                       query: query,
                                                       hasCategory: activeCategory != nil,
                                                       isPeeking: isPeekingHome))
-        case .argument, .confirm, .uninstallReview, .uninstallHomebrewConfirm, .cleanReview, .actions,
+        case .argument, .confirm, .actions,
              .naming, .capturingShortcut, .developerTool:
             setCompactHome(false)
         }
-        let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting
+        let awaiting = fileSearch.isAwaiting || scriptRunner.isAwaiting || instantAnswers.isAwaiting
             || (activeCategory == .appUpdates && AppUpdatesService.shared.isChecking)
         if awaitsAnswers != awaiting { awaitsAnswers = awaiting }
         refreshPanelLayout()
@@ -2003,6 +1968,8 @@ final class CommandBarService: ObservableObject {
     }
 
     private func searchRows(for trimmed: String) -> [CommandBarEntry] {
+        instantAnswers.update(query: activeCategory == nil ? trimmed : "",
+                              allowsIP: isEnabled(.answers), allowsCurrency: isEnabled(.calculator))
         let bar = FeatureStrings.commandBar(L10n.shared.language)
         // Inside a category, typing filters that category and nothing else:
         // no answer row, no caps per kind, just the ranking over one list.
@@ -2057,6 +2024,12 @@ final class CommandBarService: ObservableObject {
                 }
             }
             return rankedRows
+        }
+
+        if let explicit = systemCommandRows(for: trimmed) {
+            scriptRunner.cancelPending()
+            fileSearch.cancelPending()
+            return explicit.filter { !hiddenCache.contains($0.stableKey) }
         }
 
         // Emoji are a catalog of more than a thousand rows, so they only join
@@ -2477,7 +2450,7 @@ final class CommandBarService: ObservableObject {
                 actions.append(RowAction(id: "uninstallApp",
                                          title: String(format: bar.uninstallAppFormat, app.name),
                                          symbolName: "trash") { [weak self] in
-                    self?.openUninstaller(for: app.url, entryID: entry.id)
+                    self?.openUninstaller(for: app.url)
                 })
             }
         }
@@ -3035,17 +3008,28 @@ final class CommandBarService: ObservableObject {
     }
 
     /// The row is offered only for an app the shared checks accept, so the
-    /// one way `select` still says no is a removal already running. The page
-    /// opens on that removal instead of the bar closing on nothing.
-    private func openUninstaller(for url: URL, entryID: String) {
+    /// one way `select` still says no is a removal already running. The scan
+    /// then belongs to the uninstaller's own window: a checklist, a Homebrew
+    /// confirmation and a removal in progress are things to read and watch,
+    /// not a keystroke's result, and they must outlive the bar closing.
+    private func beginUninstallReview(appURL url: URL) {
+        let uninstaller = AppUninstaller.shared
+        guard AppFeature.uninstaller.isAvailable,
+              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
+              uninstaller.select(appURL: url) else {
+            QuickToolHUD.show(icon: "exclamationmark.circle",
+                              message: uninstaller.isRemoving
+                                  ? L10n.shared.s.uninstallerRemoving
+                                  : L10n.shared.s.uninstallerSelectionUnavailable)
+            return
+        }
+        hide()
+        ReviewWindow.shared.show(.uninstaller)
+    }
+
+    private func openUninstaller(for url: URL) {
         if UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled) {
-            // The review runs right here, as when the app is picked from the
-            // uninstall list; Esc returns to the search the actions came from.
-            if case .actions = mode {
-                mode = .search
-                query = savedQuery
-            }
-            beginUninstallReview(appURL: url, entryID: entryID)
+            beginUninstallReview(appURL: url)
             return
         }
         hide()
@@ -3055,132 +3039,21 @@ final class CommandBarService: ObservableObject {
         appDelegate()?.openSettingsWindow()
     }
 
-    /// Return (or the Remove button) from the review checklist while it is
-    /// still showing results. A plain app just gets trashed in place; a
-    /// Homebrew-managed one needs its own confirmation first, guarded by
-    /// `.uninstallHomebrewConfirm` the same way a destructive row guards
-    /// itself with `.confirm`.
-    private func confirmUninstallReview(entryID: String) {
-        let uninstaller = AppUninstaller.shared
-        guard uninstaller.canRemoveSelected else { return }
-        if let confirmation = uninstaller.homebrewRemovalConfirmation {
-            pendingHomebrewRemoval = confirmation
-            mode = .uninstallHomebrewConfirm(entryID: entryID)
-            refreshPanelLayout()
-            return
-        }
-        uninstaller.removeSelected()
-    }
+    // MARK: - Cleaner
 
-    /// The Homebrew confirmation itself: runs the removal and returns to the
-    /// checklist, which shows its live progress the same way the menu panel
-    /// already does while `AppUninstaller` waits on it.
-    private func confirmUninstallHomebrewRemoval(entryID: String) {
-        if let confirmation = pendingHomebrewRemoval {
-            AppUninstaller.shared.removeSelectedWithHomebrew(confirmation: confirmation)
-        }
-        pendingHomebrewRemoval = nil
-        mode = .uninstallReview(entryID: entryID)
-        refreshPanelLayout()
-    }
-
-    /// Return (or the Done button) once removal has finished. Nothing is left
-    /// to review, so this goes all the way home with an empty field rather
-    /// than reoffering whatever was typed before the review began.
-    private func finishUninstallReview() {
-        let uninstaller = AppUninstaller.shared
-        if let url = uninstaller.target?.url, UninstallerSupport.isConfirmedAbsent(at: url) {
-            cachedApps.removeAll { $0.url.standardizedFileURL == url }
-            uninstallSelectionEntries.removeAll { $0.uninstallAppURL?.standardizedFileURL == url }
-            rebuildRunningEntries()
-        }
-        uninstaller.reset()
-        mode = .search
-        query = ""
-        refreshResults()
-    }
-
-    // MARK: - Clean review
-
-    /// Whether the scan on screen is the bar's own. One it joined belongs to
-    /// the panel, Settings or the schedule, and leaving the bar must not wipe
-    /// a review someone is making there, or cancel a scheduled run.
-    private var cleanReviewOwnsCleaner = false
-
-    /// The Cleaner row, by Return or Tab. The bar joins whatever the shared
-    /// cleaner is already doing - a scan, a review whose choices the panel
-    /// or Settings made, a clean still moving files - and starts a scan of
-    /// its own only from rest, attended like the Scan button.
-    func beginCleanReview(entryID: String) {
+    /// The Cleaner row. The bar joins whatever the shared cleaner is already
+    /// doing and starts a scan of its own only from rest, attended like the
+    /// Scan button. The review is the window's, so the scan and the clean
+    /// keep running after the bar closes.
+    func beginCleanReview() {
         guard AppFeature.cleaner.isAvailable else { return }
         let cleaner = JunkCleaner.shared
         switch cleaner.phase {
-        case .idle, .done:
-            cleaner.scan(attended: true)
-            cleanReviewOwnsCleaner = true
-        case .scanning, .results, .cleaning:
-            cleanReviewOwnsCleaner = false
+        case .idle, .done: cleaner.scan(attended: true)
+        case .scanning, .results, .cleaning: break
         }
-        uninstallWarning = nil
-        savedQuery = query
-        mode = .cleanReview(entryID: entryID)
-        refreshPanelLayout()
-    }
-
-    /// Return in the field, or the card's own button: scan again from rest,
-    /// clean the reviewed selection exactly as the Settings page's Clean
-    /// does, or leave once there is nothing left to review.
-    private func runCleanReview() {
-        let cleaner = JunkCleaner.shared
-        switch cleaner.phase {
-        case .idle:
-            cleaner.scan(attended: true)
-            cleanReviewOwnsCleaner = true
-        case .results:
-            if cleaner.items.isEmpty {
-                finishCleanReview()
-            } else if cleaner.selectedCount > 0 {
-                cleaner.cleanSelected(escalate: true)
-            } else {
-                NSSound.beep()
-            }
-        case .done:
-            finishCleanReview()
-        case .scanning, .cleaning:
-            break
-        }
-    }
-
-    /// Esc: back to the search as it was. A finished clean goes home like
-    /// its Done button.
-    private func leaveCleanReview() {
-        if case .done = JunkCleaner.shared.phase {
-            finishCleanReview()
-            return
-        }
-        releaseCleaner()
-        mode = .search
-        query = savedQuery
-        refreshResults()
-    }
-
-    /// Nothing is left to review, so this goes all the way home with an
-    /// empty field, as the uninstall review does.
-    private func finishCleanReview() {
-        releaseCleaner()
-        mode = .search
-        query = ""
-        refreshResults()
-    }
-
-    /// Leaving the review drops the bar's own scan or unreviewed results,
-    /// the way the uninstall review drops its checklist; one it joined is
-    /// left as it was. A clean already moving files is never cut short: it
-    /// finishes on its own and the panel and Settings show its outcome.
-    private func releaseCleaner() {
-        let cleaner = JunkCleaner.shared
-        if cleanReviewOwnsCleaner, cleaner.phase != .cleaning { cleaner.reset() }
-        cleanReviewOwnsCleaner = false
+        hide()
+        ReviewWindow.shared.show(.cleaner)
     }
 
     /// Only shared preferences need a scan for another installed copy.
@@ -3383,16 +3256,6 @@ final class CommandBarService: ObservableObject {
         case .confirm(let id):
             guard let entry = entry(withID: id) else { return }
             finish(entry, value: nil)
-        case .uninstallReview(let id):
-            switch AppUninstaller.shared.phase {
-            case .results: confirmUninstallReview(entryID: id)
-            case .done: finishUninstallReview()
-            case .empty, .scanning, .removing: break
-            }
-        case .uninstallHomebrewConfirm(let id):
-            confirmUninstallHomebrewRemoval(entryID: id)
-        case .cleanReview:
-            runCleanReview()
         case .argument(let id):
             guard let entry = entry(withID: id), let range = entry.numericRange,
                   let value = CommandBarSearch.argumentValue(query, in: range) else {
@@ -3415,22 +3278,6 @@ final class CommandBarService: ObservableObject {
         run(rows[index])
     }
 
-    private func beginUninstallReview(appURL url: URL, entryID: String) {
-        let uninstaller = AppUninstaller.shared
-        guard AppFeature.uninstaller.isAvailable,
-              UserDefaults.standard.bool(forKey: DefaultsKey.uninstallerCommandBarEnabled),
-              uninstaller.select(appURL: url) else {
-            uninstallWarning = uninstaller.isRemoving
-                ? L10n.shared.s.uninstallerRemoving : L10n.shared.s.uninstallerSelectionUnavailable
-            refreshPanelLayout()
-            return
-        }
-        uninstallWarning = nil
-        savedQuery = query
-        mode = .uninstallReview(entryID: entryID)
-        refreshPanelLayout()
-    }
-
     private func run(_ entry: CommandBarEntry) {
         uninstallFinderRequestID = nil
         if case .needsSetup(_, let page) = entry.trouble {
@@ -3440,7 +3287,7 @@ final class CommandBarService: ObservableObject {
             return
         }
         if let url = entry.uninstallAppURL {
-            beginUninstallReview(appURL: url, entryID: entry.id)
+            beginUninstallReview(appURL: url)
             return
         }
         if entry.confirmationPrompt != nil {
@@ -3501,25 +3348,6 @@ final class CommandBarService: ObservableObject {
             mode = .search
             query = savedQuery
             refreshResults()
-        case .uninstallReview:
-            if case .done = AppUninstaller.shared.phase {
-                finishUninstallReview()
-            } else {
-                let uninstaller = AppUninstaller.shared
-                if !uninstaller.isRemoving {
-                    uninstaller.reset()
-                }
-                mode = .search
-                query = savedQuery
-                refreshResults()
-            }
-        case .uninstallHomebrewConfirm(let id):
-            // Cancelling the Homebrew confirmation returns to the checklist
-            // it came from, not all the way home.
-            mode = .uninstallReview(entryID: id)
-            refreshPanelLayout()
-        case .cleanReview:
-            leaveCleanReview()
         case .search:
             // A long query typed by mistake should be clearable without
             // throwing the whole session away; then Esc leaves the category,
@@ -4037,8 +3865,8 @@ final class CommandBarService: ObservableObject {
                     if let entry = self.uninstallSelectionEntries.first {
                         self.run(entry)
                     } else {
-                        self.uninstallWarning = L10n.shared.s.uninstallerSelectionUnavailable
-                        self.refreshPanelLayout()
+                        QuickToolHUD.show(icon: "exclamationmark.circle",
+                                          message: L10n.shared.s.uninstallerSelectionUnavailable)
                     }
                 }
                 if let pending = self.uninstallFinderRequestID {
@@ -4193,7 +4021,10 @@ final class CommandBarService: ObservableObject {
         override var canBecomeKey: Bool { true }
     }
 
+    private let idlePanelRelease = IdleResourceRelease()
+
     private func ensurePanel() -> NSPanel {
+        idlePanelRelease.cancel()
         if let panel { return panel }
         let panel = KeyableBarPanel(contentRect: NSRect(x: 0, y: 0, width: 560, height: 380),
                                     styleMask: [.borderless, .nonactivatingPanel],
@@ -4277,18 +4108,6 @@ final class CommandBarService: ObservableObject {
     }
 
     // MARK: - Monitors
-
-    private func handleChecklistKey(_ keyCode: Int, searchFieldFocused: Bool) -> Bool {
-        if keyCode == kVK_Escape {
-            stepBack()
-            return true
-        }
-        if (keyCode == kVK_Return || keyCode == kVK_ANSI_KeypadEnter), searchFieldFocused {
-            runSelected()
-            return true
-        }
-        return false
-    }
 
     private func installMonitors(for panel: NSPanel) {
         removeMonitors()
@@ -4404,19 +4223,6 @@ final class CommandBarService: ObservableObject {
                     self.revealInFinder(entry)
                     return nil
                 }
-            }
-            // In a checklist, native controls own Tab, Space and arrows.
-            // Only Return in the search field means the flow's primary action,
-            // and only a fresh press: a Return still held from the app list
-            // must not confirm the review the moment its scan finishes.
-            if self.mode.isChecklist {
-                if event.isARepeat,
-                   Int(event.keyCode) == kVK_Return || Int(event.keyCode) == kVK_ANSI_KeypadEnter {
-                    return nil
-                }
-                return self.handleChecklistKey(Int(event.keyCode),
-                                               searchFieldFocused: panel.firstResponder is NSTextView)
-                    ? nil : event
             }
             switch Int(event.keyCode) {
             case kVK_Escape:
@@ -4581,6 +4387,188 @@ final class CommandBarService: ObservableObject {
         case kVK_ANSI_8, kVK_ANSI_Keypad8: return 7
         case kVK_ANSI_9, kVK_ANSI_Keypad9: return 8
         default: return nil
+        }
+    }
+}
+
+// MARK: - Explicit system commands and instant answers
+
+extension CommandBarService {
+    func showIPAddresses() {
+        setCategory(nil)
+        query = "ip"
+    }
+
+    /// nil means ordinary search. An explicit but unmatched command returns
+    /// [] rather than falling through to an unrelated fuzzy/destructive row.
+    private func systemCommandRows(for query: String) -> [CommandBarEntry]? {
+        func text(_ zh: String, _ en: String) -> String { CommandBarSystemText.text(zh, en) }
+        func status(_ id: String, _ title: String, _ subtitle: String = "",
+                    run: @escaping (Int?) -> Void = { _ in }) -> CommandBarEntry {
+            CommandBarEntry(id: id, title: title, subtitle: subtitle, icon: .symbol("network"),
+                            countsUsage: false, keepsBarOpen: true, run: run)
+        }
+        if CommandBarIPQuery.matches(query) {
+            guard isEnabled(.answers) else { return [] }
+            var entries: [CommandBarEntry] = []
+            if let addresses = instantAnswers.local {
+                entries += addresses.map { address in
+                    CommandBarEntry(
+                        id: "answer.ip.local.\(address.interface).\(address.address)",
+                        title: address.name + (address.isPrimary ? text(" · 主接口", " · primary") : ""),
+                        subtitle: address.interface + text(" · 回车复制地址", " · Return to copy address"),
+                        icon: .symbol("network"), answerValue: address.address, countsUsage: false,
+                        run: { _ in CommandBarCatalog.copyAnswer(address.address) })
+                }
+                if addresses.isEmpty {
+                    entries.append(status("answer.ip.empty", text("没有可用的本机 IPv4 地址", "No usable local IPv4 address")))
+                }
+            } else {
+                entries.append(status("answer.ip.loading", text("正在读取本机地址…", "Reading local addresses…")))
+            }
+            for source in CommandBarInstantAnswers.publicSources {
+                if let address = instantAnswers.publicAddresses[source.name] {
+                    entries.append(CommandBarEntry(
+                        id: "answer.ip.public.\(source.name)",
+                        title: text("公网出口", "Public egress") + " · " + source.name,
+                        subtitle: text("该服务实际看到的 IPv4；可能受代理路由影响 · 回车复制", "IPv4 observed by this service; routing/proxy dependent · Return to copy"),
+                        icon: .symbol("globe"), answerValue: address, countsUsage: false,
+                        run: { _ in CommandBarCatalog.copyAnswer(address) }))
+                }
+            }
+            if instantAnswers.publicAddresses.count < CommandBarInstantAnswers.publicSources.count {
+                let state = instantAnswers.publicState
+                let title = state == .loading ? text("正在查询公网 IP…", "Looking up public IP…")
+                    : state == .failed || state == .ready ? text("部分或全部公网 IP 查询失败 · 回车重试", "Public IP lookup incomplete · Return to retry")
+                    : text("查询公网 IP", "Look up public IP")
+                entries.append(status("answer.ip.lookup", title,
+                    "ipify / IPIP · " + text("仅此操作会联网", "Only this lookup contacts these services")) { [weak self] _ in
+                        self?.instantAnswers.loadPublic()
+                        self?.refreshResults()
+                    })
+            }
+            return entries
+        }
+        if let request = CommandBarCurrency.request(query) {
+            guard isEnabled(.calculator) else { return [] }
+            var entries: [CommandBarEntry] = []
+            if let table = instantAnswers.rates, let result = table.convert(request) {
+                let value = CommandBarCurrency.formatted(result, code: request.to)
+                let stale = table.isStale()
+                let subtitle = CommandBarCurrency.formatted(request.amount, code: request.from)
+                    + " · " + text("汇率日期", "Rate date") + " " + table.date
+                    + " · " + (stale ? text("缓存参考价（可能过期）", "Cached reference rate (may be outdated)")
+                                        : text("每日参考价，非实时", "Daily reference rate, not live"))
+                    + " · " + text("回车复制", "Return to copy")
+                entries.append(CommandBarEntry(id: "answer.currency.result", title: value,
+                    subtitle: subtitle, icon: .symbol("dollarsign.arrow.circlepath"),
+                    isAnswer: true, countsUsage: false, run: { _ in CommandBarCatalog.copyAnswer(value) }))
+            }
+            if instantAnswers.ratesState == .loading {
+                entries.append(status("answer.currency.loading", text("正在更新汇率…", "Updating exchange rates…")))
+            } else if instantAnswers.ratesState == .failed || entries.isEmpty {
+                entries.append(status("answer.currency.retry",
+                    text("汇率不可用 · 回车重试", "Rate unavailable · Return to retry"),
+                    text("保留已有缓存；不会上传输入金额", "Existing cache is retained; input amounts are never uploaded")) { [weak self] _ in
+                        self?.instantAnswers.retryRates()
+                        self?.refreshResults()
+                    })
+            }
+            return entries
+        }
+        if let id = CommandBarSystemQuery.fixedID(query) {
+            return catalog.filter { $0.id == id && isEnabled(CommandBarPreferences.source(ofRowID: $0.id)) }
+        }
+        guard let request = CommandBarSystemQuery.request(query) else { return nil }
+        if request.target == .invalid { return [] }
+        switch request.verb {
+        case .quit, .hide, .forcequit:
+            guard isEnabled(.apps) else { return [] }
+            let bar = FeatureStrings.commandBar(L10n.shared.language)
+            let apps = NSWorkspace.shared.runningApplications.filter {
+                $0.activationPolicy == .regular && !$0.isTerminated
+                    && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
+                    && CommandBarSystemQuery.matches($0.localizedName ?? "", target: request.target)
+            }.sorted { ($0.localizedName ?? "") < ($1.localizedName ?? "") }
+            return apps.prefix(40).map { app in
+                let name = app.localizedName ?? String(app.processIdentifier)
+                let pid = app.processIdentifier, bundle = app.bundleIdentifier, launched = app.launchDate
+                let title = request.verb == .hide ? text("隐藏 ", "Hide ") + name
+                    : request.force ? text("强制退出 ", "Force Quit ") + name
+                    : String(format: bar.quitFormat, name)
+                return CommandBarEntry(id: "action.system.\(request.verb).\(pid)", title: title,
+                    subtitle: bundle ?? "PID \(pid)", icon: app.bundleURL.map { .appIcon(path: $0.path) } ?? .symbol("app"),
+                    confirmationPrompt: request.verb == .hide ? nil
+                        : request.force ? text("强制退出 \(name)？未保存的工作可能丢失。", "Force quit \(name)? Unsaved work may be lost.")
+                        : String(format: bar.quitConfirmFormat, name),
+                    countsUsage: false, run: { _ in
+                        guard let running = NSRunningApplication(processIdentifier: pid), !running.isTerminated,
+                              running.bundleIdentifier == bundle, running.launchDate == launched else { NSSound.beep(); return }
+                        if request.verb == .hide { running.hide() }
+                        else if request.force { if !running.forceTerminate() { NSSound.beep() } }
+                        else {
+                            running.activate()
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
+                                if !running.isTerminated { running.terminate() }
+                            }
+                        }
+                    })
+            }
+        case .eject:
+            guard AppFeature.quickToggles.isAvailable else { return [] }
+            return QuickTogglesService.ejectableVolumeURLs().compactMap { url in
+                let values = try? url.resourceValues(forKeys: [.volumeLocalizedNameKey, .volumeUUIDStringKey])
+                let name = values?.volumeLocalizedName ?? url.lastPathComponent
+                guard CommandBarSystemQuery.matches(name, target: request.target) else { return nil }
+                let uuid = values?.volumeUUIDString
+                return CommandBarEntry(id: "action.system.eject.\(url.path)", title: text("推出 ", "Eject ") + name,
+                    subtitle: url.path, icon: .symbol("eject"),
+                    confirmationPrompt: text("安全推出 \(name)？同一磁盘上的其他卷也可能被推出。", "Safely eject \(name)? Other volumes on the same disk may also be ejected."),
+                    countsUsage: false, run: { _ in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            guard QuickTogglesService.ejectableVolumeURLs().contains(url),
+                                  (try? url.resourceValues(forKeys: [.volumeUUIDStringKey]))?.volumeUUIDString == uuid else { return }
+                            do { try NSWorkspace.shared.unmountAndEjectDevice(at: url) }
+                            catch { DispatchQueue.main.async { NSSound.beep() } }
+                        }
+                    })
+            }
+        case .port, .kill:
+            let targetsPort: Bool
+            if case .port = request.target { targetsPort = true } else { targetsPort = false }
+            if request.verb == .port || targetsPort {
+                guard AppFeature.portManager.isAvailable, isEnabled(.ports) else { return [] }
+                let ports = PortManagerService.shared.entries.filter { port in
+                    switch request.target {
+                    case .port(let value): return port.port == value
+                    default: return CommandBarSystemQuery.matches(port.processName, target: request.target)
+                    }
+                }
+                if request.verb == .port {
+                    return CommandBarCatalog.portEntries(Array(ports.prefix(40)), language: L10n.shared.language)
+                }
+                guard AppFeature.killProcess.isAvailable, isEnabled(.killProcess),
+                      UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) else { return [] }
+                let strings = FeatureStrings.portManager(L10n.shared.language)
+                return ports.filter { $0.startedAt != nil && !KillProcessService.isProtected(pid: $0.pid, name: $0.processName) }.prefix(40).map { port in
+                    CommandBarEntry(id: "port.\(port.id)", title: PortManagerSupport.commandBarTitle(for: port),
+                        subtitle: request.force ? text("强制终止占用端口的进程", "Force terminate the process holding this port")
+                            : text("请求占用端口的进程退出", "Request termination of the process holding this port"),
+                        icon: .symbol("network"),
+                        confirmationPrompt: request.force
+                            ? text("强制结束 \(port.processName)（端口 \(port.port)）？未保存的工作可能丢失。", "Force terminate \(port.processName) (port \(port.port))? Unsaved work may be lost.")
+                            : String(format: strings.confirmKillFormat, port.processName, port.port),
+                        countsUsage: false, run: { _ in PortManagerService.shared.terminate(port, force: request.force) })
+                }
+            }
+            guard AppFeature.killProcess.isAvailable, isEnabled(.killProcess),
+                  UserDefaults.standard.bool(forKey: DefaultsKey.killProcessCommandBarEnabled) else { return [] }
+            let processes = KillProcessService.shared.pidSearchEntries.filter { process in
+                if case .pid(let pid) = request.target { return process.pid == pid }
+                return CommandBarSystemQuery.matches(process.name, target: request.target)
+            }
+            return CommandBarCatalog.killProcessEntries(Array(processes.prefix(40)),
+                killStrings: FeatureStrings.killProcess(L10n.shared.language), force: request.force)
         }
     }
 }

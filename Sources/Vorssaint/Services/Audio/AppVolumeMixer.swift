@@ -2665,6 +2665,10 @@ final class AppVolumeMixer: ObservableObject {
     /// System volume as people mean it: the default output device's main
     /// scalar. Static on purpose so callers (the command bar) never spin the
     /// mixer up; false when the device exposes no software volume control.
+    static func systemOutputLevel() -> Double? {
+        defaultOutputDeviceID().flatMap { outputVolume(for: $0) }.map(Double.init)
+    }
+
     @discardableResult
     static func setSystemOutputVolume(_ volume: Double) -> Bool {
         guard let device = defaultOutputDeviceID() else { return false }

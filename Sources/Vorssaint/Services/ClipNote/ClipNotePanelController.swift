@@ -52,16 +52,24 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     private let panel = ClipNoteFloatingPanel()
     private let previewPanel = ClipNoteFloatingPanel()
     private let previewModel = ClipNotePreviewModel()
+    /// The filter popover, a window of its own so it can stand above the
+    /// panel like Paste's. It never takes key: typing stays in the search field.
+    private let filterPanel = ClipNoteFloatingPanel()
+    private var filterObserver: AnyCancellable?
     let ai: ClipNoteAIController
     private let textEditor: ClipNoteEditController
     private var eventMonitors: [Any] = []
     private var observers: [NSObjectProtocol] = []
+    /// A held Delete that began editing the search keeps editing it, and
+    /// never runs on into the items once the field is empty.
+    private var deleteHoldBeganInSearch = false
     /// Where the mouse went down on a card (window coordinates), and that
     /// card; past a few points of movement the card is dragged out.
     private var dragStart: (point: NSPoint, item: ClipItem)?
     /// What is being dragged out, which decides the operations offered.
     private var draggingType: ClipType?
     private var clockTimer: Timer?
+    private let idleRelease = IdleResourceRelease()
     private var previousApp: NSRunningApplication?
     private var selectionObserver: AnyCancellable?
     /// Opens Settings at a tab, or where it was when nil.
@@ -77,15 +85,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         textEditor = ClipNoteEditController(store: store)
         super.init()
 
-        let hosting = NSHostingView(rootView: ClipNotePanelView(model: model))
-        hosting.sizingOptions = []
-        panel.contentView = hosting
-        panel.delegate = self
-
-        previewPanel.allowsKey = false
-        let previewHosting = NSHostingView(rootView: ClipNotePreviewView(model: previewModel, store: store))
-        previewHosting.sizingOptions = []
-        previewPanel.contentView = previewHosting
+        ensurePanelContent()
 
         model.onPaste = { [weak self] item, mode in self?.paste(item, mode: mode) }
         model.onCopy = { [weak self] item in self?.copy(item) }
@@ -128,12 +128,19 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             }
         })
 
+        // The popover opens and closes with the model, and refits when what it lists changes.
+        filterObserver = model.$isFilterOpen.combineLatest(model.$showsAllApps, model.$sourceApps, model.$pinboards)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { MainActor.assumeIsolated { self?.syncFilterPanel() } }
+            }
+
         // An open preview follows the selection.
         selectionObserver = model.$selectedID.removeDuplicates().sink { [weak self] _ in
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.syncPreviewWithSelection() } }
         }
 
         warmUp()
+        scheduleIdleRelease()
         installEventMonitors()
 
         // Switching to another app (a click elsewhere, ⌘⇥) hides the panel.
@@ -158,6 +165,19 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         addMonitor(.keyDown) { [weak self] event in
             guard let self, self.panel.isKeyWindow else { return false }
             return self.handleKey(event)
+        }
+
+        // A click anywhere else on the panel closes the filter popover; the
+        // filter button toggles it itself.
+        addMonitor([.leftMouseDown, .rightMouseDown]) { [weak self] event in
+            guard let self, event.window === self.panel, self.model.isFilterOpen,
+                  let content = self.panel.contentView else { return false }
+            let location = event.locationInWindow
+            let point = CGPoint(x: location.x, y: content.bounds.height - location.y)
+            if !self.model.filterButtonFrame.contains(point) {
+                self.model.isFilterOpen = false
+            }
+            return false
         }
 
         // A click outside a title or pinboard name being edited saves it first.
@@ -239,6 +259,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     /// Removes every monitor and window; the controller is done after this.
     func tearDown() {
         hide(restoreFocus: false)
+        idleRelease.cancel()
         ai.tearDown()
         textEditor.tearDown()
         eventMonitors.forEach(NSEvent.removeMonitor)
@@ -246,10 +267,12 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
         selectionObserver = nil
+        filterObserver = nil
         clockTimer?.invalidate()
         clockTimer = nil
         panel.orderOut(nil)
         previewPanel.orderOut(nil)
+        filterPanel.orderOut(nil)
     }
 
     /// Along the very bottom of the screen and its full width, over the Dock, like Paste.
@@ -257,7 +280,44 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         NSRect(x: screen.frame.minX, y: screen.frame.minY, width: screen.frame.width, height: panelHeight)
     }
 
-    /// Loads and lays out once offscreen at start, so the first opening is instant too.
+    /// Rebuild only disposable view trees; panel state and recording survive idle release.
+    private func ensurePanelContent() {
+        guard !(panel.contentView is NSHostingView<ClipNotePanelView>) else { return }
+        let hosting = NSHostingView(rootView: ClipNotePanelView(model: model))
+        hosting.sizingOptions = []
+        panel.contentView = hosting
+        panel.delegate = self
+
+        previewPanel.allowsKey = false
+        let previewHosting = NSHostingView(rootView: ClipNotePreviewView(model: previewModel, store: store))
+        previewHosting.sizingOptions = []
+        previewPanel.contentView = previewHosting
+
+        filterPanel.allowsKey = false
+        filterPanel.hasShadow = true
+        let filterHosting = ClipNoteFirstMouseHostingView(rootView: ClipNoteFilterPopover(model: model))
+        // Measured by its intrinsic size (with no sizing options a hosting
+        // view measures 0 × 0); the frame is still set by hand.
+        filterHosting.sizingOptions = [.intrinsicContentSize]
+        filterPanel.contentView = filterHosting
+    }
+
+    private func scheduleIdleRelease() {
+        idleRelease.schedule { [weak self] in
+            guard let self, !self.model.isPresented, !self.panel.isVisible else { return }
+            self.panel.contentView = nil
+            self.previewPanel.contentView = nil
+            self.filterPanel.contentView = nil
+            self.model.releaseIdleResources()
+            ClipNoteThumbnails.shared.removeAll()
+            ClipNoteAppIcons.removeAll()
+            ClipNoteFileIcons.removeAll()
+            self.ai.releaseHiddenView()
+            self.textEditor.releaseHiddenView()
+        }
+    }
+
+    /// Preserve the fast initial opening within the idle grace period.
     private func warmUp() {
         if let screen = NSScreen.main { panel.setFrame(Self.targetFrame(on: screen), display: false) }
         model.reload(resetSelection: true, synchronous: true)
@@ -277,6 +337,8 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     private var presentationGeneration = 0
 
     func show() {
+        idleRelease.cancel()
+        ensurePanelContent()
         guard !panel.isVisible || !model.isPresented else { return }
         presentationGeneration += 1
         let front = NSWorkspace.shared.frontmostApplication
@@ -382,6 +444,8 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
         clockTimer = nil
         ClipNoteScrollRedirect.scroller.stop()
         hidePreview()
+        model.isFilterOpen = false
+        filterPanel.orderOut(nil)
         withAnimation(Self.hideAnimation) {
             model.isPresented = false
         }
@@ -392,6 +456,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
                 guard let self, generation == self.presentationGeneration else { return }
                 self.panel.orderOut(nil)
                 self.model.didHide()
+                self.scheduleIdleRelease()
                 if restoreFocus {
                     self.restorePreviousApp { completion?() }
                 } else {
@@ -534,6 +599,33 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     private func syncPreviewWithSelection() {
         guard previewPanel.isVisible, let item = model.selectedItem else { return }
         previewModel.item = store.item(id: item.id) ?? item
+    }
+
+    // MARK: - Filter popover
+
+    /// Shows the popover above the filter button, its arrow on the button,
+    /// sized to what it lists; or hides it.
+    private func syncFilterPanel() {
+        guard model.isFilterOpen, model.isPresented, let screen = panel.screen,
+              let hosting = filterPanel.contentView else {
+            filterPanel.orderOut(nil)
+            return
+        }
+        let button = model.filterButtonFrame
+        let anchorX = panel.frame.minX + button.midX
+        let buttonTop = panel.frame.maxY - button.minY
+        hosting.layoutSubtreeIfNeeded()
+        let size = hosting.fittingSize
+        guard size.width > 0, size.height > 0 else {
+            filterPanel.orderOut(nil)
+            return
+        }
+        let margin: CGFloat = 8
+        let x = min(max(anchorX - size.width / 2, screen.frame.minX + margin), screen.frame.maxX - size.width - margin)
+        let arrowX = anchorX - x
+        if model.filterArrowX != arrowX { model.filterArrowX = arrowX }
+        filterPanel.setFrame(NSRect(x: x, y: buttonTop + 4, width: size.width, height: size.height), display: true)
+        if !filterPanel.isVisible { filterPanel.orderFrontRegardless() }
     }
 
     // MARK: - Dragging cards out
@@ -680,9 +772,20 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             return false
         }
 
+        if ClipNotePanelKeys.isDelete(keyCode), !event.isARepeat {
+            deleteHoldBeganInSearch = !model.query.isEmpty
+        }
+        // Delete in the open, empty search field takes off the last filter token.
+        if keyCode == kVK_Delete, flags.isEmpty, !event.isARepeat, model.isSearchActive,
+           model.query.isEmpty, model.hasActiveFilter {
+            model.removeLastFilter()
+            return true
+        }
         if ClipNotePanelKeys.deletesItem(keyCode: keyCode, command: flags.contains(.command),
                                          otherModifiers: !flags.subtracting(.command).isEmpty,
                                          isRepeat: event.isARepeat, queryIsEmpty: model.query.isEmpty,
+                                         searchIsOpen: model.isSearchActive,
+                                         holdBeganInSearch: deleteHoldBeganInSearch,
                                          needsCommand: preferences.deleteNeedsCommand) {
             model.delete()
             return true
@@ -690,7 +793,9 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
 
         switch keyCode {
         case kVK_Escape:
-            if ai.isVisible {
+            if model.isFilterOpen {
+                model.isFilterOpen = false
+            } else if ai.isVisible {
                 ai.close()
             } else if textEditor.isVisible {
                 textEditor.close(saving: false)
@@ -698,6 +803,8 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
                 hidePreview()
             } else if !model.query.isEmpty {
                 model.query = ""
+            } else if model.hasActiveFilter {
+                model.clearFilters()
             } else {
                 hide()
             }

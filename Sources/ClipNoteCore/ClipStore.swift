@@ -674,9 +674,9 @@ public final class ClipStore: @unchecked Sendable {
             filters.append("c.pinboard_id = ?")
             params.append(.int(id))
         }
-        if let type = query.type {
-            filters.append("c.type = ?")
-            params.append(.text(type.rawValue))
+        if !query.types.isEmpty {
+            filters.append("c.type IN (\(query.types.map { _ in "?" }.joined(separator: ", ")))")
+            params += query.types.map { .text($0.rawValue) }
         }
         if let bundleID = query.sourceBundleID {
             filters.append("c.source_bundle_id = ?")
@@ -692,7 +692,7 @@ public final class ClipStore: @unchecked Sendable {
                 """, params + [.int(Int64(query.limit)), .int(Int64(query.offset))]) { Self.mapItem($0, full: false) }
         }
 
-        let key = [query.text, "\(query.scope)", query.type?.rawValue ?? "", query.sourceBundleID ?? ""].joined(separator: "\u{1}")
+        let key = [query.text, "\(query.scope)", query.types.map(\.rawValue).joined(separator: ","), query.sourceBundleID ?? ""].joined(separator: "\u{1}")
         let version = currentVersion
         let cache: SearchCache
         if let existing = searchCache, existing.key == key, existing.version == version {

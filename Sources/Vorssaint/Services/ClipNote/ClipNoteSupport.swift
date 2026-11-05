@@ -46,20 +46,22 @@ enum ClipNoteKeychain {
 /// runs on this Mac only.
 enum ClipNoteOCR {
     static func recognizeText(at url: URL) -> String? {
-        guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
-        request.usesLanguageCorrection = true
-        do {
-            try VNImageRequestHandler(cgImage: image).perform([request])
-        } catch {
-            NSLog("[ClipNote] OCR: \(error)")
-            return nil
+        return autoreleasepool {
+            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return nil }
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.recognitionLanguages = ["zh-Hans", "zh-Hant", "en-US"]
+            request.usesLanguageCorrection = true
+            do {
+                try VNImageRequestHandler(cgImage: image).perform([request])
+            } catch {
+                NSLog("[ClipNote] OCR: \(error)")
+                return nil
+            }
+            return request.results?
+                .compactMap { $0.topCandidates(1).first?.string }
+                .joined(separator: "\n")
         }
-        return request.results?
-            .compactMap { $0.topCandidates(1).first?.string }
-            .joined(separator: "\n")
     }
 }

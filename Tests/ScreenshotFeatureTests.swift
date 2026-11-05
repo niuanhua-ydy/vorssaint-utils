@@ -2673,7 +2673,8 @@ enum ScreenshotFeatureTests {
                "a band recognition could not read keeps text only areas covering all of themselves")
         suite.expect(screenshotEditorSource.contains("ScreenshotSupport.mergedRecognition(reads, tiles: tiles)")
                 && screenshotEditorSource.contains("self.textRuns = merged.runs")
-                && screenshotEditorSource.contains("reads.append(nil)"),
+                && screenshotEditorSource.contains("reads.append(read)")
+                && screenshotEditorSource.contains("return (nil, 0)"),
                "the editor publishes the merged words and runs, and marks a band recognition failed on")
         suite.expect(screenshotEditorSource.contains("annotations[index].blurStyle = blurStyle")
                 && screenshotEditorSource.contains("annotations[index].blurTextOnly = blurTextOnly")

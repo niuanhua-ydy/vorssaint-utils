@@ -70,25 +70,33 @@ enum NotchQQLyricsTests {
         }
         let service = Context.LookupService()
         service.setCompactVisible(true, playback: playback)
+        let plainRecord: [String: Any] = ["trackName": track.title, "artistName": track.artist,
+                                          "albumName": track.album, "duration": track.duration,
+                                          "plainLyrics": "Plain fallback"]
         suite.expect(Context.NotchLyricsDownload.requests.count == 1
-                     && Context.NotchLyricsDownload.requests.first?.url == search,
-                     "a visible compact QQ strip starts the source-specific lookup without opening the reader")
-        Context.NotchLyricsDownload.requests[0].completion(.payload(catalog([record])))
+                     && Context.NotchLyricsDownload.requests.first?.url == NotchLyricsSupport.lookupURL(for: track),
+                     "even a QQ song starts with LRCLIB rather than the player-specific provider")
+        Context.NotchLyricsDownload.requests[0].completion(.payload(encode(plainRecord)))
         Context.DispatchQueue.main.drain()
         suite.expect(Context.NotchLyricsDownload.requests.count == 2
+                     && Context.NotchLyricsDownload.requests.last?.url == search,
+                     "a plain-only LRCLIB match tries QQ for timed lyrics")
+        Context.NotchLyricsDownload.requests[1].completion(.payload(catalog([record])))
+        Context.DispatchQueue.main.drain()
+        suite.expect(Context.NotchLyricsDownload.requests.count == 3
                      && Context.NotchLyricsDownload.requests.last?.url == NotchLyricsSupport.qqLyricsURL(songMID: mid),
                      "the real service fetches lyrics only after matching a MID")
-        let request = Context.NotchLyricsDownload.requests[1]
+        let request = Context.NotchLyricsDownload.requests[2]
         service.update(playback: playback, visible: true)
         service.hide()
         suite.expect(!request.session.cancelled && service.visible && !service.pageVisible,
                      "closing the reader does not cancel a lookup needed by the compact strip")
         request.completion(.payload(payload)); Context.DispatchQueue.main.drain()
         suite.expect(service.state == .ready && service.syncedLyrics(for: playback) == decoded
-                     && Context.NotchLyricsDownload.requests.count == 2,
-                     "the production QQ pipeline provides synchronized lyrics in exactly two requests")
+                     && Context.NotchLyricsDownload.requests.count == 3,
+                     "QQ supplies synchronized lyrics only after the primary provider has no timed match")
         service.setCompactVisible(true, playback: playback)
-        suite.expect(Context.NotchLyricsDownload.requests.count == 2, "repeated presentation refreshes never refetch the song")
+        suite.expect(Context.NotchLyricsDownload.requests.count == 3, "repeated presentation refreshes never refetch the song")
         var sought = playback; sought = NotchPlayback(track: sought.track, isPlaying: false, elapsed: 7, duration: 180,
                                                       rate: 0, sampledAt: .now, canSeek: false, itemIdentifier: sought.itemIdentifier)
         suite.expect(service.syncedLyrics(for: sought)?.activeIndex(at: sought.position(at: .now)) == 1,
@@ -105,13 +113,81 @@ enum NotchQQLyricsTests {
         let nextRequest = Context.NotchLyricsDownload.requests.last!
         nextRequest.completion(.payload(catalog([]))); Context.DispatchQueue.main.drain()
         suite.expect(Context.NotchLyricsDownload.requests.last?.url.host == "lrclib.net",
-                     "an unmatched QQ recording falls back to the existing catalog")
+                     "a new recording still starts with LRCLIB and searches there before considering QQ")
         let fallback = Context.NotchLyricsDownload.requests.last!
         service.setCompactVisible(false, playback: next)
         suite.expect(fallback.session.cancelled && !service.visible,
                      "hiding both lyric surfaces cancels every provider's pending work")
         fallback.completion(.payload(payload)); Context.DispatchQueue.main.drain()
         suite.expect(service.lyrics == nil, "a callback after hiding cannot restore obsolete lyrics")
+
+        func primary(_ fields: [String: Any]) -> Context.LookupService {
+            Context.NotchLyricsDownload.requests = []
+            let fresh = Context.LookupService()
+            fresh.setCompactVisible(true, playback: playback)
+            Context.NotchLyricsDownload.requests[0].completion(.payload(encode(fields)))
+            Context.DispatchQueue.main.drain()
+            return fresh
+        }
+        var syncedRecord = plainRecord
+        syncedRecord["syncedLyrics"] = "[00:01]Primary timed verse"
+        let primaryHit = primary(syncedRecord)
+        suite.expect(primaryHit.state == .ready && primaryHit.lyrics?.lines.first?.text == "Primary timed verse"
+                     && Context.NotchLyricsDownload.requests.count == 1,
+                     "an LRCLIB timed match wins immediately without contacting QQ")
+        primaryHit.setCompactVisible(false, playback: playback)
+        var instrumentalRecord = plainRecord
+        instrumentalRecord["instrumental"] = true
+        let instrumental = primary(instrumentalRecord)
+        suite.expect(instrumental.lyrics?.instrumental == true && Context.NotchLyricsDownload.requests.count == 1,
+                     "an authoritative instrumental match does not query a second provider")
+        instrumental.setCompactVisible(false, playback: playback)
+        for result: NotchLyricsDownloadResult in [.missing, .failed, .payload(catalog([]))] {
+            let plain = primary(plainRecord)
+            Context.NotchLyricsDownload.requests.last!.completion(result)
+            Context.DispatchQueue.main.drain()
+            suite.expect(plain.state == .ready && plain.lyrics?.plain == "Plain fallback"
+                         && Context.NotchLyricsDownload.requests.count == 2,
+                         "a missing, failed or unmatched QQ fallback retains LRCLIB plain lyrics without looping")
+            plain.setCompactVisible(false, playback: playback)
+        }
+        let plain = primary(plainRecord)
+        Context.NotchLyricsDownload.requests.last!.completion(.payload(catalog([record])))
+        Context.DispatchQueue.main.drain()
+        Context.NotchLyricsDownload.requests.last!.completion(.missing)
+        Context.DispatchQueue.main.drain()
+        suite.expect(plain.lyrics?.plain == "Plain fallback" && Context.NotchLyricsDownload.requests.count == 3,
+                     "a QQ lyric download miss retains primary plain lyrics without restarting LRCLIB")
+        plain.setCompactVisible(false, playback: playback)
+
+        Context.NotchLyricsDownload.requests = []
+        let imported = Context.LookupService()
+        imported.memory.select(track)
+        _ = imported.memory.replace(decoded, for: track)
+        imported.setCompactVisible(true, playback: playback)
+        suite.expect(imported.lyrics == decoded && Context.NotchLyricsDownload.requests.isEmpty,
+                     "an imported current recording outranks every online provider")
+        imported.setCompactVisible(false, playback: playback)
+
+        Context.NotchLyricsDownload.requests = []
+        let missing = Context.LookupService()
+        missing.setCompactVisible(true, playback: playback)
+        var handled = 0
+        while handled < 30, handled < Context.NotchLyricsDownload.requests.count,
+              Context.NotchLyricsDownload.requests[handled].url.host != "c.y.qq.com" {
+            let pending = Context.NotchLyricsDownload.requests[handled]
+            handled += 1
+            pending.completion(.payload(encode(pending.url.host == "musicbrainz.org" ? ["artists": []] : [])))
+            Context.DispatchQueue.main.drain()
+        }
+        suite.expect(handled > 1 && handled < 30 && Context.NotchLyricsDownload.requests.last?.url == search,
+                     "a complete LRCLIB search miss reaches QQ only after the bounded primary lookup finishes")
+        let lateQQ = Context.NotchLyricsDownload.requests.last!
+        missing.setCompactVisible(false, playback: playback)
+        lateQQ.completion(.payload(catalog([record]))); Context.DispatchQueue.main.drain()
+        suite.expect(lateQQ.session.cancelled && Context.NotchLyricsDownload.requests.count == handled + 1,
+                     "hiding during QQ fallback cancels it and late callbacks cannot start a lyric download")
+
         Context.NotchLyricsDownload.requests = []
         Context.Preferences.online = false
         let offline = Context.LookupService()
@@ -126,7 +202,7 @@ enum NotchQQLyricsTests {
         onlineRequest.completion(.payload(catalog([record]))); Context.DispatchQueue.main.drain()
         suite.expect(onlineRequest.session.cancelled && offline.state == .consent
                      && Context.NotchLyricsDownload.requests.count == 1,
-                     "revoking online lookup cancels QQ requests and prevents follow-up lyric downloads")
+                     "revoking online lookup cancels the primary request and prevents all follow-up providers")
         Context.Preferences.enabled = false
         offline.setCompactVisible(true, playback: playback)
         suite.expect(!offline.compactVisible && offline.lyrics == nil && offline.track == nil,

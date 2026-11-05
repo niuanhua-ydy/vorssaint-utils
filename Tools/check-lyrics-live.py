@@ -6,7 +6,7 @@
 
 Sends selected fixture tracks' title, artist, album and duration to lrclib.net.
 Song titles, artist names and albums may also be checked with musicbrainz.org. Prints metadata/status only, never lyrics. Requires Swift on macOS.
-QQ Music tracks in --track-file query c.y.qq.com first. No accounts or cookies are used.
+QQ Music tracks in --track-file use c.y.qq.com only after an LRCLIB timed-lyrics miss. No accounts or cookies are used.
 """
 
 from pathlib import Path
@@ -99,6 +99,7 @@ def main():
         "    private func load(", "    private func loadQQ(", "    private func loadQQLyrics(",
         "    private func loadCatalog(", "    private func acceptsResult(",
         "    private func finish(", "    private func search(",
+        "    private func finishCatalog(",
         "    private func resolveArtist(", "    private func requestArtistMetadata(",
         "    private func cacheArtist(", "    private func searchArtist(",
     ])

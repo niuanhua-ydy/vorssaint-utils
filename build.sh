@@ -259,6 +259,7 @@ if (( TEST )); then
     TEST_OBJECT_DIR="build/objects/tests"
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
+        Sources/Vorssaint/Services/MemoryResourceSupport.swift
         Sources/Vorssaint/Services/Media/MediaSupport.swift
         Sources/Vorssaint/Core/QuitProtectionSupport.swift
         Sources/Vorssaint/Core/QuitProtectionStrings.swift
@@ -509,6 +510,8 @@ if (( TEST )); then
         Sources/Vorssaint/Core/SwitcherAppRulesStrings.swift
         Sources/Vorssaint/Services/QuickTools/QuickToolsSupport.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarDeveloperTools.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarSystemSupport.swift
+        Sources/Vorssaint/Services/CommandBar/CommandBarInstantAnswers.swift
         Sources/Vorssaint/Services/Translator/Translator.swift
         Sources/Vorssaint/Core/TranslatorStrings.swift
         Sources/Vorssaint/Services/CommandBar/CommandBarSupport.swift

@@ -36,7 +36,7 @@ API Key 按应用 bundle ID 隔离保存在 Keychain，更新失败保留原有�
 - `CommandBarCatalog.swift`、`CommandBarService.swift`、`CommandBarView.swift`：入口、模式切换、键盘与关闭行为。
 - `Defaults.swift`、`CommandBarSettings.swift`、`CommandBarStrings.swift`、`README.md`、`PRIVACY.md`：配置和说明。
 - `Tests/CommandBarTranslationTests.swift`：请求隔离、取消、流式完成、失败、截断、备份与本地化测试。
-- `Tests/MetricsTests.swift`、`Tests/CommandBarCleanFlowTests.swift`、`Tests/UninstallerFlowTests.swift`、`build.sh`：测试注册与共享模式夹具。
+- `Tests/MetricsTests.swift`、`Tests/UninstallerFlowTests.swift`、`build.sh`：测试注册与共享模式夹具。
 
 ## 本次验证
 

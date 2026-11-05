@@ -102,13 +102,24 @@ enum ClipNoteFormatters {
 @MainActor
 enum ClipNoteAppIcons {
     private static var cache: [String: NSImage] = [:]
+    private static let pressure = MemoryPressureObservation {
+        MainActor.assumeIsolated { removeAll() }
+    }
+
+    static func removeAll() {
+        cache = [:]
+        menuCache = [:]
+    }
     private static var menuCache: [String: NSImage] = [:]
 
     static func icon(for bundleID: String?) -> NSImage? {
+        _ = pressure
         guard let bundleID else { return nil }
         if let cached = cache[bundleID] { return cached }
         guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) else { return nil }
-        let icon = NSWorkspace.shared.icon(forFile: url.path)
+        let original = NSWorkspace.shared.icon(forFile: url.path)
+        let icon = ImageThumbnailer.thumbnail(for: original, pointSize: 64) ?? original
+        if cache.count >= 128 { removeAll() }
         cache[bundleID] = icon
         return icon
     }
@@ -202,11 +213,20 @@ enum ClipNoteAppColors {
 @MainActor
 enum ClipNoteFileIcons {
     private static var cache: [String: NSImage] = [:]
+    private static let pressure = MemoryPressureObservation {
+        MainActor.assumeIsolated { removeAll() }
+    }
+
+    static func removeAll() {
+        cache = [:]
+    }
 
     static func icon(for path: String) -> NSImage {
+        _ = pressure
         if let cached = cache[path] { return cached }
-        let icon = NSWorkspace.shared.icon(forFile: path)
-        if cache.count > 500 { cache.removeAll() }
+        let original = NSWorkspace.shared.icon(forFile: path)
+        let icon = ImageThumbnailer.thumbnail(for: original, pointSize: 64) ?? original
+        if cache.count >= 128 { cache.removeAll() }
         cache[path] = icon
         return icon
     }
@@ -215,57 +235,77 @@ enum ClipNoteFileIcons {
 /// Image thumbnails, decoded at the size shown and cached, never the full image.
 final class ClipNoteThumbnails: @unchecked Sendable {
     static let shared = ClipNoteThumbnails()
-    private let cache = NSCache<NSString, NSImage>()
+    private let cache = CostBoundedCache<String, NSImage>(byteLimit: 32 * 1024 * 1024, countLimit: 300)
+    private var pressure: MemoryPressureObservation?
 
     init() {
-        cache.countLimit = 300
+        pressure = MemoryPressureObservation { [weak self] in self?.removeAll() }
+    }
+
+    func removeAll() { cache.removeAll() }
+
+    private static func cost(of image: NSImage) -> Int {
+        var cost = 0
+        for rep in image.representations {
+            let bytes = CostBoundedCache<String, NSImage>.bitmapCost(
+                width: rep.pixelsWide, height: rep.pixelsHigh,
+                bytesPerRow: (rep as? NSBitmapImageRep)?.bytesPerRow)
+            let sum = cost.addingReportingOverflow(bytes)
+            if sum.overflow { return Int.max }
+            cost = sum.partialValue
+        }
+        // Quick Look normally gives bitmap reps. A representation without
+        // pixel dimensions is displayed but not cached with a fictitious cost.
+        return cost > 0 ? cost : Int.max
     }
 
     func cached(for url: URL, maxPixel: Int) -> NSImage? {
-        cache.object(forKey: "\(url.path)#\(maxPixel)" as NSString)
+        cache.value(for: "\(url.path)#\(maxPixel)")
     }
 
-    /// A Quick Look thumbnail of any file (image, PDF, video, document); nil
-    /// when the file is gone or has none.
     func fileThumbnail(path: String, size: CGSize) async -> NSImage? {
         guard let key = Self.fileKey(path: path, size: size) else { return nil }
-        if let cached = cache.object(forKey: key) { return cached }
+        if let cached = cache.value(for: key) { return cached }
+        let generation = cache.generation
         let request = QLThumbnailGenerator.Request(fileAt: URL(fileURLWithPath: path), size: size,
                                                    scale: 2, representationTypes: .thumbnail)
-        guard let representation = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request) else {
-            return nil
-        }
+        guard let representation = try? await QLThumbnailGenerator.shared.generateBestRepresentation(for: request),
+              !Task.isCancelled else { return nil }
         let image = representation.nsImage
-        cache.setObject(image, forKey: key)
+        cache.insert(image, for: key, cost: Self.cost(of: image), generation: generation)
         return image
     }
 
     func cachedFileThumbnail(path: String, size: CGSize) -> NSImage? {
-        Self.fileKey(path: path, size: size).flatMap { cache.object(forKey: $0) }
+        Self.fileKey(path: path, size: size).flatMap { cache.value(for: $0) }
     }
 
-    /// The modification time is part of the key, so an edited file gets a new thumbnail.
-    private static func fileKey(path: String, size: CGSize) -> NSString? {
+    private static func fileKey(path: String, size: CGSize) -> String? {
         guard let modified = (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date else {
             return nil
         }
-        return "ql:\(path)#\(Int(size.width))x\(Int(size.height))#\(modified.timeIntervalSince1970)" as NSString
+        return "ql:\(path)#\(Int(size.width))x\(Int(size.height))#\(modified.timeIntervalSince1970)"
     }
 
     func thumbnail(for url: URL, maxPixel: Int) async -> NSImage? {
-        let key = "\(url.path)#\(maxPixel)" as NSString
-        if let cached = cache.object(forKey: key) { return cached }
+        let key = "\(url.path)#\(maxPixel)"
+        if let cached = cache.value(for: key) { return cached }
+        let generation = cache.generation
         let image = await Task.detached(priority: .userInitiated) { () -> NSImage? in
-            guard let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
-            let options: [CFString: Any] = [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: maxPixel,
-            ]
-            guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
-            return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            autoreleasepool {
+                guard let source = CGImageSourceCreateWithURL(
+                    url as CFURL, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil }
+                let options: [CFString: Any] = [
+                    kCGImageSourceCreateThumbnailFromImageAlways: true,
+                    kCGImageSourceCreateThumbnailWithTransform: true,
+                    kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                ]
+                guard let cg = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else { return nil }
+                return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            }
         }.value
-        if let image { cache.setObject(image, forKey: key) }
+        guard !Task.isCancelled else { return nil }
+        if let image { cache.insert(image, for: key, cost: Self.cost(of: image), generation: generation) }
         return image
     }
 }
