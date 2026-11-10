@@ -56,6 +56,13 @@ def main():
                     .replace("private func", "func", 1)
                     for prefix in ["    func releaseIdleResources()", "    private func storeDidChange()"])
           + "}\n}\n")
+    write("ClipNotePanelSearch.swift", "import AppKit\nimport SwiftUI\n"
+          + declaration("Sources/Vorssaint/UI/ClipNote/ClipNoteCardView.swift", "struct ClipNoteSearchField:")
+          + "extension ClipNotePanelSearchTests {\nfinal class Controller: Fixture {\n"
+          + "".join(declaration("Sources/Vorssaint/Services/ClipNote/ClipNotePanelController.swift", prefix)
+                    .replace("private func", "func", 1)
+                    for prefix in ["    func focusSearch()", "    private func prepareSearchForTyping("])
+          + "}\n}\n")
     write("SettingsCommandDispatch.swift", "import Foundation\n"
           + "extension SettingsFeatureTests.CommandDispatchHost {\nstatic func run() {\n"
           # Both app entry points are named main.swift. Keep diagnostics in

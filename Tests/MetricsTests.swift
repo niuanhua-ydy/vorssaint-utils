@@ -34,6 +34,7 @@ struct MetricsTests {
                 ClipNoteBackupTests.run(suite)
                 ClipNoteNetworkTests.run(suite)
                 ClipNoteAppTests.run(suite)
+                ClipNotePanelSearchTests.run(suite)
                 ClipNoteStorageTests.run(suite)
             }),
             ("pointer-input", {

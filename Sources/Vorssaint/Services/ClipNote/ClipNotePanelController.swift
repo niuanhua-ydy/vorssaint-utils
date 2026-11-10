@@ -520,10 +520,28 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
     }
 
     func focusSearch() {
-        if let field = model.searchField {
+        // SwiftUI creates and attaches the native field during layout. In
+        // particular, an idle-released panel has no registered field yet.
+        panel.contentView?.layoutSubtreeIfNeeded()
+        if let field = model.searchField, field.window === panel {
             panel.makeFirstResponder(field)
             field.currentEditor()?.selectedRange = NSRange(location: field.stringValue.utf16.count, length: 0)
         }
+    }
+
+    /// Route typing back to search even after a click moved focus elsewhere.
+    /// Leave the original event to AppKit, including dead keys and input methods.
+    private func prepareSearchForTyping(_ event: NSEvent) {
+        guard event.modifierFlags.intersection([.command, .control]).isEmpty,
+              let characters = event.charactersIgnoringModifiers,
+              characters.unicodeScalars.contains(where: {
+                  !CharacterSet.controlCharacters.contains($0) && $0.properties.generalCategory != .privateUse
+              }) else { return }
+        model.isSearchExpanded = true
+        panel.contentView?.layoutSubtreeIfNeeded()
+        // Do not reset a caret or selection already in the search editor.
+        if let field = model.searchField, let editor = field.currentEditor(), panel.firstResponder === editor { return }
+        focusSearch()
     }
 
     // MARK: - Pasting
@@ -837,7 +855,10 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             break
         }
 
-        guard flags.contains(.command) else { return false }
+        guard flags.contains(.command) else {
+            prepareSearchForTyping(event)
+            return false
+        }
 
         // ⌘1…⌘9 paste that card (with ⇧, as plain text).
         let digitKeys = [kVK_ANSI_1, kVK_ANSI_2, kVK_ANSI_3, kVK_ANSI_4, kVK_ANSI_5,
@@ -852,6 +873,7 @@ final class ClipNotePanelController: NSObject, NSWindowDelegate {
             model.copy()
             return true
         case kVK_ANSI_F:
+            model.isSearchExpanded = true
             focusSearch()
             return true
         case kVK_ANSI_R where flags.contains(.shift):

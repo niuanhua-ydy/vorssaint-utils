@@ -95,8 +95,8 @@ private struct ClipNoteTopBar: View {
     }
 
     /// Just the magnifier and the filter button until a click, typing or a
-    /// filter opens the field (which is always first responder, zero wide
-    /// while closed). Active filters sit in it as tokens, like Paste's.
+    /// filter opens the field (zero wide while closed; typing restores its
+    /// focus if needed). Active filters sit in it as tokens, like Paste's.
     private var searchControl: some View {
         HStack(spacing: 6) {
             Button {
